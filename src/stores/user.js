@@ -51,7 +51,7 @@ export const useUserStore = defineStore("user",{
         this.user = auth.currentUser;
         if (this.user && this.user.emailVerified) {
             // El usuario ha verificado su correo electrónico
-            this.$router.push("/dashboard")
+            this.$router.push("/config")
           } else {
             // El usuario no ha verificado su correo electrónico
             alert('El usuario no ha verificado su correo electrónico');

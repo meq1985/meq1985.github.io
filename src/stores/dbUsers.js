@@ -32,8 +32,7 @@ export const PostStore = defineStore({
             this.telefono1 = datos.telefono;
             this.direccion1 = datos.direccion;
             if (docSnap.exists()) {
-                console.log("Document data:", docSnap.data());
-                console.log(id);
+                
             } else {
                  // doc.data() will be undefined in this case
                  console.log("No such document!");
@@ -60,7 +59,7 @@ export const PostStore = defineStore({
             const user = auth.currentUser;
             if (user !== null) {
                 const id = user.email;
-                console.log(id);
+                
                 const Ref = doc(db, "usuarios", id);
                 await updateDoc(Ref, {
                 nombre: nombre,

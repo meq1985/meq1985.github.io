@@ -13,6 +13,8 @@
     "@fortawesome/free-solid-svg-icons": "^6.4.0",
     "@fortawesome/vue-fontawesome": "^3.0.3",
     "firebase": "^9.17.1",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.5.28",
     "pinia": "^2.0.13",
     "vue": "^3.2.33",
     "vue-router": "^4.0.14"

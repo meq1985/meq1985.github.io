@@ -8,10 +8,8 @@ import { costoStore } from "../stores/dbCostos";
 const store = PostStore();
 const costosStore = costoStore();
 
-onMounted(() => {
-  store.obtenerDato();
-  costosStore.obtenerCostos(); 
-})
+store.obtenerDato();
+costosStore.obtenerCostos(); 
 
 const nombre = ref(store.nombre1);
 const apellido = ref(store.apellido1);

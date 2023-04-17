@@ -21,6 +21,7 @@ const register = () => {
 
 const login = () => {
   userStore.login(email.value, password.value);
+  
 };
 
 const auth = getAuth();
@@ -77,7 +78,9 @@ function toggleClose() {
       contact.style.transform = isActiveW.value = 'scale(0)';
       conectar.style.transform = isActiveW.value = 'scale(0)';
       about.style.transform = isActiveW.value = 'scale(0)';
-    }  
+    }
+
+
 
 </script>
 

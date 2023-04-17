@@ -76,7 +76,7 @@ export const costoStore = defineStore({
             const user = auth.currentUser;
             if (user !== null) {
             const id = user.email;
-            console.log(id);
+            
             const Ref = doc(db, "costos", id);
             await updateDoc(Ref, {
                 "canalizacion.canalizacionLosa": canalizacionLosa,
@@ -134,8 +134,7 @@ export const costoStore = defineStore({
                 this.documentacionLista = datos.documentacion.documentacionLista;
                 
                 if (docSnap.exists()) {
-                    console.log("Document data:", docSnap.data());
-                    console.log(id);
+                    
                 } else {
                      // doc.data() will be undefined in this case
                      console.log("No such document!");
