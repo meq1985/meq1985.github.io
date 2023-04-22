@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { auth } from "../firebase";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, getAuth, sendEmailVerification} from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, getAuth, sendEmailVerification, sendPasswordResetEmail} from "firebase/auth";
 
 export const useUserStore = defineStore("user",{
     state: () => {
@@ -32,6 +32,20 @@ export const useUserStore = defineStore("user",{
         alert("Se envio un mail de verificacion a su correo.")
         await signOut(auth);
         this.user = null;
+        },
+
+        async resetPassword(email) {
+            try {
+              await sendPasswordResetEmail(auth, email);
+              alert("Correo electrónico enviado para restablecer la contraseña");
+            } catch (error) {
+                switch(error.code){
+                    case "auth/invalid-email":
+                        alert("Email invalido");
+                        break;
+                }
+                return;
+            }
         },
 
         async login(email, password){

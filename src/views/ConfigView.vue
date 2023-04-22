@@ -1,56 +1,114 @@
-<script setup>
+<script>
 import { useUserStore } from '../stores/user';
 import { onMounted } from 'vue';
 import { ref } from "vue";
 import { PostStore } from '../stores/dbUsers';
 import { costoStore } from "../stores/dbCostos";
 
-const store = PostStore();
-const costosStore = costoStore();
+export default {
+  setup() {
+    const userStore = useUserStore();
+    const costosStore = costoStore();
+    const store = PostStore()
+    const nombre = ref('')
+    const apellido = ref('')
+    const cuit = ref('')
+    const empresa = ref('')
+    const telefono = ref('')
+    const direccion = ref('')
+    const canalizacionLosa = ref('');
+    const canalizacionMamposteria = ref('');
+    const canalizacionConstruccionSeca = ref('');
+    const cableadoObraNueva = ref('');
+    const cableadoRecableado = ref('');
+    const conexionSimple = ref('');
+    const conexionDoble = ref('');
+    const conexionCombinacion = ref('');
+    const tableroPrincipal = ref('');
+    const tableroSeccional8 = ref('');
+    const tableroSeccional36 = ref('');
+    const tableroSeccional54 = ref('');
+    const acometidaGabinete = ref('');
+    const acometidaPat = ref('');
+    const acometidaPilar = ref('');
+    const documentacionProyecto = ref('');
+    const documentacionPlano = ref('');
+    const documentacionLista = ref(''); 
 
-store.obtenerDato();
-costosStore.obtenerCostos(); 
+    const update = () => {
+      store.updateItem(nombre.value, apellido.value, cuit.value, empresa.value, telefono.value, direccion.value);
+    }
 
-const nombre = ref(store.nombre1);
-const apellido = ref(store.apellido1);
-const cuit = ref(store.cuit1);
-const empresa = ref(store.empresa1);
-const telefono = ref(store.telefono1);
-const direccion = ref(store.direccion1);
+    const updateC = () => {
+      costosStore.updateCostos(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value, cableadoObraNueva.value, cableadoRecableado.value, 
+              conexionSimple.value, conexionDoble.value, conexionCombinacion.value,tableroPrincipal.value,tableroSeccional8.value,tableroSeccional36.value,tableroSeccional54.value,
+              acometidaGabinete.value, acometidaPat.value, acometidaPilar.value, documentacionProyecto.value, documentacionPlano.value, documentacionLista.value);
+    };
 
-const canalizacionLosa = ref(costosStore.canalizacionLosa);
-const canalizacionMamposteria = ref(costosStore.canalizacionMamposteria);
-const canalizacionConstruccionSeca = ref(costosStore.canalizacionConstruccionSeca);
-const cableadoObraNueva = ref(costosStore.cableadoObraNueva);
-const cableadoRecableado = ref(costosStore.cableadoRecableado);
-const conexionSimple = ref(costosStore.conexionSimple);
-const conexionDoble = ref(costosStore.conexionDoble);
-const conexionCombinacion = ref(costosStore.conexionCombinacion);
-const tableroPrincipal = ref(costosStore.tableroPrincipal);
-const tableroSeccional8 = ref(costosStore.tableroSeccional8);
-const tableroSeccional36 = ref(costosStore.tableroSeccional36);
-const tableroSeccional54 = ref(costosStore.tableroSeccional54);
-const acometidaGabinete = ref(costosStore.acometidaGabinete);
-const acometidaPat = ref(costosStore.acometidaPat);
-const acometidaPilar = ref(costosStore.acometidaPilar);
-const documentacionProyecto = ref(costosStore.documentacionProyecto);
-const documentacionPlano = ref(costosStore.documentacionPlano);
-const documentacionLista = ref(costosStore.documentacionLista); 
+    const logout = () => {
+      userStore.logout();
+    };
 
-const userStore = useUserStore();
-const update = () => {
-  store.updateItem(nombre.value, apellido.value, cuit.value, empresa.value, telefono.value, direccion.value);
-};
+    onMounted(async () => {
+      await store.obtenerDato()
+      await costosStore.obtenerCostos(); 
+      nombre.value = store.nombre1
+      apellido.value = store.apellido1
+      cuit.value = store.cuit1
+      empresa.value = store.empresa1
+      telefono.value = store.telefono1
+      direccion.value = store.direccion1
+      canalizacionLosa.value = costosStore.canalizacionLosa
+      canalizacionMamposteria.value = costosStore.canalizacionMamposteria
+      canalizacionConstruccionSeca.value = costosStore.canalizacionConstruccionSeca
+      cableadoObraNueva.value = costosStore.cableadoObraNueva
+      cableadoRecableado.value = costosStore.cableadoRecableado
+      conexionSimple.value = costosStore.conexionSimple
+      conexionDoble.value = costosStore.conexionDoble
+      conexionCombinacion.value = costosStore.conexionCombinacion
+      tableroPrincipal.value = costosStore.tableroPrincipal
+      tableroSeccional8.value = costosStore.tableroSeccional8
+      tableroSeccional36.value = costosStore.tableroSeccional36
+      tableroSeccional54.value = costosStore.tableroSeccional54
+      acometidaGabinete.value = costosStore.acometidaGabinete
+      acometidaPat.value = costosStore.acometidaPat
+      acometidaPilar.value = costosStore.acometidaPilar
+      documentacionProyecto.value = costosStore.documentacionProyecto
+      documentacionPlano.value = costosStore.documentacionPlano
+      documentacionLista.value = costosStore.documentacionLista
+    })
 
-const updateC = () => {
-  costosStore.updateCostos(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value, cableadoObraNueva.value, cableadoRecableado.value, 
-            conexionSimple.value, conexionDoble.value, conexionCombinacion.value,tableroPrincipal.value,tableroSeccional8.value,tableroSeccional36.value,tableroSeccional54.value,
-            acometidaGabinete.value, acometidaPat.value, acometidaPilar.value, documentacionProyecto.value, documentacionPlano.value, documentacionLista.value);
-};
-
-const logout = () => {
-  userStore.logout();
-};
+    return {
+      nombre,
+      apellido,
+      cuit,
+      empresa,
+      telefono,
+      direccion,
+      canalizacionLosa,
+      canalizacionMamposteria,
+      canalizacionConstruccionSeca,
+      cableadoObraNueva,
+      cableadoRecableado,
+      conexionSimple,
+      conexionDoble,
+      conexionCombinacion,
+      tableroPrincipal,
+      tableroSeccional8,
+      tableroSeccional36,
+      tableroSeccional54,
+      acometidaGabinete,
+      acometidaPat,
+      acometidaPilar,
+      documentacionProyecto,
+      documentacionPlano,
+      documentacionLista,
+      update,
+      updateC,
+      logout
+    }
+  }
+}
 </script>
 
 <template>
@@ -220,7 +278,6 @@ const logout = () => {
     </form>
   </div>
   </div>
-
 </template>
 
 <style scoped>

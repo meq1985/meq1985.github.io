@@ -1,4 +1,4 @@
-<script setup>
+<script>
 import { RouterLink } from "vue-router";
 import { ref } from "vue";
 import { useUserStore } from "../stores/user";
@@ -6,81 +6,130 @@ import { getAuth } from "firebase/auth";
 import { PostStore } from '../stores/dbUsers';
 import { costoStore } from "../stores/dbCostos";
 
-const store = PostStore();
-const costosStore = costoStore();
-const email = ref("");
-const password = ref("");
-const userStore = useUserStore();
+export default {
+  setup() {
+    const store = PostStore();
+    const costosStore = costoStore();
+    const email = ref("");
+    const password = ref("");
+    const userStore = useUserStore();
 
-const register = () => {
-  userStore.register(email.value, password.value);
-  store.addItem(email.value);
-  costosStore.addCostos(email.value);
-  
-};
+    const register = () => {
+      userStore.register(email.value, password.value);
+      store.addItem(email.value);
+      costosStore.addCostos(email.value);
+    };
 
-const login = () => {
-  userStore.login(email.value, password.value);
-  
-};
+    const login = () => {
+      userStore.login(email.value, password.value);
+    };
 
-const auth = getAuth();
-const user = auth.currentUser;
+    const recoveryPassword = () => {
+      userStore.resetPassword(email.value); 
+    };
 
-const isActive = ref(false);
-function toggleLogin() {
-      isActive.value = !isActive.value;
-      const conectar = document.querySelector('.conectar');
-      
-      conectar.style.transform = isActive.value ? 'translateX(0)' : 'translateX(400)';
-      
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    const isActive = ref(false);
+    function toggleLogin() {
+          isActive.value = !isActive.value;
+          const conectar = document.querySelector('.form-box login');
+          const login = document.querySelector('.form-box register');
+          /*conectar.style.transform = isActive.value ? 'translateX(0)' : 'translateX(-400)';
+          login.style.transform = isActive.value ? 'translateX(400)' : 'translateX(0)';*/
+        }
+
+    const isActiveR = ref(false);
+    function toggleRecovery() {
+          isActiveR.value = !isActiveR.value;
+          const conectar = document.querySelector('.form-box login');
+          const recovery = document.querySelector('.form-box recovery');
+          /*conectar.style.transform = isActiveR.value ? 'translateX(0)' : 'translateX(-400)';
+          recovery.style.transform = isActiveR.value ? 'translateX(400)' : 'translateX(0)';*/
+        }
+
+    const isActiveC = ref(false);
+    function toggleContact() {
+          isActiveC.value = !isActiveC.value;
+          const contact = document.querySelector('.contact');
+          const conectar = document.querySelector('.conectar');
+          const about = document.querySelector('.about');
+          contact.style.transform = isActiveC.value ? 'scale(0)' : 'scale(1)';
+          conectar.style.transform = isActiveC.value = 'scale(0)';
+          about.style.transform = isActiveW.value = 'scale(0)';
+        }
+
+    const isActiveW = ref(false);
+    function toggleWrapper() {
+          isActiveW.value = !isActiveW.value;
+          const contact = document.querySelector('.contact');
+          const conectar = document.querySelector('.conectar');
+          const about = document.querySelector('.about');
+          contact.style.transform = isActiveW.value = 'scale(0)';
+          about.style.transform = isActiveW.value = 'scale(0)';
+          conectar.style.transform = isActiveW.value ? 'scale(1)' : 'scale(0)';
+        } 
+
+    const isActiveA = ref(false);
+    function toggleAbout() {
+          isActiveA.value = !isActiveA.value;
+          const contact = document.querySelector('.contact');
+          const conectar = document.querySelector('.conectar');
+          const about = document.querySelector('.about');
+          contact.style.transform = isActiveA.value = 'scale(0)';
+          conectar.style.transform = isActiveA.value = 'scale(0)';
+          about.style.transform = isActiveA.value ? 'scale(1)' : 'scale(0)';
+        }  
+
+    const isClosed = ref(false);
+    function toggleClose() {
+          isClosed.value = !isClosed.value;
+          const contact = document.querySelector('.contact');
+          const conectar = document.querySelector('.conectar');
+          const about = document.querySelector('.about');
+          contact.style.transform = isActiveW.value = 'scale(0)';
+          conectar.style.transform = isActiveW.value = 'scale(0)';
+          about.style.transform = isActiveW.value = 'scale(0)';
+        }
+
+    function toggleWhatsapp(){
+        window.location.href = 'https://wa.me/+542964606826';  
+    }
+    function toggleFacebook(){
+        window.location.href = 'https://www.facebook.com/emanuel.quiroga.714';  
+    }
+    function toggleEmail(){
+        window.location.href = 'mailto:emanuelquiroga.bgh@gmail.com';  
+    }
+    function toggleInstagram(){
+        window.location.href = 'https://www.instagram.com/emanuel.quiroga.714';  
     }
 
-const isActiveC = ref(false);
-function toggleContact() {
-      isActiveC.value = !isActiveC.value;
-      const contact = document.querySelector('.contact');
-      const conectar = document.querySelector('.conectar');
-      const about = document.querySelector('.about');
-      contact.style.transform = isActiveC.value ? 'scale(0)' : 'scale(1)';
-      conectar.style.transform = isActiveC.value = 'scale(0)';
-      about.style.transform = isActiveW.value = 'scale(0)';
+    return {
+      email,
+      password,
+      isActive,
+      isActiveR,
+      isActiveC,
+      isActiveW,
+      isActiveA,
+      register,
+      login,
+      recoveryPassword,
+      toggleLogin,
+      toggleRecovery,
+      toggleContact,
+      toggleWrapper,
+      toggleAbout,
+      toggleClose,
+      toggleWhatsapp,
+      toggleFacebook,
+      toggleEmail,
+      toggleInstagram
     }
-
-const isActiveW = ref(false);
-function toggleWrapper() {
-      isActiveW.value = !isActiveW.value;
-      const contact = document.querySelector('.contact');
-      const conectar = document.querySelector('.conectar');
-      const about = document.querySelector('.about');
-      contact.style.transform = isActiveW.value = 'scale(0)';
-      about.style.transform = isActiveW.value = 'scale(0)';
-      conectar.style.transform = isActiveW.value ? 'scale(1)' : 'scale(0)';
-    } 
-
-const isActiveA = ref(false);
-function toggleAbout() {
-      isActiveA.value = !isActiveA.value;
-      const contact = document.querySelector('.contact');
-      const conectar = document.querySelector('.conectar');
-      const about = document.querySelector('.about');
-      contact.style.transform = isActiveA.value = 'scale(0)';
-      conectar.style.transform = isActiveA.value = 'scale(0)';
-      about.style.transform = isActiveA.value ? 'scale(1)' : 'scale(0)';
-    }  
-
-const isClosed = ref(false);
-function toggleClose() {
-      isClosed.value = !isClosed.value;
-      const contact = document.querySelector('.contact');
-      const conectar = document.querySelector('.conectar');
-      const about = document.querySelector('.about');
-      contact.style.transform = isActiveW.value = 'scale(0)';
-      conectar.style.transform = isActiveW.value = 'scale(0)';
-      about.style.transform = isActiveW.value = 'scale(0)';
-    }
-
-
+      }
+}
 
 </script>
 
@@ -110,27 +159,25 @@ function toggleClose() {
     <span class="icon-close" @click="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
     <div class="contact-box">
       <h1>Contacto</h1>
-      <div class="input-box">
+      <div class="input-box" >
         <span class="icon"><font-awesome-icon icon="fa-solid fa-comments" /></span>
-        <label>Whatsapp</label>
+        <a href="#" class="register-link" @click="toggleWhatsapp">Whatsapp</a>
       </div>
       <div class="input-box">
         <span class="icon"><font-awesome-icon icon="fa-solid fa-envelope" /></span>
-        <label>Email</label>
+        <a href="#" class="register-link" @click="toggleEmail">Email</a>
       </div>
       <div class="input-box">
         <span class="icon"><font-awesome-icon icon="fa-solid fa-thumbs-up" /></span>
-        
-        
-        <label>Facebook</label>
+        <a href="#" class="register-link" @click="toggleFacebook">Facebook</a>
       </div>
       <div class="input-box">
         <span class="icon"><font-awesome-icon icon="fa-solid fa-camera-retro" /></span>
-        <label>Instagram</label>
+        <a href="#" class="register-link" @click="toggleInstagram">Instagram</a>
       </div>  
     </div>
   </div>
-  <div class="conectar" :class="{ active: isActiveW, active: isActive }" >
+  <div class="conectar" :class="{ active: isActiveW, active: isActive, activeR:isActiveR }" >
     <span class="icon-close" @click="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
     <div class="form-box login">
       <h2>Conectarse</h2>
@@ -146,6 +193,9 @@ function toggleClose() {
           <label>Password</label>
         </div>
         <button type="submit" class="btn">Login</button>
+        <div class="login-register">
+          <p>Olvidaste tu contraseña? <a href="#" class="register-link" @click="toggleRecovery">Recuperar</a></p>
+        </div>
         <div class="login-register">
           <p>No tienes cuenta? <a href="#" class="register-link" @click="toggleLogin">Registrarse</a></p>
         </div>
@@ -167,6 +217,20 @@ function toggleClose() {
         <button type="submit" class="btn">Register</button>
         <div class="login-register">
           <p>Ya tienes cuenta? <a href="#" class="login-link" @click="toggleLogin">Conectarse</a></p>
+        </div>
+      </form>
+    </div>
+    <div class="form-box recovery">
+      <h2>Recuperar contraseña</h2>
+      <form action="#" @submit.prevent="recoveryPassword">
+        <div class="input-box">
+          <span class="icon"><font-awesome-icon icon="fa-solid fa-user" /></span>
+          <input type="email" required v-model="email">
+          <label>Email</label>
+        </div>
+        <button type="submit" class="btn">Enviar</button>
+        <div class="login-register">
+          <p>Ya tienes cuenta? <a href="#" class="login-link" @click="toggleRecovery">Conectarse</a></p>
         </div>
       </form>
     </div>
@@ -280,6 +344,10 @@ header {
   transition: none;
   transform: translateX(-400px);
 }
+.conectar.activeR .form-box.login {
+  transition: none;
+  transform: translateX(-400px);
+}
 .conectar .form-box.register {
   position: absolute;
   transition: none;
@@ -289,6 +357,16 @@ header {
   transition: transform .18s ease;
   transform: translateX(0);
 }
+.conectar .form-box.recovery {
+  position: absolute;
+  transition: none;
+  transform: translateX(400px);
+}
+.conectar.activeR .form-box.recovery {
+  transition: transform .18s ease;
+  transform: translateX(0);
+}
+
 .form-box h2 {
   font-size: 2em;
   color: white;
@@ -406,6 +484,33 @@ header {
   
 }
 
+.contact-box a {
+  position: relative;
+  font-size: 1.1em;
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+  margin-left: 10px;
+}
+
+.contact-box a::after{
+  content:"";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 3px;
+  background: white;
+  border-radius: 5px;
+  transform-origin: right;
+  transform: scaleX(0);
+  transition: transform .5s;
+}
+.contact-box a:hover::after{
+  transform-origin: left;
+  transform: scaleX(1);
+}
+
 .contact.active-contactup{
   transform: scale(1);
 }
@@ -414,7 +519,7 @@ header {
   right: 8px;
   font-size: 1.2em;
   color: white;
-  line-height: 57px;
+  line-height: 0px;
 }
 
 .about {
