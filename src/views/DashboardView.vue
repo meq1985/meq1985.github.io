@@ -184,7 +184,7 @@ export default {
   </header>
   <body>
   <div class="configuracion">
-    <h2>Dash</h2>
+    <h2>Presupuesto</h2>
     <table class="table">
       <thead class="tableHead">
         <tr>
@@ -197,21 +197,20 @@ export default {
       
         <tbody class="tableBody">
         <tr v-for="(fila, index) in filas">
-          <td class="descripcion"><input v-model="fila.descripcion" /></td>
-          <td class="cantidad"><input v-model="fila.cantidad" /></td>
-          <td class="precio"><input v-model="fila.precioUnitario" /></td>
+          <td class="descripcion"><input class="descripcion_input" v-model="fila.descripcion" /></td>
+          <td class="cantidad"><input class="cantidad_input" v-model="fila.cantidad" /></td>
+          <td class="precio"><input class="precio_input" v-model="fila.precioUnitario" /></td>
           <td class="total">{{calcularTotalPorFila()[index]}}</td>
-          
         </tr>
       </tbody>
       <tfoot class="tableFoot">
         <tr>
           <td colspan="3">Total:</td>
           <td>{{ calcularTotal() }}</td>
-          <td>
-            <button @click="agregarFila()">Agregar fila</button>
-            <button @click="exportarPDF()">Exportar a PDF</button>
-          </td>
+        </tr>
+        <tr class="row_btn">
+            <button class="btn" @click="agregarFila()">Agregar fila</button>
+            <button class="btn" @click="exportarPDF()">Exportar a PDF</button>
         </tr>
       </tfoot>
     </table>
@@ -239,27 +238,57 @@ export default {
   text-align: center;
   table-layout: fixed;
   border-collapse: collapse;
-  display: grid;
-  
+  margin: 0px auto 0px auto;
+  width: 100%;
 }
 .table .tableBody{
-  display: grid;
-  
+  width: 100%;
 }
 .table .tableHead th{
   padding: 15px 20px;
   font-weight: 700;
   text-transform: uppercase;
 }
+.table .tableFoot {
+  font-weight: 700;
+  text-transform: uppercase;
+  
+}
+.table .tableFoot td{
+  padding: 20px 10px;
+  font-size: 18px;
+}
+.table .tableFoot .row_btn {
+  width: 1000px;
+  padding: 20px 10px;
+  display: flex;
+  justify-content:end;
+}
 .table .tableBody td {
   padding: 10px 20px;
-  
-  
+  width: 100%;
 }
 .descripcion {
   width: 300px;
 }
-
+.descripcion_input{
+  width: 300px;
+  height: 30px;
+  font-size: 14px;
+}
+.cantidad_input{
+  width: 200px;
+  height: 30px;
+  font-size: 14px;
+}
+.precio_input{
+  width: 200px;
+  height: 30px;
+  font-size: 14px;
+}
+.total{
+  font-size: 18px;
+}
 .configuracion h2 {
   margin-bottom: 30px;
   color: #fff;
@@ -281,5 +310,25 @@ export default {
   cursor: pointer;
   margin-right: 10px;
   margin-top: 10px;
+}
+
+.btn {
+  width: 200px;
+  height: 50px;
+  background: transparent;
+  border: 2px solid white;
+  outline: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.1em;
+  color: white;
+  font-weight: 500;
+  margin-left: 10px;
+  transition: .5s;
+  
+}
+.btn:hover{
+  background: white;
+  color:black;
 }
 </style>
