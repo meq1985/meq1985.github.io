@@ -408,7 +408,6 @@ export default {
   font-size: 18px;
 }
 .config__costos__ input {
-  
   width: 100%;
   padding: 20px 0;
   color: #fff;
@@ -417,7 +416,6 @@ export default {
   border-bottom: 1px solid #fff;
   outline: none;
   background: transparent;
-  
 }
 .config__costos__ label {
   position: absolute;
@@ -433,7 +431,6 @@ export default {
   top: -20px;
   left: 0;
   color: #9df0ff;
-  
 }
 
 
