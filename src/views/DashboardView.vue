@@ -159,7 +159,6 @@ export default {
       documentacionProyecto,
       documentacionPlano,
       documentacionLista,
-      
       filas,
       calcularTotal,
       calcularTotalPorFila,
@@ -172,7 +171,6 @@ export default {
 }
 </script>
 
-
 <template>
   <header class="head">
     <img class="img" src="../assets/logoelec.jpg">
@@ -183,46 +181,43 @@ export default {
     </nav>
   </header>
   <body>
-  <div class="configuracion">
-    <h2>Presupuesto</h2>
-    <table class="table">
-      <thead class="tableHead">
-        <tr>
-          <th class="descripcion">Descripcion</th>
-          <th class="cantidad">Cantidad</th>
-          <th class="precio">Precio unitario</th>
-          <th class="total">Precio total</th>
-        </tr>
-      </thead>
-      
-        <tbody class="tableBody">
-        <tr v-for="(fila, index) in filas">
-          <td class="descripcion"><input class="descripcion_input" v-model="fila.descripcion" /></td>
-          <td class="cantidad"><input class="cantidad_input" v-model="fila.cantidad" /></td>
-          <td class="precio"><input class="precio_input" v-model="fila.precioUnitario" /></td>
-          <td class="total">{{calcularTotalPorFila()[index]}}</td>
-        </tr>
-      </tbody>
-      <tfoot class="tableFoot">
-        <tr>
-          <td colspan="3">Total:</td>
-          <td>{{ calcularTotal() }}</td>
-        </tr>
-        <tr class="row_btn">
-            <button class="btn" @click="agregarFila()">Agregar fila</button>
-            <button class="btn" @click="exportarPDF()">Exportar a PDF</button>
-        </tr>
-      </tfoot>
-    </table>
-    
-  </div>
+    <div class="configuracion">
+      <h2>Presupuesto</h2>
+      <table class="table">
+        <thead class="tableHead">
+          <tr>
+            <th class="descripcion">Descripcion</th>
+            <th class="cantidad">Cantidad</th>
+            <th class="precio">Precio unitario</th>
+            <th class="total">Precio total</th>
+          </tr>
+        </thead>
+          <tbody class="tableBody">
+          <tr v-for="(fila, index) in filas">
+            <td class="descripcion"><input class="descripcion_input" v-model="fila.descripcion" /></td>
+            <td class="cantidad"><input class="cantidad_input" v-model="fila.cantidad" /></td>
+            <td class="precio"><input class="precio_input" v-model="fila.precioUnitario" /></td>
+            <td class="total">{{calcularTotalPorFila()[index]}}</td>
+          </tr>
+        </tbody>
+        <tfoot class="tableFoot">
+          <tr>
+            <td class="tdTotal" colspan="3">Total:</td>
+            <td>{{ calcularTotal() }}</td>
+          </tr>
+          <tr class="row_btn">
+              <button class="btn" @click="agregarFila()">Agregar fila</button>
+              <button class="btn" @click="exportarPDF()">Exportar a PDF</button>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   </body>
   
 </template>
 
 <style scoped>
 @import "../styles/navbar.css";
-
 .configuracion {
   margin: 100px auto;
   width: 1400px;
@@ -280,14 +275,19 @@ export default {
   width: 200px;
   height: 30px;
   font-size: 14px;
+  text-align: center;
 }
 .precio_input{
   width: 200px;
   height: 30px;
   font-size: 14px;
+  text-align: center;
 }
 .total{
   font-size: 18px;
+}
+.tdTotal{
+  text-align: end;
 }
 .configuracion h2 {
   margin-bottom: 30px;

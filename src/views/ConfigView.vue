@@ -152,8 +152,7 @@ export default {
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
       </div>                        
-    </form>
-                  
+    </form>              
   </div>
   <div class="configuracion__costos">
     <h2>Costos</h2>
@@ -281,7 +280,6 @@ export default {
   </div>
     </div>
   </body>
-  
 </template>
 
 <style scoped>

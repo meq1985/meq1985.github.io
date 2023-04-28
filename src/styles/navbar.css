@@ -4,6 +4,15 @@
     box-sizing:border-box;
     font-family:sans-serif;
   }
+  body{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #e8e8e8;
+    background-size: cover;
+    background-position: center;
+  }
   .head {
     position: fixed;
     top: 0;
