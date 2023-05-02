@@ -1,12 +1,13 @@
 <script>
+import { useUserStore } from '../stores/user';
 import { onMounted } from 'vue';
 import { ref } from "vue";
-import { ref as firebaseRef, getStorage, list} from "firebase/storage";
+import { ref as firebaseRef, getStorage, list, deleteObject, getDownloadURL} from "firebase/storage";
 import { getAuth } from "firebase/auth";
 
 export default {
   setup() {
-    
+    const userStore = useUserStore();
     const pdfList = ref([]);
     async function pageTokenExample(){
       
@@ -28,7 +29,38 @@ export default {
         
       }
     }
-   
+
+    const deletePdf = async (pdf) => {
+      const storage = getStorage();
+      const auth = getAuth();
+      const user = auth.currentUser;
+      const id = user.email;
+      const pdfRef = firebaseRef(storage, `pdfs/${id}/${pdf.name}`);
+      await deleteObject(pdfRef);
+      pdfList.value = pdfList.value.filter(item => item !== pdf);
+    }
+    
+    const descargarPdf = async (pdf) => {
+      const storage = getStorage();
+      const auth = getAuth();
+      const user = auth.currentUser;
+      const id = user.email;
+      const pdfRef = firebaseRef(storage, `pdfs/${id}/${pdf.name}`);
+      const downloadUrl = await getDownloadURL(pdfRef);
+      window.open(downloadUrl, '_blank'); // abrir la URL en una nueva pestaña
+    }
+  
+    /*const imprimirPdf = async (pdf) => {
+      const storage = getStorage();
+      const auth = getAuth();
+      const user = auth.currentUser;
+      const id = user.email;
+      const pdfRef = firebaseRef(storage, `pdfs/${id}/${pdf.name}`);
+      const url = await getDownloadURL(pdfRef);
+      window.print(url, '_blank');
+      
+    }*/
+  
     const logout = () => {
       userStore.logout();
     };
@@ -39,6 +71,8 @@ export default {
       pageTokenExample,
       logout,
       pdfList,
+      deletePdf,
+      descargarPdf,
     }
   }
 }
@@ -60,15 +94,14 @@ export default {
     
     <div class="pdfList" v-for="pdf in pdfList" :key="pdf.name">
       <div>
-        <span class="icon"><font-awesome-icon icon="fa-regular fa-file-pdf" /></span>
-        <p>{{ pdf?.name }}</p>
+        <span class="iconPdf"><font-awesome-icon icon="fa-regular fa-file-pdf" /></span>
+        <p>{{ pdf.name }}</p>
       </div>
-      <div>
+      <div class="iconos">
         <span class="icon"><font-awesome-icon icon="fa-solid fa-envelope" /></span>
-        <span class="icon"><font-awesome-icon icon="fa-solid fa-download" /></span>
-        <span class="icon"><font-awesome-icon icon="fa-solid fa-share" /></span>
-        <span class="icon"><font-awesome-icon icon="fa-solid fa-trash-can" /></span>
-        
+        <span class="icon" @click.prevent="() => descargarPdf(pdf)"><font-awesome-icon icon="fa-solid fa-download" /></span>
+        <span class="icon" ><font-awesome-icon icon="fa-solid fa-share" /></span>
+        <span class="icon" @click.prevent="() => deletePdf(pdf)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></span>
       </div>
     </div>
   </div>
@@ -95,14 +128,35 @@ export default {
   height: 200px;
   border: 2px solid rgb(212, 212, 212);
   border-radius: 6px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+
+}
+.pdfList p{
+  color:white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.iconPdf{
+  padding: 20px;
+  font-size: 3em;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.iconos{
+  padding: 20px;
+  font-size: 1.2em;
   display: flex;
   justify-content: space-between;
+  gap: 20px;
+  cursor: pointer;
 }
-.pdfImg{
-  max-width: 120px;
-  background: transparent;
+.icon{
+  color: white;
 }
-
 
 
 

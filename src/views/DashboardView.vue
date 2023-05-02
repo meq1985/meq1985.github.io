@@ -59,6 +59,7 @@ export default {
     const codigoPlano = ref('');
     const codigoLista = ref('');
     const cliente = ref('');
+    costosStore.obtenerCodigos();
   
     const createFila = (propCodigo, propName, descripcion) => {
       const refProp = ref(costosStore[propName]);
@@ -206,6 +207,7 @@ export default {
     onMounted(async () => {
       await store.obtenerDato()
       await costosStore.obtenerCostos(); 
+      await costosStore.obtenerCodigos();
     })
     return {
       nombre,
