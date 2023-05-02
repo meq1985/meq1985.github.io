@@ -17,7 +17,6 @@ library.add(faUserSecret,faUser,faEnvelope,faThumbsUp,faUnlockKeyhole,faComments
 import App from './App.vue'
 import router from './router'
 
-
 const app = createApp(App)
 
 const pinia = createPinia();

@@ -245,7 +245,6 @@ body {
   background-size: cover;
   background-position: center;
 }
-
 .conectar {
   position: absolute;
   top: 200px;
@@ -264,7 +263,6 @@ body {
   transform: scale(0);
   transition: transform .5s ease;
 }
-
 .conectar .form-box {
   width: 100%;
   padding: 40px;
@@ -299,7 +297,6 @@ body {
   transition: transform .18s ease;
   transform: translateX(0);
 }
-
 .form-box h2 {
   font-size: 2em;
   color: white;
@@ -323,7 +320,6 @@ body {
   pointer-events: none;
   transition: .5s;
 }
-
 .input-box input:focus~label,
 .input-box input:valid~label {
   top: -5px;
@@ -408,15 +404,12 @@ body {
   transform: scale(0);
   transition: transform .5s ease;
 }
-
 .contact-box h1 {
   color: white;
   text-decoration: none;
   font-weight: 900;
   display: flex;
-  
 }
-
 .contact-box a {
   position: relative;
   font-size: 1.1em;
@@ -425,7 +418,6 @@ body {
   font-weight: 500;
   margin-left: 10px;
 }
-
 .contact-box a::after{
   content:"";
   position: absolute;
@@ -443,7 +435,6 @@ body {
   transform-origin: left;
   transform: scaleX(1);
 }
-
 .contact.active-contactup{
   transform: scale(1);
 }
@@ -454,7 +445,6 @@ body {
   color: white;
   line-height: 0px;
 }
-
 .about {
   position: absolute;
   top: 200px;
@@ -481,11 +471,8 @@ body {
   color: white;
   margin: 30px 0;
   display: grid;
-  
   row-gap: 50px;
-
 }
-
 .about .about-box h1{
   display: flex;
   justify-content: center;

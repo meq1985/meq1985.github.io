@@ -78,7 +78,6 @@ export default {
 }
 </script>
 
-
 <template>
   <header class="head">
     <img class="img" src="../assets/logoelec.jpg">
@@ -91,7 +90,6 @@ export default {
   </header>
   <body>
   <div class="configuracion">
-    
     <div class="pdfList" v-for="pdf in pdfList" :key="pdf.name">
       <div>
         <span class="iconPdf"><font-awesome-icon icon="fa-regular fa-file-pdf" /></span>
@@ -106,7 +104,6 @@ export default {
     </div>
   </div>
   </body>
-  
 </template>
 
 <style scoped>
@@ -157,15 +154,11 @@ export default {
 .icon{
   color: white;
 }
-
-
-
 .configuracion h2 {
   margin-bottom: 30px;
   color: rgb(212, 212, 212);
   text-align: center;
 }
-
 .btn {
   width: 200px;
   height: 50px;
@@ -178,8 +171,7 @@ export default {
   color: rgb(212, 212, 212);
   font-weight: 500;
   margin-left: 10px;
-  transition: .5s;
-  
+  transition: .5s; 
 }
 .btn:hover{
   background: rgb(212, 212, 212);

@@ -10,7 +10,6 @@ import { ref as firebaseRef, getStorage, uploadBytes} from "firebase/storage";
 import { imageBase64 } from '../assets/image';
 import { getAuth } from "firebase/auth";
 
-
 export default {
   setup() {
     const userStore = useUserStore();
@@ -266,7 +265,6 @@ export default {
 }
 </script>
 
-
 <template>
   <header class="head">
     <img class="img" src="../assets/logoelec.jpg">
@@ -284,10 +282,8 @@ export default {
       <h3>Cliente:</h3>
       <input class="cliente_input" v-model="cliente" />
     </div>
-    
     <table class="table">
       <thead class="tableHead">
-        
         <tr>
           <th class="descripcion">Codigo</th>
           <th class="descripcion">Descripcion</th>
@@ -296,7 +292,6 @@ export default {
           <th class="total">Precio total</th>
         </tr>
       </thead>
-      
         <tbody class="tableBody">
         <tr v-for="(fila, index) in filas">
           <td class="codigo"><input class="codigo_input" v-model="fila.codigo" /></td>
@@ -321,10 +316,8 @@ export default {
         </tr>
       </tfoot>
     </table>
-    
   </div>
   </body>
-  
 </template>
 
 <style scoped>
@@ -365,14 +358,12 @@ export default {
 }
 .table .tableBody{
   width: 100%;
-  
 }
 tbody tr:nth-child(odd) {
   background-color: #4a4a4b;
 }
 tbody tr:nth-child(even) {
   background-color: #282828;
-  
 }
 .table .tableHead th{
   padding: 15px 20px;
@@ -382,7 +373,6 @@ tbody tr:nth-child(even) {
 .table .tableFoot {
   font-weight: 700;
   text-transform: uppercase;
-  
 }
 .table .tableFoot td{
   padding: 20px 10px;
@@ -397,7 +387,6 @@ tbody tr:nth-child(even) {
 .table .tableBody td {
   padding: 10px 20px;
   width: 100%;
-  
 }
 .codigo_input{
   width: 200px;
@@ -471,7 +460,6 @@ tbody tr:nth-child(even) {
   font-weight: 500;
   margin-left: 10px;
   transition: .5s;
-  
 }
 .btn:hover{
   background: rgb(212, 212, 212);

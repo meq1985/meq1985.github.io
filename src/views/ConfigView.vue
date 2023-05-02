@@ -93,7 +93,6 @@ export default {
       documentacionProyecto.value = costosStore.documentacionProyecto
       documentacionPlano.value = costosStore.documentacionPlano
       documentacionLista.value = costosStore.documentacionLista
-      
       codigoLosa.value = costosStore.codigoLosa
       codigoMamposteria.value = costosStore.codigoMamposteria
       codigoConstruccionSeca.value = costosStore.codigoConstruccionSeca
@@ -340,7 +339,6 @@ export default {
   </div>
     </div>
   </body>
-  
 </template>
 
 <style scoped>
@@ -418,7 +416,6 @@ export default {
   font-weight: 500;
   margin-left: 44%;
   transition: .5s;
-  
 }
 .config__submit:hover{
   background: rgb(212, 212, 212);
@@ -432,7 +429,6 @@ export default {
   box-sizing: border-box;
   box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
   border-radius: 10px;
- 
 }
 .config__costos {
   position: relative;
