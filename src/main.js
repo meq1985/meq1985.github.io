@@ -8,10 +8,11 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 /* import specific icons */
-import { faUserSecret,faUser,faEnvelope,faThumbsUp,faUnlockKeyhole,faComments,faCameraRetro,faXmark } from '@fortawesome/free-solid-svg-icons'
-
+import { faUserSecret,faUser,faEnvelope,faThumbsUp,faUnlockKeyhole,faComments,faCameraRetro,faXmark,faDownload,faShare,faTrashCan } from '@fortawesome/free-solid-svg-icons'
+import { faWhatsapp } from '@fortawesome/free-brands-svg-icons'
+import { faFilePdf } from '@fortawesome/free-regular-svg-icons'
 /* add icons to the library */
-library.add(faUserSecret,faUser,faEnvelope,faThumbsUp,faUnlockKeyhole,faComments,faCameraRetro,faXmark)
+library.add(faUserSecret,faUser,faEnvelope,faThumbsUp,faUnlockKeyhole,faComments,faCameraRetro,faXmark,faDownload,faShare,faWhatsapp,faFilePdf,faTrashCan)
 
 import App from './App.vue'
 import router from './router'

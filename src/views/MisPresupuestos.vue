@@ -60,8 +60,15 @@ export default {
     
     <div class="pdfList" v-for="pdf in pdfList" :key="pdf.name">
       <div>
-        <img class="pdfImg" src="../assets/pdf.png">
-       <p>{{ pdf?.name }}</p>
+        <span class="icon"><font-awesome-icon icon="fa-regular fa-file-pdf" /></span>
+        <p>{{ pdf?.name }}</p>
+      </div>
+      <div>
+        <span class="icon"><font-awesome-icon icon="fa-solid fa-envelope" /></span>
+        <span class="icon"><font-awesome-icon icon="fa-solid fa-download" /></span>
+        <span class="icon"><font-awesome-icon icon="fa-solid fa-share" /></span>
+        <span class="icon"><font-awesome-icon icon="fa-solid fa-trash-can" /></span>
+        
       </div>
     </div>
   </div>
@@ -79,14 +86,21 @@ export default {
   box-sizing: border-box;
   box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
   border-radius: 10px;
-  
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
 }
 .pdfList{
+  width: 200px;
+  height: 200px;
+  border: 2px solid rgb(212, 212, 212);
+  border-radius: 6px;
   display: flex;
-  margin-top: 20px;
+  justify-content: space-between;
 }
 .pdfImg{
-  max-width: 80px;
+  max-width: 120px;
+  background: transparent;
 }
 
 

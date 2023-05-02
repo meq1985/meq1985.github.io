@@ -278,7 +278,11 @@ export default {
   <body>
   <div class="configuracion">
     <h2>Presupuesto</h2>
-    <input class="cliente_input" v-model="cliente" />
+    <div class="cliente">
+      <h3>Cliente:</h3>
+      <input class="cliente_input" v-model="cliente" />
+    </div>
+    
     <table class="table">
       <thead class="tableHead">
         
@@ -331,6 +335,23 @@ export default {
   box-sizing: border-box;
   box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
   border-radius: 10px;
+}
+.cliente{
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+  font-size: 18px;
+  color: rgb(212, 212, 212);
+}
+.cliente .cliente_input{
+  width: 300px;
+  height: 30px;
+  margin-left: 40px;
+  font-size: 18px;
+  background: transparent;
+  border: none;
+  color: rgb(212, 212, 212);
+  text-align: center;
 }
 .table {
   color: rgb(212, 212, 212);

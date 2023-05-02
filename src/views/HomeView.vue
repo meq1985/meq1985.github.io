@@ -155,7 +155,7 @@ export default {
     <div class="contact-box">
       <h1>Contacto</h1>
       <div class="input-box" >
-        <span class="icon"><font-awesome-icon icon="fa-solid fa-comments" /></span>
+        <span class="icon"><font-awesome-icon icon="fa-brands fa-whatsapp" /></span>
         <a href="#" class="register-link" @click="toggleWhatsapp">Whatsapp</a>
       </div>
       <div class="input-box">
