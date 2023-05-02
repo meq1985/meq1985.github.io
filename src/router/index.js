@@ -25,6 +25,14 @@ const router = createRouter({
         auth: true,
       }
     },
+    {
+      path: "/mispresupuestos",
+      name: "mispresupuestos",
+      component: () => import("../views/MisPresupuestos.vue"),
+      meta: {
+        auth: true,
+      }
+    },
   ],
 });
 

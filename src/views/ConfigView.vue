@@ -4,7 +4,6 @@ import { onMounted } from 'vue';
 import { ref } from "vue";
 import { PostStore } from '../stores/dbUsers';
 import { costoStore } from "../stores/dbCostos";
-
 export default {
   setup() {
     const userStore = useUserStore();
@@ -14,6 +13,7 @@ export default {
     const apellido = ref('')
     const cuit = ref('')
     const empresa = ref('')
+    const matricula = ref('')
     const telefono = ref('')
     const direccion = ref('')
     const canalizacionLosa = ref('');
@@ -33,29 +33,46 @@ export default {
     const acometidaPilar = ref('');
     const documentacionProyecto = ref('');
     const documentacionPlano = ref('');
-    const documentacionLista = ref(''); 
-
+    const documentacionLista = ref('');
+    const codigoLosa = ref('');
+    const codigoMamposteria = ref('');
+    const codigoConstruccionSeca = ref('');
+    const codigoObraNueva = ref('');
+    const codigoRecableado = ref('');
+    const codigoSimple = ref('');
+    const codigoDoble = ref('');
+    const codigoCombinacion = ref('');
+    const codigoPrincipal = ref('');
+    const codigoSeccional8 = ref('');
+    const codigoSeccional36 = ref('');
+    const codigoSeccional54 = ref('');
+    const codigoGabinete = ref('');
+    const codigoPat = ref('');
+    const codigoPilar = ref('');
+    const codigoProyecto = ref('');
+    const codigoPlano = ref('');
+    const codigoLista = ref('');
     const update = () => {
-      store.updateItem(nombre.value, apellido.value, cuit.value, empresa.value, telefono.value, direccion.value);
+      store.updateItem(nombre.value, apellido.value, cuit.value, empresa.value, matricula.value, telefono.value, direccion.value);
     }
-
     const updateC = () => {
       costosStore.updateCostos(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value, cableadoObraNueva.value, cableadoRecableado.value, 
               conexionSimple.value, conexionDoble.value, conexionCombinacion.value,tableroPrincipal.value,tableroSeccional8.value,tableroSeccional36.value,tableroSeccional54.value,
               acometidaGabinete.value, acometidaPat.value, acometidaPilar.value, documentacionProyecto.value, documentacionPlano.value, documentacionLista.value);
+      /*costosStore.addCodigos();*/
     };
-
     const logout = () => {
       userStore.logout();
     };
-
     onMounted(async () => {
       await store.obtenerDato()
-      await costosStore.obtenerCostos(); 
+      await costosStore.obtenerCostos();
+      await costosStore.obtenerCodigos();
       nombre.value = store.nombre1
       apellido.value = store.apellido1
       cuit.value = store.cuit1
       empresa.value = store.empresa1
+      matricula.value = store.matricula1
       telefono.value = store.telefono1
       direccion.value = store.direccion1
       canalizacionLosa.value = costosStore.canalizacionLosa
@@ -76,13 +93,32 @@ export default {
       documentacionProyecto.value = costosStore.documentacionProyecto
       documentacionPlano.value = costosStore.documentacionPlano
       documentacionLista.value = costosStore.documentacionLista
+      
+      codigoLosa.value = costosStore.codigoLosa
+      codigoMamposteria.value = costosStore.codigoMamposteria
+      codigoConstruccionSeca.value = costosStore.codigoConstruccionSeca
+      codigoObraNueva.value = costosStore.codigoObraNueva
+      codigoRecableado.value = costosStore.codigoRecableado
+      codigoSimple.value = costosStore.codigoSimple
+      codigoDoble.value = costosStore.codigoDoble
+      codigoCombinacion.value = costosStore.codigoCombinacion
+      codigoPrincipal.value = costosStore.codigoPrincipal
+      codigoSeccional8.value = costosStore.codigoSeccional8
+      codigoSeccional36.value = costosStore.codigoSeccional36
+      codigoSeccional54.value = costosStore.codigoSeccional54
+      codigoGabinete.value = costosStore.codigoGabinete
+      codigoPat.value = costosStore.codigoPat
+      codigoPilar.value = costosStore.codigoPilar
+      codigoProyecto.value = costosStore.codigoProyecto
+      codigoPlano.value = costosStore.codigoPlano
+      codigoLista.value = costosStore.codigoLista
     })
-
     return {
       nombre,
       apellido,
       cuit,
       empresa,
+      matricula,
       telefono,
       direccion,
       canalizacionLosa,
@@ -103,6 +139,24 @@ export default {
       documentacionProyecto,
       documentacionPlano,
       documentacionLista,
+      codigoLosa,
+      codigoMamposteria,
+      codigoConstruccionSeca,
+      codigoObraNueva,
+      codigoRecableado,
+      codigoSimple,
+      codigoDoble,
+      codigoCombinacion,
+      codigoPrincipal,
+      codigoSeccional8,
+      codigoSeccional36,
+      codigoSeccional54,
+      codigoGabinete,
+      codigoPat,
+      codigoPilar,
+      codigoProyecto,
+      codigoPlano,
+      codigoLista,
       update,
       updateC,
       logout
@@ -116,6 +170,7 @@ export default {
     <img class="img" src="../assets/logoelec.jpg">
     <h2 class="logo">Configuracion</h2>
     <nav class="navigation">
+      <router-link class="config__config" to="/mispresupuestos">Mis presupuestos</router-link>
       <router-link class="config__config" to="/dashboard">Dashboard</router-link>
       <button class="btnLogin-popup" @click.prevent="logout">Logout</button>
     </nav>
@@ -142,6 +197,10 @@ export default {
         <label>Empresa</label>
       </div>
       <div class="config__input">
+        <input type="text" required v-model="matricula" />
+        <label>Matricula</label>
+      </div>
+      <div class="config__input">
         <input type="text" required v-model="telefono" />
         <label>Telefono</label>
       </div>
@@ -152,7 +211,8 @@ export default {
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
       </div>                        
-    </form>              
+    </form>
+                  
   </div>
   <div class="configuracion__costos">
     <h2>Costos</h2>
@@ -280,17 +340,17 @@ export default {
   </div>
     </div>
   </body>
+  
 </template>
 
 <style scoped>
 @import "../styles/navbar.css";
 .estructura{
-  margin-top: 10px;
+  margin-top: 50px;
   display: grid;
   grid-template-rows: 1fr 1fr;
-  gap: 20px;
+  gap: 0px;
 }
-
 .configuracion {
   margin:auto;
   width: 1400px;
@@ -305,28 +365,27 @@ export default {
 }
 .configuracion h2 {
   margin-bottom: 60px;
-  color: #fff;
+  color: rgb(212, 212, 212);
   text-align: center;
   font-size: 36px;
 }
 .configuracion__costos h2 {
   margin-bottom: 60px;
-  color: #fff;
+  color: rgb(212, 212, 212);
   text-align: center;
   font-size: 36px;
 }
 .config__input {
   position: relative;
 }
-
 .config__input input {
   font-size: 18px;
   width: 100%;
   padding: 10px 0;
-  color: #fff;
+  color: rgb(212, 212, 212);
   margin-bottom: 40px;
   border: none;
-  border-bottom: 1px solid #fff;
+  border-bottom: 1px solid rgb(212, 212, 212);
   outline: none;
   background: transparent;
 }
@@ -335,11 +394,10 @@ export default {
   top: 0;
   left: 0;
   padding: 10px 0;
-  color: #fff;
+  color: rgb(212, 212, 212);
   pointer-events: none;
   transition: 0.5s;
 }
-
 .config__input input:focus ~ label,
 .config__input input:valid ~ label {
   top: -30px;
@@ -347,28 +405,25 @@ export default {
   color: #9df0ff;
   font-size: 18px;
 }
-
 .config__submit {
   width: 130px;
   height: 50px;
   background: transparent;
-  border: 2px solid white;
+  border: 2px solid rgb(212, 212, 212);
   outline: none;
   border-radius: 6px;
   cursor: pointer;
   font-size: 1.1em;
-  color: white;
+  color: rgb(212, 212, 212);
   font-weight: 500;
   margin-left: 44%;
   transition: .5s;
   
 }
 .config__submit:hover{
-  background: white;
+  background: rgb(212, 212, 212);
   color:black;
 }
-
-
 .configuracion__costos {
   margin:auto;
   width: 1400px;
@@ -390,14 +445,13 @@ export default {
   font-size: 18px;
   width: 100%;
   padding: 10px 0;
-  color: #fff;
+  color: rgb(212, 212, 212);
   margin-bottom: 30px;
   border: none;
-  border-bottom: 1px solid #fff;
+  border-bottom: 1px solid rgb(212, 212, 212);
   outline: none;
   background: transparent;
 }
-
 .config__costos__ {
   position: relative;
   display:grid;
@@ -408,10 +462,10 @@ export default {
 .config__costos__ input {
   width: 100%;
   padding: 20px 0;
-  color: #fff;
+  color: rgb(212, 212, 212);
   margin-bottom: 30px;
   border: none;
-  border-bottom: 1px solid #fff;
+  border-bottom: 1px solid rgb(212, 212, 212);
   outline: none;
   background: transparent;
 }
@@ -420,7 +474,7 @@ export default {
   top: 0;
   left: 0;
   padding: 10px 0;
-  color: #fff;
+  color: rgb(212, 212, 212);
   pointer-events: none;
   transition: 0.5s;
 }
@@ -430,6 +484,4 @@ export default {
   left: 0;
   color: #9df0ff;
 }
-
-
 </style>

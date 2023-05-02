@@ -11,6 +11,7 @@ export const PostStore = defineStore({
             apellido1: "",
             cuit1: "",
             empresa1: "",
+            matricula1: "",
             telefono1: "",
             direccion1: "",
             datos: [],               
@@ -29,6 +30,7 @@ export const PostStore = defineStore({
             this.apellido1 = datos.apellido;
             this.cuit1 = datos.cuit;
             this.empresa1 = datos.empresa;
+            this.matricula1 = datos.matricula;
             this.telefono1 = datos.telefono;
             this.direccion1 = datos.direccion;
             if (docSnap.exists()) {
@@ -44,6 +46,7 @@ export const PostStore = defineStore({
                 apellido: "",
                 cuit: "",
                 empresa: "",
+                matricula:"",
                 telefono: "",
                 direccion: "",  
             }
@@ -53,7 +56,7 @@ export const PostStore = defineStore({
             const id = email;
             await setDoc(doc(db, "usuarios", id), docData);
         },
-        async updateItem(nombre,apellido,cuit,empresa,telefono,direccion){
+        async updateItem(nombre,apellido,cuit,empresa,matricula,telefono,direccion){
             const userStore = useUserStore();
             const auth = getAuth();
             const user = auth.currentUser;
@@ -66,6 +69,7 @@ export const PostStore = defineStore({
                 apellido: apellido,
                 cuit: cuit,
                 empresa: empresa,
+                matricula: matricula,
                 telefono: telefono,
                 direccion: direccion,
                 });

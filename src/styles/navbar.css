@@ -1,120 +1,112 @@
 *{
-    margin:0;
-    padding: 0;
-    box-sizing:border-box;
-    font-family:sans-serif;
-  }
-  body{
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    background: #e8e8e8;
-    background-size: cover;
-    background-position: center;
-  }
-  .head {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    padding: 5px 100px;
-    display: flex;
-    justify-content:space-between;
-    align-items: center;
-    z-index: 99;
-    background: rgb(0, 0, 0);
-    background-attachment: fixed;
-    background-size: cover;
-    background-position: center;
-  }
-  .head_home {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    padding: 20px 100px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    z-index: 99;
-  }
-  .img{
-    max-width: 5%;
-    max-height: 5%;
-    height: auto;
-    width: auto;
-  }
-  .logo{
-    font-size: 2em;
-    color: rgb(212, 212, 212);
-    user-select: none;
-  }
-  .navigation a{
-    position: relative;
-    font-size: 1.1em;
-    color: rgb(212, 212, 212);
-    text-decoration: none;
-    font-weight: 500;
-    margin-left: 40px;
-  }
-  .navigation a::after{
-    content:"";
-    position: absolute;
-    left: 0;
-    bottom: -6px;
-    width: 100%;
-    height: 3px;
-    background: rgb(212, 212, 212);
-    border-radius: 5px;
-    transform-origin: right;
-    transform: scaleX(0);
-    transition: transform .5s;
-  }
-  .navigation a:hover::after{
-    transform-origin: left;
-    transform: scaleX(1);
-  }
-  .navigation .config__config{
-    position: relative;
-    font-size: 1.1em;
-    color: rgb(212, 212, 212);
-    text-decoration: none;
-    font-weight: 500;
-    margin-left: 40px;
-  }
-  .navigation .config__config::after{
-    content:"";
-    position: absolute;
-    left: 0;
-    bottom: -6px;
-    width: 100%;
-    height: 3px;
-    background: rgb(212, 212, 212);
-    border-radius: 5px;
-    transform-origin: right;
-    transform: scaleX(0);
-    transition: transform .5s;
-  }
-  .navigation .config__config:hover::after{
-    transform-origin: left;
-    transform: scaleX(1);
-  }
-  .navigation .btnLogin-popup{
-    width: 130px;
-    height: 50px;
-    background: transparent;
-    border: 2px solid rgb(212, 212, 212);
-    outline: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 1.1em;
-    color: rgb(212, 212, 212);
-    font-weight: 500;
-    margin-left: 40px;
-    transition: .5s;
-  }
-  .navigation .btnLogin-popup:hover{
-    background: rgb(212, 212, 212);
-    color:black;
-  }
+  margin:0;
+  padding: 0;
+  box-sizing:border-box;
+  font-family:sans-serif;
+}
+.head {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 5px 100px;
+  display: flex;
+  justify-content:space-between;
+  align-items: center;
+  z-index: 99;
+  background: rgb(0, 0, 0);
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
+}
+.head_home {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 20px 100px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 99;
+}
+.img{
+  max-width: 5%;
+  max-height: 5%;
+  height: auto;
+  width: auto;
+}
+.logo{
+  font-size: 2em;
+  color: rgb(212, 212, 212);
+  user-select: none;
+  margin-left: 220px;
+}
+.navigation a{
+  position: relative;
+  font-size: 1.1em;
+  color: rgb(212, 212, 212);
+  text-decoration: none;
+  font-weight: 500;
+  margin-left: 40px;
+}
+.navigation a::after{
+  content:"";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 3px;
+  background: rgb(212, 212, 212);
+  border-radius: 5px;
+  transform-origin: right;
+  transform: scaleX(0);
+  transition: transform .5s;
+}
+.navigation a:hover::after{
+  transform-origin: left;
+  transform: scaleX(1);
+}
+.navigation .config__config{
+  position: relative;
+  font-size: 1.1em;
+  color: rgb(212, 212, 212);
+  text-decoration: none;
+  font-weight: 500;
+  margin-left: 40px;
+}
+.navigation .config__config::after{
+  content:"";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 3px;
+  background: rgb(212, 212, 212);
+  border-radius: 5px;
+  transform-origin: right;
+  transform: scaleX(0);
+  transition: transform .5s;
+}
+.navigation .config__config:hover::after{
+  transform-origin: left;
+  transform: scaleX(1);
+}
+.navigation .btnLogin-popup{
+  width: 130px;
+  height: 50px;
+  background: transparent;
+  border: 2px solid rgb(212, 212, 212);
+  outline: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.1em;
+  color: rgb(212, 212, 212);
+  font-weight: 500;
+  margin-left: 40px;
+  transition: .5s;
+}
+.navigation .btnLogin-popup:hover{
+  background: rgb(212, 212, 212);
+  color:black;
+}
