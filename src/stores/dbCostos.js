@@ -161,7 +161,90 @@ export const costoStore = defineStore({
                 "documentacion.documentacionLista": documentacionLista,
             });
             };
-            },
+        },
+        async updateCostosCanalizacion(canalizacionLosa,canalizacionMamposteria,canalizacionConstruccionSeca){
+                const userStore = useUserStore();
+                const auth = getAuth();
+                const user = auth.currentUser;
+                if (user !== null) {
+                const id = user.email;
+                
+                const Ref = doc(db, "costos", id);
+                await updateDoc(Ref, {
+                    "canalizacion.canalizacionLosa": canalizacionLosa,
+                    "canalizacion.canalizacionMamposteria": canalizacionMamposteria,
+                    "canalizacion.canalizacionConstruccionSeca": canalizacionConstruccionSeca,
+        
+                });
+                };
+        },
+        async updateCostosCableado(cableadoObraNueva,cableadoRecableado){
+                    const userStore = useUserStore();
+                    const auth = getAuth();
+                    const user = auth.currentUser;
+                    if (user !== null) {
+                    const id = user.email;
+                    
+                    const Ref = doc(db, "costos", id);
+                    await updateDoc(Ref, {
+                       
+                        "cableado.cableadoObraNueva": cableadoObraNueva,
+                        "cableado.cableadoRecableado": cableadoRecableado,
+                       
+                    });
+                    };
+        },
+        async updateCostosConexion(conexionSimple,conexionDoble){
+                        const userStore = useUserStore();
+                        const auth = getAuth();
+                        const user = auth.currentUser;
+                        if (user !== null) {
+                        const id = user.email;
+                        
+                        const Ref = doc(db, "costos", id);
+                        await updateDoc(Ref, {
+                            
+                            "conexion.conexionSimple": conexionSimple,
+                            "conexion.conexionDoble": conexionDoble,
+                            "conexion.conexionCombinacion": conexionCombinacion,
+                            
+                        });
+                        };
+        },
+        async updateCostosTablero(tableroPrincipal,tableroSeccional8,tableroSeccional36,tableroSeccional54){
+                            const userStore = useUserStore();
+                            const auth = getAuth();
+                            const user = auth.currentUser;
+                            if (user !== null) {
+                            const id = user.email;
+                            
+                            const Ref = doc(db, "costos", id);
+                            await updateDoc(Ref, {
+                                
+                                "tablero.tableroPrincipal": tableroPrincipal,
+                                "tablero.tableroSeccional8": tableroSeccional8,
+                                "tablero.tableroSeccional36": tableroSeccional36,
+                                "tablero.tableroSeccional54": tableroSeccional54,
+                               
+                            });
+                            };
+        },
+        async updateCostosDocumentacion(documentacionProyecto,documentacionPlano,documentacionLista){
+            const userStore = useUserStore();
+            const auth = getAuth();
+            const user = auth.currentUser;
+            if (user !== null) {
+            const id = user.email;
+            
+            const Ref = doc(db, "costos", id);
+            await updateDoc(Ref, {
+                
+                "documentacion.documentacionProyecto": documentacionProyecto,
+                "documentacion.documentacionPlano": documentacionPlano,
+                "documentacion.documentacionLista": documentacionLista,
+            });
+            };
+        },
         async obtenerCostos(){
                 const userStore = useUserStore();
                 const auth = getAuth();

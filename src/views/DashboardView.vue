@@ -268,7 +268,7 @@ export default {
 <template>
   <header class="head">
     <img class="img" src="../assets/logoelec.jpg">
-    <h2 class="logo">Dashboard</h2>
+    <h2 class="logo"></h2>
     <nav class="navigation">
       <router-link class="config__config" to="/mispresupuestos">Mis Presupuestos</router-link>
       <router-link class="config__config" to="/config">Configuracion</router-link>
@@ -278,9 +278,10 @@ export default {
   <body>
   <div class="configuracion">
     <h2>Presupuesto</h2>
-    <div class="cliente">
-      <h3>Cliente:</h3>
-      <input class="cliente_input" v-model="cliente" />
+    <div class="cliente_input">
+      
+      <input  v-model="cliente" />
+      <label>Cliente:</label>
     </div>
     <table class="table">
       <thead class="tableHead">
@@ -327,26 +328,45 @@ export default {
   width: 1400px;
   padding: 40px;
   background: #282828;
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
   box-sizing: border-box;
   box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
   border-radius: 10px;
 }
-.cliente{
-  display: flex;
-  justify-content: center;
-  padding: 40px;
-  font-size: 18px;
-  color: rgb(212, 212, 212);
+
+.cliente_input {
+  position: relative;
+  padding: 20px;
+  margin-left: 10px;
 }
-.cliente .cliente_input{
-  width: 300px;
-  height: 30px;
-  margin-left: 40px;
+.cliente_input input {
   font-size: 18px;
-  background: transparent;
-  border: none;
+  width: 40%;
+  padding: 10px 0;
   color: rgb(212, 212, 212);
-  text-align: center;
+  margin-bottom: 40px;
+  border: none;
+  border-bottom: 1px solid rgb(212, 212, 212);
+  outline: none;
+  background: transparent;
+}
+.cliente_input label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 20px 20px;
+  color: rgb(212, 212, 212);
+  pointer-events: none;
+  transition: 0.5s;
+}
+.cliente_input input:focus ~ label,
+.cliente_input input:valid ~ label {
+  top: -20px;
+  left: 0;
+  color: rgb(212, 212, 212);
+  font-size: 18px;
 }
 .table {
   color: rgb(212, 212, 212);

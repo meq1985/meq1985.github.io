@@ -81,9 +81,9 @@ export default {
 <template>
   <header class="head">
     <img class="img" src="../assets/logoelec.jpg">
-    <h2 class="logo">Mis Presupuestos</h2>
+    <h2 class="logo"></h2>
     <nav class="navigation">
-      <router-link class="config__config" to="/dashboard">Dashboard</router-link>
+      <router-link class="config__config" to="/dashboard">Presupuestar</router-link>
       <router-link class="config__config" to="/config">Configuracion</router-link>
       <button class="btnLogin-popup" @click.prevent="logout">Logout</button>
     </nav>
@@ -118,7 +118,7 @@ export default {
   border-radius: 10px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  gap: 40px;
 }
 .pdfList{
   width: 200px;

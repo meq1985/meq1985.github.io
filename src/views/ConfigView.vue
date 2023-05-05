@@ -4,8 +4,11 @@ import { onMounted } from 'vue';
 import { ref } from "vue";
 import { PostStore } from '../stores/dbUsers';
 import { costoStore } from "../stores/dbCostos";
+
 export default {
+
   setup() {
+    
     const userStore = useUserStore();
     const costosStore = costoStore();
     const store = PostStore()
@@ -59,11 +62,65 @@ export default {
       costosStore.updateCostos(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value, cableadoObraNueva.value, cableadoRecableado.value, 
               conexionSimple.value, conexionDoble.value, conexionCombinacion.value,tableroPrincipal.value,tableroSeccional8.value,tableroSeccional36.value,tableroSeccional54.value,
               acometidaGabinete.value, acometidaPat.value, acometidaPilar.value, documentacionProyecto.value, documentacionPlano.value, documentacionLista.value);
-      /*costosStore.addCodigos();*/
+    };
+    const updateCanalizacion = () => {
+      costosStore.updateCostosCanalizacion(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value);
+    };
+    const updateCableado = () => {
+      costosStore.updateCostosCableado(cableadoObraNueva.value, cableadoRecableado.value, );
+    };
+    const updateConexion = () => {
+      costosStore.updateCostosConexion(conexionSimple.value, conexionDoble.value, conexionCombinacion.value);
+    };
+    const updateTablero = () => {
+      costosStore.updateCostosTablero(tableroPrincipal.value,tableroSeccional8.value,tableroSeccional36.value,tableroSeccional54.value);
+    };
+    const updateAcometida = () => {
+      costosStore.updateCostosAcometida(acometidaGabinete.value, acometidaPat.value, acometidaPilar.value);
+    };
+    const updateDocumentacion = () => {
+      costosStore.updateCostosDocumentacion(documentacionProyecto.value, documentacionPlano.value, documentacionLista.value);
     };
     const logout = () => {
       userStore.logout();
     };
+
+    const sidebarItems = ref([
+      {
+        id: 'datos',
+        name: 'Mis datos',
+      },
+      {
+        id: 'canalizacion',
+        name: 'Canalizacion',
+      },
+      {
+        id: 'cableado',
+        name: 'Cableado',
+      },
+      {
+        id: 'conexion',
+        name: 'Conexion',
+      },
+      {
+        id: 'tablero',
+        name: 'Tablero',
+      },
+      {
+        id: 'acometida',
+        name: 'Acometida',
+      },
+      {
+        id: 'documentacion',
+        name: 'Documentacion',
+      },
+    ]);
+
+    const scrollToSection = (id) => {
+      const element = document.getElementById(id);
+      element.scrollIntoView({ behavior: 'smooth' });
+    };
+
     onMounted(async () => {
       await store.obtenerDato()
       await costosStore.obtenerCostos();
@@ -158,7 +215,15 @@ export default {
       codigoLista,
       update,
       updateC,
-      logout
+      logout,
+      sidebarItems,
+      scrollToSection,
+      updateCanalizacion,
+      updateCableado,
+      updateConexion,
+      updateTablero,
+      updateAcometida,
+      updateDocumentacion
     }
   }
 }
@@ -167,16 +232,30 @@ export default {
 <template>
   <header class="head">
     <img class="img" src="../assets/logoelec.jpg">
-    <h2 class="logo">Configuracion</h2>
+    <h2 class="logo"></h2>
     <nav class="navigation">
       <router-link class="config__config" to="/mispresupuestos">Mis presupuestos</router-link>
-      <router-link class="config__config" to="/dashboard">Dashboard</router-link>
+      <router-link class="config__config" to="/dashboard">Presupuestar</router-link>
       <button class="btnLogin-popup" @click.prevent="logout">Logout</button>
     </nav>
   </header>
   <body>
-    <div class="estructura">
-    <div class="configuracion">
+    <div class="wrapper">
+        <!--Top menu -->
+        <div class="sidebar">
+            <ul>
+            <li v-for="item in sidebarItems" :key="item.id">
+              <a :href="'#' + item.id" @click.prevent="scrollToSection(item.id)">
+                <span class="icon"><i :class="item.icon"></i></span>
+                <span class="item">{{ item.name }}</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+    </div>
+    <div class="content">
+  <div class="configuracion" id="datos">
     <h2>Mis datos</h2>
     <form @submit.prevent="update">
       <div class="config__input">
@@ -213,14 +292,12 @@ export default {
     </form>
                   
   </div>
-  <div class="configuracion__costos">
-    <h2>Costos</h2>
-    <form @submit.prevent="updateC">
+  <div class="configuracion" id="canalizacion">
+    <h2>Canalizacion</h2>
+    <form @submit.prevent="updateCanalizacion">
       <div class="config__costos">
         <div class="config__costos__">
-        <div>
-          <label>Canalizacion</label>
-        </div>
+
         <div>
           <div class="config__input">
             <input type="number" v-model="canalizacionLosa">
@@ -236,10 +313,24 @@ export default {
          </div>  
         </div>
       </div>
+      <div class="descripcion">
+        <p>Instalación de centro de iluminación y caño de bajada, pudiendo encontrarse dentro de esta especificación un aplique de iluminación en pared.</p>
+        <p>Canaleteado e instalación de hasta 5 m de cañería metálica de 3/4 pulgada, más una caja rectangular para interruptores o tomas.</p>
+        <p>Tamo de cañería adicional para la interconexión con las otras cajas de defecto, o derivación de la instalación. (Este tramo sumado al indicado en el ítem 2 no debe superar los 5 metros).</p>
+        <p>Empotrado de cajas y punteado de fijación de instalación con cemento u otro material.</p>
+      </div>
+      </div>
+
+      <div class="config__btn">
+        <button class="config__submit" type="submit">Guardar</button>
+      </div>   
+    </form>
+  </div>
+  <div class="configuracion" id="cableado">
+    <h2>Cableado</h2>
+    <form @submit.prevent="updateCableado">
+      <div class="config__costos">
       <div class="config__costos__">
-        <div>
-          <label>Cableado</label>
-        </div>
         <div>
           <div class="config__input">
             <input type="number" v-model="cableadoObraNueva">
@@ -251,52 +342,93 @@ export default {
          </div>
         </div>
       </div>
-      <div class="config__costos__">
-        <div>
-          <label>Conexion</label>
-        </div>
-        <div>
+      <div class="descripcion">
+        <p>-Cableado de hasta 5 m en cañería metálica o plástica ,embutida, en durlock, a la vista.</p>
+
+        <p>-Conexión de conductores a elementos terminales, entre, la caja de interruptores o tomas, al centro de iluminación, aplique en pared o tablero de comando.</p>
+
+        <p>-El conductor de instalación está previsto de, hasta 2,5 mm de sección.</p>
+
+        <p>-Conexión de hasta un interruptor de efecto, toma, o elemento electrónicos, tales como tomas USB, vareadores lumínicos, o cualquier otro de similares características.</p></div>
+      </div>
+      <div class="config__btn">
+        <button class="config__submit" type="submit">Guardar</button>
+      </div>   
+    </form>
+  </div>
+  <div class="configuracion" id="conexion">
+    <h2>Conexion</h2>
+    <form @submit.prevent="updateConexion">
+      <div class="config__costos">
+        <div class="config__costos__">
+          <div>
+            <div class="config__input">
+              <input type="number" v-model="conexionSimple">
+              <label>Punto,Toma Simple</label>
+            </div>
           <div class="config__input">
-            <input type="number" v-model="conexionSimple">
-            <label>Punto,Toma Simple</label>
+              <input type="number" v-model="conexionDoble">
+              <label>Toma Doble</label>
           </div>
-         <div class="config__input">
-            <input type="number" v-model="conexionDoble">
-            <label>Toma Doble</label>
-         </div>
-         <div class="config__input">
-          <input type="number" v-model="conexionCombinacion">
-          <label>Punto Combinacion</label>
-         </div>  
+          <div class="config__input">
+            <input type="number" v-model="conexionCombinacion">
+            <label>Punto Combinacion</label>
+          </div>  
+          </div>
+          <div class="descripcion">
+            <p>Armado de aplique.</p>
+            <p>Fijación de aplique a pared o caja.</p>
+            <p>Conexión de alimentación al punto habilitado más próximo.</p>
+          </div>
         </div>
       </div>
-      <div class="config__costos__">
-        <div>
-          <label>Tablero</label>
-        </div>
-        <div>
+      <div class="config__btn">
+        <button class="config__submit" type="submit">Guardar</button>
+      </div>   
+    </form>
+  </div>
+  <div class="configuracion" id="tablero">
+    <h2>Tablero</h2>
+    <form @submit.prevent="updateTablero">
+      <div class="config__costos">
+        <div class="config__costos__">
+
+          <div>
+            <div class="config__input">
+              <input type="number" v-model="tableroPrincipal">
+              <label>Principal</label>
+            </div>
           <div class="config__input">
-            <input type="number" v-model="tableroPrincipal">
-            <label>Principal</label>
+              <input type="number" v-model="tableroSeccional8">
+              <label>Seccional 8 polos</label>
           </div>
-         <div class="config__input">
-            <input type="number" v-model="tableroSeccional8">
-            <label>Seccional 8 polos</label>
-         </div>
-         <div class="config__input">
-          <input type="number" v-model="tableroSeccional36">
-          <label>Seccional 8/36 polos</label>
-         </div> 
-         <div class="config__input">
-          <input type="number" v-model="tableroSeccional54">
-          <label>Seccional +36 polos</label>
-         </div>  
+          <div class="config__input">
+            <input type="number" v-model="tableroSeccional36">
+            <label>Seccional 8/36 polos</label>
+          </div> 
+          <div class="config__input">
+            <input type="number" v-model="tableroSeccional54">
+            <label>Seccional +36 polos</label>
+          </div>  
+          </div>
+          <div class="descripcion">
+            <p>Conexión mecánica de cañerías de circuitos mediante conectores.</p>
+            <p>Fijacion o empotrado de gabinete.</p>
+            <p>Armado de tablero.</p>
+            <p>Conexión de protecciones a circuitos.</p>
+          </div>
         </div>
       </div>
+      <div class="config__btn">
+        <button class="config__submit" type="submit">Guardar</button>
+      </div>   
+    </form>
+  </div>
+  <div class="configuracion" id="acometida">
+    <h2>Acometida</h2>
+    <form @submit.prevent="updateAcometida">
+      <div class="config__costos">
       <div class="config__costos__">
-        <div>
-          <label>Acometida</label>
-        </div>
         <div>
           <div class="config__input">
             <input type="number" v-model="acometidaGabinete">
@@ -312,10 +444,24 @@ export default {
          </div>  
         </div>
       </div>
+      <div class="descripcion">
+        <p>Cantaleteado de pared y empotrado de caño de bajada de doble Aislación. </p>
+        <p>Amurado de gabinete de medición de energía.</p>
+        <p>Instalación y conexión de la jabalina para puesta a tierra de servicio al gabinete de medidor.</p>
+        <p>Amurado de gabinete de protecciones.</p>
+        <p>Cableado e instalación de protección termomagnética y diferencial.</p>
+      </div>
+      </div>
+      <div class="config__btn">
+        <button class="config__submit" type="submit">Guardar</button>
+      </div>   
+    </form>
+  </div>
+  <div class="configuracion" id="documentacion">
+    <h2>Documentacion</h2>
+    <form @submit.prevent="updateDocumentacion">
+      <div class="config__costos">
       <div class="config__costos__">
-        <div>
-          <label>Documentacion</label>
-        </div>
         <div>
           <div class="config__input">
             <input type="number" v-model="documentacionProyecto">
@@ -330,6 +476,12 @@ export default {
           <label>Lista de materiales</label>
          </div>  
         </div>
+        <div class="descripcion">
+        <p>Distribución de los circuitos, bocas, líneas seccionales, tableros , etc. </p>
+        <p>Plano de obra. Esquemas unifilares de tableros. Planillas de Carga.</p>
+        <p>Memoria Técnica.</p>
+        <p>Listado de materiales.</p>
+      </div>
       </div>
       </div>
       <div class="config__btn">
@@ -343,14 +495,19 @@ export default {
 
 <style scoped>
 @import "../styles/navbar.css";
-.estructura{
-  margin-top: 50px;
+
+
+body{
+  position: absolute;
   display: grid;
-  grid-template-rows: 1fr 1fr;
-  gap: 0px;
+  grid-template-columns: 1fr auto;
+  margin-top: 100px;
+}
+.content{
+  margin-left: 250px;
 }
 .configuracion {
-  margin:auto;
+  margin-bottom: 20px;
   width: 1400px;
   padding: 40px;
   background: #282828;
@@ -367,12 +524,7 @@ export default {
   text-align: center;
   font-size: 36px;
 }
-.configuracion__costos h2 {
-  margin-bottom: 60px;
-  color: rgb(212, 212, 212);
-  text-align: center;
-  font-size: 36px;
-}
+
 .config__input {
   position: relative;
 }
@@ -421,42 +573,17 @@ export default {
   background: rgb(212, 212, 212);
   color:black;
 }
-.configuracion__costos {
-  margin:auto;
-  width: 1400px;
-  padding: 40px;
-  background: #282828;
-  box-sizing: border-box;
-  box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
-  border-radius: 10px;
+.config__btn{
+  padding: 50px;
 }
-.config__costos {
-  position: relative;
-  width:auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 40px;
-}
-.config__costos input {
-  font-size: 18px;
-  width: 100%;
-  padding: 10px 0;
-  color: rgb(212, 212, 212);
-  margin-bottom: 30px;
-  border: none;
-  border-bottom: 1px solid rgb(212, 212, 212);
-  outline: none;
-  background: transparent;
-}
+
 .config__costos__ {
   position: relative;
   display:grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 20px;
   font-size: 18px;
 }
 .config__costos__ input {
-  width: 100%;
+  width: 20%;
   padding: 20px 0;
   color: rgb(212, 212, 212);
   margin-bottom: 30px;
@@ -464,6 +591,12 @@ export default {
   border-bottom: 1px solid rgb(212, 212, 212);
   outline: none;
   background: transparent;
+}
+.descripcion p {
+  padding: 15px;
+  font-size: 18px;
+  color: rgb(212, 212, 212);
+  
 }
 .config__costos__ label {
   position: absolute;
@@ -480,4 +613,48 @@ export default {
   left: 0;
   color: #9df0ff;
 }
+
+.wrapper .sidebar{
+    background: rgb(0, 0, 0);
+    position: fixed;
+    margin-top: 70px;
+    top: 0;
+    left: 0;
+    width: 225px;
+    height: 100%;
+    padding: 20px;
+    transition: all 0.5s ease;
+}
+.wrapper .sidebar ul li a{
+  display: block;
+  padding: 0px 0px;
+  position: relative;
+  font-size: 1.1em;
+  
+  color: rgb(212, 212, 212);
+  text-decoration: none;
+  font-weight: 500;
+  margin-left: 40px;
+  margin-top: 40px;
+  
+}
+.sidebar a::after{
+  content:"";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 3px;
+  background: rgb(212, 212, 212);
+  border-radius: 5px;
+  transform-origin: right;
+  transform: scaleX(0);
+  transition: transform .5s;
+}
+.sidebar a:hover::after{
+  transform-origin: left;
+  transform: scaleX(1);
+}
+
+
 </style>

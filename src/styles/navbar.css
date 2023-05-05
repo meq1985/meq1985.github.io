@@ -22,11 +22,11 @@
 .head_home {
   position: fixed;
   top: 0;
-  left: 0;
+  left: -130px;
   width: 100%;
-  padding: 20px 100px;
+  padding: 20px 0px;
   display: flex;
-  justify-content: space-between;
+  justify-content:space-between;
   align-items: center;
   z-index: 99;
 }
