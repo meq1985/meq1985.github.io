@@ -57,6 +57,62 @@ export default {
     const codigoProyecto = ref('');
     const codigoPlano = ref('');
     const codigoLista = ref('');
+    const canalizacionEmbutidaPVC = ref('');
+    const canalizacionALaVistaPVC = ref('');
+    const canalizacionDurlockPvc = ref('');
+    const cableadoPvcEmbutido = ref('');
+    const cableadoPvcALaVista = ref('');
+    const cableadoSubterraneoXmetro = ref('');
+    const conexionArtefactoExtractor = ref('');
+    const conexionArtefactoCampana = ref('');
+    const conexionArtefactoVentilador = ref('');
+    const conexionLuminariaAplique = ref('');
+    const conexionLuminariaColgante = ref('');
+    const conexionLuminariaExterior = ref('');
+    const conexionLuminariaLuzEmergencia = ref('');
+    const tableroTermomagneticaMonofasico = ref('');
+    const tableroTermomagneticaTrifasico = ref('');
+    const tableroDiferencialMonofasico = ref('');
+    const tableroDiferencialTrifasico = ref('');
+    const acometidaMonofasica = ref('');
+    const acometidaTrifasica = ref('');
+    const acometidaInstalacionMedidorMonofasico = ref('');
+    const acometidaInstalacionMedidorTrifasico = ref('');
+    const acometidaArmadoPilarMonofasico = ref('');
+    const acometidaArmadoPilarTrifasico = ref('');
+    const documentacionHasta30Bocas = ref('');
+    const documentacionHasta50Bocas = ref('');
+    const documentacionHasta100Bocas = ref('');
+    const emergenciasDiasHabiles = ref('');
+    const emergenciasFindesFeriados = ref('');
+    const codigoEmbutidaPVC = ref('');
+    const codigoALaVistaPVC = ref('');
+    const codigoDurlockPvc = ref('');
+    const codigoPvcEmbutido = ref('');
+    const codigoPvcALaVista = ref('');
+    const codigoSubterraneoXmetro = ref('');
+    const codigoArtefactoExtractor = ref('');
+    const codigoArtefactoCampana = ref('');
+    const codigoArtefactoVentilador = ref('');
+    const codigoLuminariaAplique = ref('');
+    const codigoLuminariaColgante = ref('');
+    const codigoLuminariaExterior = ref('');
+    const codigoLuminariaLuzEmergencia = ref('');
+    const codigoTermomagneticaMonofasico = ref('');
+    const codigoTermomagneticaTrifasico = ref('');
+    const codigoDiferencialMonofasico = ref('');
+    const codigoDiferencialTrifasico = ref('');
+    const codigoMonofasica = ref('');
+    const codigoTrifasica = ref('');
+    const codigoInstalacionMedidorMonofasico = ref('');
+    const codigoInstalacionMedidorTrifasico = ref('');
+    const codigoArmadoPilarMonofasico = ref('');
+    const codigoArmadoPilarTrifasico = ref('');
+    const codigoHasta30Bocas = ref('');
+    const codigoHasta50Bocas = ref('');
+    const codigoHasta100Bocas = ref('');
+    const codigoDiasHabiles = ref('');
+    const codigoFindesFeriados = ref('');
     const cliente = ref('');
     costosStore.obtenerCodigos();
   
@@ -84,11 +140,24 @@ export default {
       createFila('codigoLosa','canalizacionLosa', 'Canalización en Losa'),
       createFila('codigoMamposteria','canalizacionMamposteria', 'Canalización en Mampostería'),
       createFila('codigoConstruccionSeca','canalizacionConstruccionSeca', 'Canalización en Construcción Seca'),
+      createFila('codigoEmbutidaPVC','canalizacionEmbutidaPVC','Canalizacion Embutida con PVC'),
+      createFila('codigoALaVistaPVC','canalizacionALaVistaPVC','Canalizacion a la Vista con PVC'),
+      createFila('codigoDurlockPvc','canalizacionDurlockPvc','Canalizacion en Placa de yeso con PVC'),
       createFila('codigoObraNueva','cableadoObraNueva', 'Cableado Obra Nueva'),
       createFila('codigoRecableado','cableadoRecableado', 'Recableado'),
+      createFila('codigoPvcEmbutido','cableadoPvcEmbutido','Cableado Embutido con PVC'),
+      createFila('codigoPvcALaVista','cableadoPvcALaVista','Cableado a la Vista con PVC'),
+      createFila('codigoSubterraneoXmetro','cableadoSubterraneoXmetro','Cableado Subterraneo por metro'),
       createFila('codigoSimple','conexionSimple', 'Conexión Simple'),
       createFila('codigoDoble','conexionDoble', 'Conexión Doble'),
       createFila('codigoCombinacion','conexionCombinacion', 'Conexión Combinada'),
+      createFila('codigoArtefactoExtractor','conexionArtefactoExtractor','Colocacion Extractor'),
+      createFila('codigoArtefactoCampana','conexionArtefactoCampana','Colocacion Campana'),
+      createFila('codigoArtefactoVentilador','conexionArtefactoVentilador','Colocacion Ventilador'),
+      createFila('codigoLuminariaAplique','conexionLuminariaAplique','Luminaria: Aplique'),
+      createFila('codigoLuminariaColgante','conexionLuminariaColgante','Luminaria: Colgante'),
+      createFila('codigoLuminariaExterior','conexionLuminariaExterior','Luminaria: Exterior'),
+      createFila('codigoLuminariaLuzEmergencia','conexionLuminariaLuzEmergencia','Luminaria: Luz de Emergencia'),
       createFila('codigoPrincipal','tableroPrincipal', 'Tablero Principal'),
       createFila('codigoSeccional8','tableroSeccional8', 'Tablero Seccional 8DIM'),
       createFila('codigoSeccional36','tableroSeccional36', 'Tablero Seccional 36DIM'),
@@ -251,6 +320,63 @@ export default {
       codigoProyecto,
       codigoPlano,
       codigoLista,
+      canalizacionEmbutidaPVC,
+      canalizacionALaVistaPVC,
+      canalizacionDurlockPvc,
+      cableadoPvcEmbutido,
+      cableadoPvcALaVista,
+      cableadoSubterraneoXmetro,
+      conexionArtefactoExtractor,
+      conexionArtefactoCampana,
+      conexionArtefactoVentilador,
+      conexionLuminariaAplique,
+      conexionLuminariaColgante,
+      conexionLuminariaExterior,
+      conexionLuminariaLuzEmergencia,
+      tableroTermomagneticaMonofasico,
+      tableroTermomagneticaTrifasico,
+      tableroDiferencialMonofasico,
+      tableroDiferencialTrifasico,
+      acometidaMonofasica,
+      acometidaTrifasica,
+      acometidaInstalacionMedidorMonofasico,
+      acometidaInstalacionMedidorTrifasico,
+      acometidaArmadoPilarMonofasico,
+      acometidaArmadoPilarTrifasico,
+      documentacionHasta30Bocas,
+      documentacionHasta50Bocas,
+      documentacionHasta50Bocas,
+      documentacionHasta100Bocas,
+      emergenciasDiasHabiles,
+      emergenciasFindesFeriados,
+      codigoEmbutidaPVC,
+      codigoALaVistaPVC,
+      codigoDurlockPvc,
+      codigoPvcEmbutido,
+      codigoPvcALaVista,
+      codigoSubterraneoXmetro,
+      codigoArtefactoExtractor,
+      codigoArtefactoCampana,
+      codigoArtefactoVentilador,
+      codigoLuminariaAplique,
+      codigoLuminariaColgante,
+      codigoLuminariaExterior,
+      codigoLuminariaLuzEmergencia,
+      codigoTermomagneticaMonofasico,
+      codigoTermomagneticaTrifasico,
+      codigoDiferencialMonofasico,
+      codigoDiferencialTrifasico,
+      codigoMonofasica,
+      codigoTrifasica,
+      codigoInstalacionMedidorMonofasico,
+      codigoInstalacionMedidorTrifasico,
+      codigoArmadoPilarMonofasico,
+      codigoArmadoPilarTrifasico,
+      codigoHasta30Bocas,
+      codigoHasta50Bocas,
+      codigoHasta100Bocas,
+      codigoDiasHabiles,
+      codigoFindesFeriados,
       filas,
       cliente,
       calcularTotal,

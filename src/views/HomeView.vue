@@ -22,6 +22,8 @@ export default {
 
     const login = () => {
       userStore.login(email.value, password.value);
+      
+      
     };
 
     const recoveryPassword = () => {
