@@ -118,7 +118,6 @@ export default {
     costosStore.obtenerCodigos();
     const tabla = ref([]);
 
-    
     const selectedOption = ref('');
     
     const options = [
@@ -597,7 +596,6 @@ export default {
 .cliente_input .selectOption{
   width: 400px;
   font-size: 18px;
-  
 }
 .cliente_input h3{
   color: rgb(212, 212, 212);
