@@ -517,11 +517,8 @@ export default {
       <div class="descripcion">
         <p>INCLUYE</p>
         <p>-Instalación de centro de iluminación y caño de bajada, pudiendo encontrarse dentro de esta especificación un aplique de iluminación en pared.</p>
-
         <p>-Canaleteado e instalación de cañería plastica de 3/4 pulgada, más una caja rectangular para interruptores o tomas.</p>
-
         <p>-Tramo de cañería adicional para la interconexión con las otras cajas de defecto, o derivación de la instalación.</p>
-
         <p>-Empotrado de cajas y punteado de fijación de instalación con cemento u otro material.</p>
         <p>NO INCLUYE</p>
         <P>-Cobertura o revoque de la totalidad de la instalación.</P>
@@ -565,13 +562,18 @@ export default {
         </div>
       </div>
       <div class="descripcion">
+        <p>INCLUYE</p>
         <p>-Cableado de hasta 5 m en cañería metálica o plástica ,embutida, en durlock, a la vista.</p>
-
         <p>-Conexión de conductores a elementos terminales, entre, la caja de interruptores o tomas, al centro de iluminación, aplique en pared o tablero de comando.</p>
-
         <p>-El conductor de instalación está previsto de, hasta 2,5 mm de sección.</p>
-
-        <p>-Conexión de hasta un interruptor de efecto, toma, o elemento electrónicos, tales como tomas USB, vareadores lumínicos, o cualquier otro de similares características.</p></div>
+        <p>-Conexión de hasta un interruptor de efecto, toma, o elemento electrónicos, tales como tomas USB, vareadores lumínicos, o cualquier otro de similares características.</p>
+        <p>RECABLEADO</p>
+        <P>-Desmontaje de instalacion electrica existente.</P>
+        <p>-Re-conexion de interruptores, tomas y demas elementos instalados previamente.</p>
+        <p>-Reinstalacion de luminarias y artefactos.</p>
+        <P>SUBTERRANEO POR METRO</P>
+        <P>-Zanjeo, colocacion del cable, proteccion mecanica, cierre de zanja, verificar con centro de distrubucion reglamentacion para el trabajo.</P>
+      </div>
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
@@ -626,9 +628,14 @@ export default {
           </div>    
           </div>
           <div class="descripcion">
-            <p>Armado de aplique.</p>
-            <p>Fijación de aplique a pared o caja.</p>
-            <p>Conexión de alimentación al punto habilitado más próximo.</p>
+            <p>INCLUYE</p>
+            <P>LUMINARIA</P>
+            <p>-Armado de aplique.</p>
+            <p>-Fijación de aplique a pared o caja.</p>
+            <p>-Conexión de alimentación al punto habilitado más próximo.</p>
+            <P>ARTEFACTOS</P>
+            <P>-Fijacion del artefacto.</P>
+            <p>-Conexion a la instalacion electrica.</p>
           </div>
         </div>
       </div>
@@ -678,6 +685,7 @@ export default {
           </div>  
           </div>
           <div class="descripcion">
+            <p>INCLUYE</p>
             <p>Conexión mecánica de cañerías de circuitos mediante conectores.</p>
             <p>Fijacion o empotrado de gabinete.</p>
             <p>Armado de tablero.</p>
@@ -735,6 +743,7 @@ export default {
         </div>
       </div>
       <div class="descripcion">
+        <P>INLCUYE</P>
         <p>Cantaleteado de pared y empotrado de caño de bajada de doble Aislación. </p>
         <p>Amurado de gabinete de medición de energía.</p>
         <p>Instalación y conexión de la jabalina para puesta a tierra de servicio al gabinete de medidor.</p>
@@ -779,16 +788,17 @@ export default {
          </div> 
         </div>
         <div class="descripcion">
-        <p>Distribución de los circuitos, bocas, líneas seccionales, tableros , etc. </p>
-        <p>Plano de obra. Esquemas unifilares de tableros. Planillas de Carga.</p>
-        <p>Memoria Técnica.</p>
-        <p>Listado de materiales.</p>
-      </div>
-      </div>
-      </div>
-      <div class="config__btn">
-        <button class="config__submit" type="submit">Guardar</button>
-      </div>   
+          <P>INCLUYE</P>
+          <p>Distribución de los circuitos, bocas, líneas seccionales, tableros , etc. </p>
+          <p>Plano de obra. Esquemas unifilares de tableros. Planillas de Carga.</p>
+          <p>Memoria Técnica.</p>
+          <p>Listado de materiales.</p>
+        </div>
+        </div>
+        </div>
+        <div class="config__btn">
+          <button class="config__submit" type="submit">Guardar</button>
+        </div>   
     </form>
   </div>
   <div class="configuracion" id="emergencias">
@@ -807,11 +817,11 @@ export default {
          </div>
         </div>
         <div class="descripcion">
-        <p>Distribución de los circuitos, bocas, líneas seccionales, tableros , etc. </p>
-        <p>Plano de obra. Esquemas unifilares de tableros. Planillas de Carga.</p>
-        <p>Memoria Técnica.</p>
-        <p>Listado de materiales.</p>
-      </div>
+          <p>INCLUYE</p>
+          <p>Considerar un tiempo maximo de urgencia entre 3 y 5 horas.</p>
+          <p>Traslado al lugar de emergencia dentro de los limites de la ciudad.</p>
+          <p>Reparacion de la anomalia.</p>
+        </div>
       </div>
       </div>
       <div class="config__btn">

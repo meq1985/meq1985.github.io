@@ -9,6 +9,7 @@ import 'jspdf-autotable';
 import { ref as firebaseRef, getStorage, uploadBytes} from "firebase/storage";
 import { imageBase64 } from '../assets/image';
 import { getAuth } from "firebase/auth";
+import { computed } from 'vue';
 
 export default {
   setup() {
@@ -115,8 +116,86 @@ export default {
     const codigoFindesFeriados = ref('');
     const cliente = ref('');
     costosStore.obtenerCodigos();
-  
+    const tabla = ref([]);
+
+    
+    const selectedOption = ref('');
+    
+    const options = [
+      'Canalización en Losa',
+      'Canalización en Mampostería',
+      'Canalización en Construcción Seca',
+      'Canalizacion Embutida con PVC',
+      'Canalizacion a la Vista con PVC',
+      'Canalizacion en Placa de yeso con PVC',
+      'Cableado Obra Nueva',
+      'Recableado',
+      'Cableado Embutido con PVC',
+      'Cableado a la Vista con PVC',
+      'Cableado Subterraneo por metro',
+      'Conexión Simple',
+      'Conexión Doble',
+      'Conexión Combinada',
+      'Colocacion Extractor',
+      'Colocacion Campana',
+      'Colocacion Ventilador',
+      'Luminaria: Aplique',
+      'Luminaria: Colgante',
+      'Luminaria: Exterior',
+      'Luminaria: Luz de Emergencia',
+      'Tablero Principal',
+      'Tablero Seccional 8DIM',
+      'Tablero Seccional 36DIM',
+      'Tablero Seccional 54DIM',
+      'Termomagnetica Monofasica',
+      'Termomagnetica Trifasica',
+      'Diferencial Monofasico',
+      'Acometida Gabinete',
+      'Acometida PAT',
+      'Acometida Pilar',
+      'Acometida Monofasica',
+      'Acometida Trifasica',
+      'Instalacion Medidor Monofasico',
+      'Instalacion Medidor Trifasico',
+      'Armado Pilar Completo Monofasico',
+      'Armado Pilar Completo Trifasico',
+      'Documentación Proyecto x m2',
+      'Planos x m2',
+      'Lista de Materiales',
+      'Proyecto completo hasta 30 bocas',
+      'Proyecto completo hasta 50 bocas',
+      'Proyecto completo hasta 100 bocas',
+      'Urgencias Dias Habiles',
+      'Urgencias Domingos y Feriados'
+    ];
+
+    const filteredFilas = computed(() => {
+      return filas.value.filter((fila) => {
+        return fila.descripcion === selectedOption.value;
+      });
+    });
+
+    const agregarFilas = (descripcion) => {
+      filteredFilas.value.forEach((option) => {
+        tabla.value.push({
+          codigo: option.codigo,
+          descripcion,
+          cantidad: 1,
+          precioUnitario: option.precioUnitario,
+          precioTotal: 0,
+        });
+      });
+    };
+
+    
+    const agregarEliminar = (fila) => {
+      fila.eliminar = (index) => {
+        filas.value.splice(index, 1);
+      }; 
+    };
+    
     const createFila = (propCodigo, propName, descripcion) => {
+      
       const refProp = ref(costosStore[propName]);
       const refProp1 = ref(costosStore[propCodigo]);
       // Observa los cambios en costosStore y actualiza los valores correspondientes en las filas
@@ -136,6 +215,20 @@ export default {
       }
     }
     
+    const tablaConPrecioTotal = computed(() => {
+      return this.tabla.map((fila) =>{
+        return {
+          ...fila,
+          precioTotal: fila.cantidad * fila.precioUnitario,
+        };
+      });
+    });
+    watch(() => tabla.value, (filas) => {
+      filas.forEach((fila) => {
+        fila.precioTotal = fila.cantidad * fila.precioUnitario;
+      });
+    }, { deep: true });
+
     const filas = ref([
       createFila('codigoLosa','canalizacionLosa', 'Canalización en Losa'),
       createFila('codigoMamposteria','canalizacionMamposteria', 'Canalización en Mampostería'),
@@ -186,29 +279,31 @@ export default {
  
     const calcularTotal = () => {
       let total = 0;
-      filas.value.forEach(fila => {
+      tabla.value.forEach(fila => {
         total += fila.cantidad * fila.precioUnitario;
       });
       return total;
     }
     const calcularTotalPorFila = () => {
-      const totalesPorFila = filas.value.map(fila => fila.cantidad * fila.precioUnitario);
+      const totalesPorFila = tabla.value.map(fila => fila.cantidad * fila.precioUnitario);
       return totalesPorFila;
     }
     let codigo = 700;
     
+    
     const agregarFila = () => {
-      filas.value.push({ codigo:codigo+1,descripcion: '', cantidad: 0, precioUnitario: 0 });
+      tabla.value.push({ codigo:codigo+1,descripcion: '', cantidad: 0, precioUnitario: 0 });
       codigo ++ ;
-    }
+      };
+      
     const eliminarFila = (index) => {
-      filas.value.splice(index, 1);
+      tabla.value.splice(index, 1);
     }
 
     const exportarPDF = () => {
       const doc = new jsPDF();
       const rows = [];
-      filas.value.forEach((fila) => {
+      tabla.value.forEach((fila) => {
         if (fila.cantidad !== 0) {
           rows.push([fila.codigo, fila.descripcion, fila.cantidad, fila.precioUnitario, fila.cantidad * fila.precioUnitario]);
         }
@@ -241,7 +336,7 @@ export default {
     const guardarPDF = () => {
       const doc = new jsPDF();
       const rows = [];
-      filas.value.forEach((fila) => {
+      tabla.value.forEach((fila) => {
         if (fila.cantidad !== 0) {
           rows.push([fila.codigo, fila.descripcion, fila.cantidad, fila.precioUnitario, fila.cantidad * fila.precioUnitario]);
         }
@@ -280,7 +375,6 @@ export default {
         uploadBytes(storageRef, pdfFile).then((snapshot) => {
          console.log('Uploaded a blob or file!');
         });
-        
       }    
       
     const logout = () => {
@@ -292,6 +386,13 @@ export default {
       await costosStore.obtenerCodigos();
     })
     return {
+      agregarEliminar,
+      tablaConPrecioTotal,
+      selectedOption,
+      options,
+      filteredFilas,
+      tabla,
+      agregarFilas,
       nombre,
       apellido,
       cuit,
@@ -423,40 +524,50 @@ export default {
       <input  v-model="cliente" />
       <label>Cliente:</label>
     </div>
-    <table class="table">
-      <thead class="tableHead">
-        <tr>
-          <th class="descripcion">Codigo</th>
-          <th class="descripcion">Descripcion</th>
-          <th class="cantidad">Cantidad</th>
-          <th class="precio">Precio unitario</th>
-          <th class="total">Precio total</th>
-        </tr>
-      </thead>
+    <div class="cliente_input">
+      <h3>Seleccionar item:</h3>
+      <select class="selectOption" v-model="selectedOption" @change="agregarFilas(selectedOption)">
+        <option v-for="option in options" :key="option.codigo" :value="option">{{ option }}</option>
+      </select>
+    </div>
+    <div>
+      <table class="table">
+        <thead class="tableHead">
+          <tr>
+            <th class="codigo">Código</th>
+            <th class="descripcion">Descripción</th>
+            <th class="cantidad">Cantidad</th>
+            <th class="precio">Precio Unitario</th>
+            <th class="total">Precio total</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody class="tableBody">
-        <tr v-for="(fila, index) in filas">
-          <td class="codigo"><input class="codigo_input" v-model="fila.codigo" /></td>
-          <td class="descripcion"><input class="descripcion_input" v-model="fila.descripcion" /></td>
-          <td class="cantidad"><input class="cantidad_input" v-model="fila.cantidad" /></td>
-          <td class="precio"><input class="precio_input" v-model="fila.precioUnitario" /></td>
-          <td class="total">{{calcularTotalPorFila()[index]}}</td>
-        </tr>
-      </tbody>
-      <tfoot class="tableFoot">
-        <tr>
-          <td colspan="4">Total:</td>
-          <td>{{ calcularTotal() }}</td>
-        </tr>
-        <tr class="row_btn">
-            <button class="btn" @click="agregarFila()">Agregar fila</button>
-            <button class="btn" @click="guardarPDF()">Guardar</button>
-            <button class="btn" @click="exportarPDF()">Exportar a PDF</button>
-        </tr>
-        <tr>
-          <td></td>
-        </tr>
-      </tfoot>
-    </table>
+          <tr v-for="(fila, index) in tabla" :key="fila.codigo">
+            <td class="codigo">{{ fila.codigo }}</td>
+            <td class="descripcion"><input class="descripcion_input" v-model="fila.descripcion" /></td>
+            <td class="cantidad"><input class="cantidad_input" v-model.number="fila.cantidad"></td>
+            <td class="precio"><input class="precio_input" v-model="fila.precioUnitario" /></td>
+            <td class="total">{{fila.precioTotal}}</td>
+            <td><button @click="eliminarFila(index)">Eliminar</button></td>
+          </tr>
+        </tbody>
+        <tfoot class="tableFoot">
+          <tr>
+            <td colspan="4">Total:</td>
+            <td>{{ calcularTotal() }}</td>
+          </tr>
+          <tr class="row_btn">
+              <button class="btn" @click="agregarFila()">Agregar fila</button>
+              <button class="btn" @click="guardarPDF()">Guardar</button>
+              <button class="btn" @click="exportarPDF()">Exportar a PDF</button>
+          </tr>
+          <tr>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   </div>
   </body>
 </template>
@@ -480,6 +591,16 @@ export default {
   position: relative;
   padding: 20px;
   margin-left: 10px;
+}
+.cliente_input .selectOption{
+  width: 400px;
+  font-size: 18px;
+  
+}
+.cliente_input h3{
+  color: rgb(212, 212, 212);
+  font-size: 20px;
+  padding: 20px;
 }
 .cliente_input input {
   font-size: 18px;
