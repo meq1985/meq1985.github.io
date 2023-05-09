@@ -549,7 +549,7 @@ export default {
             <td class="cantidad"><input class="cantidad_input" v-model.number="fila.cantidad"></td>
             <td class="precio"><input class="precio_input" v-model="fila.precioUnitario" /></td>
             <td class="total">{{fila.precioTotal}}</td>
-            <td><button @click="eliminarFila(index)">Eliminar</button></td>
+            <td><span class="icon" @click.prevent="() => eliminarFila(index)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></span></td>  
           </tr>
         </tbody>
         <tfoot class="tableFoot">
@@ -586,7 +586,9 @@ export default {
   box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
   border-radius: 10px;
 }
-
+.icon{
+  cursor: pointer;
+}
 .cliente_input {
   position: relative;
   padding: 20px;
