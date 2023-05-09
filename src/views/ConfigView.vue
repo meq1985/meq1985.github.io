@@ -188,7 +188,7 @@ export default {
       },
       {
         id: 'emergencias',
-        name: 'Emergancias',
+        name: 'Urgencias',
       },
     ]);
 
@@ -515,13 +515,21 @@ export default {
         </div>
       </div>
       <div class="descripcion">
-        <p>-Cableado de hasta 5 m en cañería metálica o plástica ,embutida, en durlock, a la vista.</p>
+        <p>INCLUYE</p>
+        <p>-Instalación de centro de iluminación y caño de bajada, pudiendo encontrarse dentro de esta especificación un aplique de iluminación en pared.</p>
 
-        <p>-Conexión de conductores a elementos terminales, entre, la caja de interruptores o tomas, al centro de iluminación, aplique en pared o tablero de comando.</p>
+        <p>-Canaleteado e instalación de cañería plastica de 3/4 pulgada, más una caja rectangular para interruptores o tomas.</p>
 
-        <p>-El conductor de instalación está previsto de, hasta 2,5 mm de sección.</p>
+        <p>-Tramo de cañería adicional para la interconexión con las otras cajas de defecto, o derivación de la instalación.</p>
 
-        <p>-Conexión de hasta un interruptor de efecto, toma, o elemento electrónicos, tales como tomas USB, vareadores lumínicos, o cualquier otro de similares características.</p></div>
+        <p>-Empotrado de cajas y punteado de fijación de instalación con cemento u otro material.</p>
+        <p>NO INCLUYE</p>
+        <P>-Cobertura o revoque de la totalidad de la instalación.</P>
+        <P>-Cableado de la cañería.</P>
+        <P>-Montaje de tomas de energía e interruptores de efecto.</P>
+        <P>-Instalación de artefactos lumínicos o ventilación.</P>
+        <P>-Material de instalación.</P>
+      </div>
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
@@ -784,7 +792,7 @@ export default {
     </form>
   </div>
   <div class="configuracion" id="emergencias">
-    <h2>Emergencias</h2>
+    <h2>Urgencias</h2>
     <form @submit.prevent="updateEmergencias">
       <div class="config__costos">
       <div class="config__costos__">
