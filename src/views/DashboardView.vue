@@ -6,7 +6,8 @@ import { ref } from "vue";
 import { PostStore } from '../stores/dbUsers';
 import { costoStore } from "../stores/dbCostos";
 import {jsPDF} from 'jspdf';
-import 'jspdf-autotable';
+import { applyPlugin } from 'jspdf-autotable'
+applyPlugin(jsPDF)
 import { ref as firebaseRef, getStorage, uploadBytes} from "firebase/storage";
 import { imageBase64 } from '../assets/image';
 import { getAuth } from "firebase/auth";
