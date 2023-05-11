@@ -1,5 +1,5 @@
 <script type="module">
-import { RouterLink } from "vue-router";
+
 import { ref } from "/node_modules/vue/dist/vue.esm-browser.js";
 import { useUserStore } from "../stores/user";
 import { getAuth } from "firebase/auth";
@@ -53,9 +53,10 @@ export default {
           const contact = document.querySelector('.contact');
           const conectar = document.querySelector('.conectar');
           const about = document.querySelector('.about');
-          contact.style.transform = isActiveC.value ? 'scale(0)' : 'scale(1)';
+          
           conectar.style.transform = isActiveC.value = 'scale(0)';
-          about.style.transform = isActiveW.value = 'scale(0)';
+          about.style.transform = isActiveC.value = 'scale(0)';
+          contact.style.transform = isActiveC.value ? 'scale(1)' : 'scale(0)';
         }
 
     const isActiveW = ref(false);
@@ -135,7 +136,7 @@ export default {
   <header class="head_home">
     <h2 class="logo">Electricidad Domiciliaria</h2>
     <nav class="navigation">
-      <a href="#" class="about-link" @click="toggleAbout">About</a>
+      <a href="#" class="about-link" @click="toggleAbout">Acerca de</a>
       <a href="#" class="contact-link" @click="toggleContact">Contacto</a>
       <a href="#" class="login-link" @click="toggleWrapper">Conectarse</a>
     </nav>
