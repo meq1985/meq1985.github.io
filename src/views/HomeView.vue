@@ -139,6 +139,7 @@ export default {
       <a href="#" class="about-link" @click="toggleAbout">Acerca de</a>
       <a href="#" class="contact-link" @click="toggleContact">Contacto</a>
       <a href="#" class="login-link" @click="toggleWrapper">Conectarse</a>
+      
     </nav>
   </header>
   <div class="about" :class="{ active: isActiveA }" >
@@ -233,7 +234,17 @@ export default {
       </form>
     </div>
   </div>
+  
+  <footer>
+    <p>Diseño y desarrollo realizado por Martin E. Quiroga</p>
+    <div class="footer_link">
+      <span href="#" class="register-link" @click="toggleWhatsapp"><font-awesome-icon icon="fa-brands fa-whatsapp" /></span>
+      <span href="#" class="register-link" @click="toggleInstagram"><font-awesome-icon icon="fa-solid fa-camera-retro" /></span>
+    </div>
+    
+  </footer>
 </body>
+
 </template>
 
 <style scoped>
@@ -247,6 +258,22 @@ body {
   background: url(../assets/foco-sobrio.jpg) no-repeat;
   background-size: cover;
   background-position: center;
+}
+footer{
+  position:absolute;
+  bottom: 20px;
+  right: 50px;
+  color:rgb(212, 212, 212);
+  display:flex;
+  gap: 7px;
+}
+footer .footer_link{
+  display:flex;
+  color:blanchedalmond;
+  margin-left: 10px;
+  cursor: pointer;
+  display:flex;
+  gap: 10px;
 }
 .conectar {
   position: absolute;

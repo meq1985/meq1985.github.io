@@ -96,9 +96,9 @@ export default {
         <p>{{ pdf.name }}</p>
       </div>
       <div class="iconos">
-        <span class="icon"><font-awesome-icon icon="fa-solid fa-envelope" /></span>
+        
         <span class="icon" @click.prevent="() => descargarPdf(pdf)"><font-awesome-icon icon="fa-solid fa-download" /></span>
-        <span class="icon" ><font-awesome-icon icon="fa-solid fa-share" /></span>
+        
         <span class="icon" @click.prevent="() => deletePdf(pdf)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></span>
       </div>
     </div>
@@ -147,7 +147,7 @@ export default {
   padding: 20px;
   font-size: 1.2em;
   display: flex;
-  justify-content: space-between;
+  justify-content: end;
   gap: 20px;
   cursor: pointer;
 }
