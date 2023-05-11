@@ -1,6 +1,6 @@
 <script type="module">
 import { RouterLink } from "vue-router";
-import { ref } from "vue";
+import { ref } from "/node_modules/vue/dist/vue.global.js";
 import { useUserStore } from "../stores/user";
 import { getAuth } from "firebase/auth";
 import { PostStore } from '../stores/dbUsers';
