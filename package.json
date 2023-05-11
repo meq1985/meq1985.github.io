@@ -16,8 +16,8 @@
     "fluent-ffmpeg": "^2.1.2",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.5.28",
-    "pinia": "^2.0.13",
-    "vue": "^3.2.33",
+    "pinia": "^2.0.36",
+    "vue": "^3.3.1",
     "vue-router": "^4.0.14"
   },
   "devDependencies": {

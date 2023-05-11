@@ -1,4 +1,5 @@
-<script>
+
+<script type="module">
 import { useUserStore } from '../stores/user';
 import { onMounted, watch } from 'vue';
 import { ref } from "vue";

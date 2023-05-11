@@ -1,4 +1,4 @@
-<script>
+<script type="module">
 import { RouterLink } from "vue-router";
 import { ref } from "vue";
 import { useUserStore } from "../stores/user";
