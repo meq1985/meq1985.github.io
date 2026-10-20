@@ -1,10 +1,11 @@
 <script setup>
+import BrandMark from './BrandMark.vue';
 import { useUserStore } from '../stores/user';
 const userStore = useUserStore();
 </script>
 <template>
   <div class="catalog-nav">
-    <img src="../assets/logoelec.jpg" alt="Presupuestos eléctricos" />
+    <router-link to="/" aria-label="Electricidad Domiciliaria, inicio"><BrandMark class="catalog-logo" /></router-link>
     <nav aria-label="Navegación principal">
       <router-link to="/dashboard">Presupuestar</router-link>
       <router-link to="/config">Configuración</router-link>
