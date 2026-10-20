@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -18,11 +18,19 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const useEmulators = import.meta.env.VITE_USE_EMULATORS === 'true';
+if (useEmulators && import.meta.env.PROD) throw new Error('No se permite publicar un build conectado a emuladores.');
+const app = initializeApp(useEmulators ? {
+  apiKey: 'demo-api-key', authDomain: 'localhost', projectId: 'demo-presupuesto-electrico'
+} : firebaseConfig);
 // Initialize Cloud Storage and get a reference to the service
 
 const db = getFirestore(app);
 const auth = getAuth(app);
+if (useEmulators) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+}
 
 
 

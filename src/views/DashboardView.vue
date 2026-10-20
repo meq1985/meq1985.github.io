@@ -1,17 +1,14 @@
 
 <script type="module">
 import { useUserStore } from '../stores/user';
-import { onMounted, watch } from 'vue';
+import { onMounted } from 'vue';
 import { ref } from "vue";
 import { PostStore } from '../stores/dbUsers';
 import { costoStore } from "../stores/dbCostos";
-import {jsPDF} from 'jspdf';
-import { applyPlugin } from 'jspdf-autotable'
-applyPlugin(jsPDF)
 import { requireUser } from '../firebase/session';
 import { validateBudget } from '../services/budgetValidation';
 import { saveBudget } from '../services/localBudgets';
-import { imageBase64 } from '../assets/image';
+import { buildBudgetPdf } from '../services/budgetPdf';
 import { computed } from 'vue';
 
 export default {
@@ -214,19 +211,10 @@ export default {
       }
     }
 
-    const tablaConPrecioTotal = computed(() => {
-      return tabla.value.map((fila) =>{
-        return {
-          ...fila,
-          precioTotal: fila.cantidad * fila.precioUnitario,
-        };
-      });
-    });
-    watch(() => tabla.value, (filas) => {
-      filas.forEach((fila) => {
-        fila.precioTotal = fila.cantidad * fila.precioUnitario;
-      });
-    }, { deep: true });
+    const subtotal = fila => {
+      const amount = Math.round(Number(fila.cantidad) * Number(fila.precioUnitario) * 100) / 100;
+      return Number.isFinite(amount) ? amount : 0;
+    };
 
     const filas = ref([
       createFila('codigoLosa','canalizacionLosa', 'Canalización en Losa'),
@@ -279,9 +267,9 @@ export default {
     const calcularTotal = () => {
       let total = 0;
       tabla.value.forEach(fila => {
-        total += fila.cantidad * fila.precioUnitario;
+        total += subtotal(fila);
       });
-      return total;
+      return Math.round(total * 100) / 100;
     }
     const calcularTotalPorFila = () => {
       const totalesPorFila = tabla.value.map(fila => fila.cantidad * fila.precioUnitario);
@@ -300,42 +288,11 @@ export default {
     }
 
     const saving = ref(false);
-    const buildPDF = (budget) => {
-      const doc = new jsPDF();
-      const rows = [];
-      budget.items.forEach((fila) => {
-        if (fila.cantidad !== 0) {
-          rows.push([fila.codigo, fila.descripcion, fila.cantidad, fila.precioUnitario, fila.precioTotal]);
-        }
-      });
-      doc.autoTable({
-          head: [['Codigo','Descripcion', 'Cantidad', 'Precio Unitario', 'Subtotal']],
-          body: rows,
-          startY: 55
-        });
-        const total = budget.total;
-        const date = new Date();
-        const dateString = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
-        const image = imageBase64;
-        doc.setFontSize(20);
-        doc.addImage(image, 'PNG', 15, 10, 25, 15);
-        doc.text(`PRESUPUESTO`, 75, 15)
-        doc.setFontSize(10);
-        doc.text(`Fecha: ${dateString}`, 150, 15);
-        doc.text(`Nombre: ${store.nombre1} ${store.apellido1}`, 14, 30);
-        doc.text(`Cuit: ${store.cuit1}`, 14, 35);
-        doc.text(`Empresa: ${store.empresa1}`, 14, 40);
-        doc.text(`Matricula: ${store.matricula1}`, 14, 45);
-        doc.text(`Telefono: ${store.telefono1}`, 14, 50);
-        doc.text(`Cliente: ${budget.cliente}`, 150, 30);
-        doc.setFontSize(15);
-        doc.text(`Total: $${total}`, 160, doc.autoTable.previous.finalY + 10);
-        return doc;
-    };
-    const exportarPDF = () => {
+    const buildPDF = budget => buildBudgetPdf(budget, store);
+    const exportarPDF = async () => {
       try {
         const budget = validateBudget(cliente.value, tabla.value);
-        buildPDF(budget).save('presupuesto.pdf');
+        (await buildPDF(budget)).save('presupuesto.pdf');
       } catch (error) { alert(error.message); }
     };
     const guardarPDF = async () => {
@@ -344,7 +301,8 @@ export default {
       try {
         const user = await requireUser();
         const budget = validateBudget(cliente.value, tabla.value);
-        await saveBudget(user.uid, budget, buildPDF(budget).output('blob'));
+        const document = await buildPDF(budget);
+        await saveBudget(user.uid, budget, document.output('blob'));
         alert('Presupuesto guardado en este navegador. Descargá una copia para conservarlo.');
       } catch (error) { alert('No se pudo guardar: ' + error.message); }
       finally { saving.value = false; }
@@ -363,7 +321,7 @@ export default {
     return {
       saving,
       agregarEliminar,
-      tablaConPrecioTotal,
+      subtotal,
       selectedOption,
       options,
       filteredFilas,
@@ -492,18 +450,19 @@ export default {
       <button class="btnLogin-popup" @click.prevent="logout">Logout</button>
     </nav>
   </header>
-  <body>
+  <div class="page-content">
   <div class="configuracion">
     <h2>Presupuesto</h2>
     <div class="cliente_input">
 
-      <input  v-model="cliente" />
-      <label>Cliente:</label>
+      <input id="budget-client" v-model="cliente" maxlength="120" />
+      <label for="budget-client">Cliente:</label>
     </div>
     <div class="cliente_input">
       <h3>Seleccionar item:</h3>
       <select class="selectOption" v-model="selectedOption" @change="agregarFilas(selectedOption)">
-        <option v-for="option in options" :key="option.codigo" :value="option">{{ option }}</option>
+        <option disabled value="">Elegí un ítem</option>
+        <option v-for="option in options" :key="option" :value="option">{{ option }}</option>
       </select>
     </div>
     <div>
@@ -519,12 +478,12 @@ export default {
           </tr>
         </thead>
         <tbody class="tableBody">
-          <tr v-for="(fila, index) in tabla" :key="fila.codigo">
+          <tr v-for="(fila, index) in tabla" :key="index">
             <td class="codigo">{{ fila.codigo }}</td>
             <td class="descripcion"><input class="descripcion_input" v-model="fila.descripcion" /></td>
-            <td class="cantidad"><input class="cantidad_input" v-model.number="fila.cantidad"></td>
-            <td class="precio"><input class="precio_input" v-model="fila.precioUnitario" /></td>
-            <td class="total">{{fila.precioTotal}}</td>
+            <td class="cantidad"><input aria-label="Cantidad" class="cantidad_input" type="number" min="0.01" step="0.01" v-model.number="fila.cantidad"></td>
+            <td class="precio"><input aria-label="Precio unitario" class="precio_input" type="number" min="0" step="0.01" v-model.number="fila.precioUnitario" /></td>
+            <td class="total">{{ subtotal(fila) }}</td>
             <td><span class="icon" @click.prevent="() => eliminarFila(index)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></span></td>
           </tr>
         </tbody>
@@ -533,11 +492,11 @@ export default {
             <td colspan="4">Total:</td>
             <td>{{ calcularTotal() }}</td>
           </tr>
-          <tr class="row_btn">
+          <tr><td colspan="6" class="row_btn">
               <button class="btn" @click="agregarFila()">Agregar fila</button>
               <button class="btn" @click="guardarPDF()" :disabled="saving">Guardar</button>
               <button class="btn" @click="exportarPDF()">Exportar a PDF</button>
-          </tr>
+          </td></tr>
           <tr>
             <td></td>
           </tr>
@@ -545,7 +504,7 @@ export default {
       </table>
     </div>
   </div>
-  </body>
+  </div>
 </template>
 
 <style scoped>

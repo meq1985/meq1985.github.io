@@ -1,11 +1,12 @@
+import { updatePrices } from '../services/costValidation';
+import { ensureAccountReady } from '../services/accountProvisioning';
 import { defineStore } from "pinia";
-import { doc, setDoc, updateDoc, getDoc  } from "firebase/firestore";
+import { doc, getDoc  } from "firebase/firestore";
 import { db } from "../firebase";
 import { requireUser, assertCurrentUser } from "../firebase/session";
 
 
-export const costoStore = defineStore({
-    id: 'costos',
+export const costoStore = defineStore('costos', {
     state: () => ({
             canalizacionLosa: null,
             canalizacionMamposteria: null,
@@ -103,143 +104,9 @@ export const costoStore = defineStore({
     }),
 
     actions: {
-        async addCostos(email){
-            const docData = {
-            canalizacion:{
-                canalizacionLosa: null,
-                canalizacionMamposteria: null,
-                canalizacionConstruccionSeca: null,
-                canalizacionEmbutidaPVC: null,
-                canalizacionALaVistaPVC: null,
-                canalizacionDurlockPvc: null,
-            },
-            cableado:{
-                cableadoObraNueva: null,
-                cableadoRecableado: null,
-                cableadoPvcEmbutido: null,
-                cableadoPvcALaVista: null,
-                cableadoSubterraneoXmetro: null,
-            },
-            conexion:{
-                conexionSimple: null,
-                conexionDoble: null,
-                conexionCombinacion: null,
-                conexionArtefactoExtractor: null,
-                conexionArtefactoCampana: null,
-                conexionArtefactoVentilador: null,
-                conexionLuminariaAplique: null,
-                conexionLuminariaColgante: null,
-                conexionLuminariaExterior: null,
-                conexionLuminariaLuzEmergencia: null,
-            },
-            tablero:{
-                tableroPrincipal: null,
-                tableroSeccional8: null,
-                tableroSeccional36: null,
-                tableroSeccional54: null,
-                tableroTermomagneticaMonofasico: null,
-                tableroTermomagneticaTrifasico: null,
-                tableroDiferencialMonofasico: null,
-                tableroDiferencialTrifasico: null,
-            },
-            acometida:{
-                acometidaGabinete: null,
-                acometidaPat: null,
-                acometidaPilar: null,
-                acometidaMonofasica: null,
-                acometidaTrifasica: null,
-                acometidaInstalacionMedidorMonofasico: null,
-                acometidaInstalacionMedidorTrifasico: null,
-                acometidaArmadoPilarMonofasico: null,
-                acometidaArmadoPilarTrifasico: null,
-            },
-            documentacion:{
-                documentacionProyecto: null,
-                documentacionPlano: null,
-                documentacionLista: null,
-                documentacionHasta30Bocas: null,
-                documentacionHasta50Bocas: null,
-                documentacionHasta100Bocas: null,
-            },
-            emergencias:{
-                emergenciasDiasHabiles: null,
-                emergenciasFindesFeriados: null,
-            }
-            }
-            const user = await requireUser({ verified: false, email });
-            const id = user.email;
-            const ref = doc(db, "costos", id);
-            const snapshot = await getDoc(ref);
-            assertCurrentUser(user);
-            if (!snapshot.exists()) await setDoc(ref, docData);
-        },
-        async updateCostos(canalizacionLosa,canalizacionMamposteria,canalizacionConstruccionSeca,cableadoObraNueva,cableadoRecableado,conexionSimple,conexionDoble,
-            conexionCombinacion,tableroPrincipal,tableroSeccional8,tableroSeccional36,tableroSeccional54,acometidaGabinete,acometidaPat,acometidaPilar,documentacionProyecto,
-            documentacionPlano,documentacionLista,emergenciasDiasHabiles,emergenciasFindesFeriados,documentacionHasta30Bocas,documentacionHasta50Bocas,documentacionHasta100Bocas,
-            acometidaMonofasica,acometidaTrifasica,acometidaInstalacionMedidorMonofasico,acometidaInstalacionMedidorTrifasico,acometidaArmadoPilarMonofasico,acometidaArmadoPilarTrifasico,
-            tableroTermomagneticaMonofasico,tableroTermomagneticaTrifasico,tableroDiferencialMonofasico,tableroDiferencialTrifasico,conexionArtefactoCampana,conexionArtefactoExtractor,
-            conexionArtefactoVentilador,conexionLuminariaAplique,conexionLuminariaColgante,conexionLuminariaExterior,conexionLuminariaLuzEmergencia,cableadoPvcALaVista,cableadoPvcEmbutido,
-            cableadoSubterraneoXmetro,canalizacionALaVistaPVC,canalizacionEmbutidaPVC,canalizacionDurlockPvc){
-            const user = await requireUser();
-            if (user !== null) {
-            const id = user.email;
-
-            const Ref = doc(db, "costos", id);
-            await updateDoc(Ref, {
-                "canalizacion.canalizacionLosa": canalizacionLosa,
-                "canalizacion.canalizacionMamposteria": canalizacionMamposteria,
-                "canalizacion.canalizacionConstruccionSeca": canalizacionConstruccionSeca,
-                "canalizacion.canalizacionALaVistaPVC": canalizacionALaVistaPVC,
-                "canalizacion.canalizacionEmbutidaPVC": canalizacionEmbutidaPVC,
-                "canalizacion.canalizacionDurlockPvc": canalizacionDurlockPvc,
-
-                "cableado.cableadoObraNueva": cableadoObraNueva,
-                "cableado.cableadoRecableado": cableadoRecableado,
-                "cableado.cableadoPvcALaVista": cableadoPvcALaVista,
-                "cableado.cableadoPvcEmbutido": cableadoPvcEmbutido,
-                "cableado.cableadoSubterraneoXmetro": cableadoSubterraneoXmetro,
-
-                "conexion.conexionSimple": conexionSimple,
-                "conexion.conexionDoble": conexionDoble,
-                "conexion.conexionCombinacion": conexionCombinacion,
-                "conexion.conexionArtefactoCampana": conexionArtefactoCampana,
-                "conexion.conexionArtefactoExtractor": conexionArtefactoExtractor,
-                "conexion.conexionArtefactoVentilador": conexionArtefactoVentilador,
-                "conexion.conexionLuminariaAplique": conexionLuminariaAplique,
-                "conexion.conexionLuminariaColgante": conexionLuminariaColgante,
-                "conexion.conexionLuminariaExterior": conexionLuminariaExterior,
-                "conexion.conexionLuminariaLuzEmergencia": conexionLuminariaLuzEmergencia,
-
-                "tablero.tableroPrincipal": tableroPrincipal,
-                "tablero.tableroSeccional8": tableroSeccional8,
-                "tablero.tableroSeccional36": tableroSeccional36,
-                "tablero.tableroSeccional54": tableroSeccional54,
-                "tablero.tableroTermomagneticaMonofasico": tableroTermomagneticaMonofasico,
-                "tablero.tableroTermomagneticaTrifasico": tableroTermomagneticaTrifasico,
-                "tablero.tableroDiferencialMonofasico": tableroDiferencialMonofasico,
-                "tablero.tableroDiferencialTrifasico": tableroDiferencialTrifasico,
-
-                "acometida.acometidaGabinete": acometidaGabinete,
-                "acometida.acometidaPat": acometidaPat,
-                "acometida.acometidaPilar": acometidaPilar,
-                "acometida.acometidaMonofasica": acometidaMonofasica,
-                "acometida.acometidaTrifasica": acometidaTrifasica,
-                "acometida.acometidaInstalacionMedidorMonofasico": acometidaInstalacionMedidorMonofasico,
-                "acometida.acometidaInstalacionMedidorTrifasico": acometidaInstalacionMedidorTrifasico,
-                "acometida.acometidaArmadoPilarMonofasico": acometidaArmadoPilarMonofasico,
-                "acometida.acometidaArmadoPilarTrifasico": acometidaArmadoPilarTrifasico,
-
-                "documentacion.documentacionProyecto": documentacionProyecto,
-                "documentacion.documentacionPlano": documentacionPlano,
-                "documentacion.documentacionLista": documentacionLista,
-                "documentacion.documentacionHasta30Bocas": documentacionHasta30Bocas,
-                "documentacion.documentacionHasta50Bocas": documentacionHasta50Bocas,
-                "documentacion.documentacionHasta100Bocas": documentacionHasta100Bocas,
-
-                "emergencias.emergenciasDiasHabiles": emergenciasDiasHabiles,
-                "emergencias.emergenciasFindesFeriados": emergenciasFindesFeriados,
-            });
-            };
+        async addCostos(email) {
+            const user = await requireUser({ email });
+            await ensureAccountReady(user);
         },
         async updateCostosCanalizacion(canalizacionLosa,canalizacionMamposteria,canalizacionConstruccionSeca,canalizacionALaVistaPVC,canalizacionEmbutidaPVC,canalizacionDurlockPvc){
             const user = await requireUser();
@@ -247,7 +114,7 @@ export const costoStore = defineStore({
                 const id = user.email;
 
                 const Ref = doc(db, "costos", id);
-                await updateDoc(Ref, {
+                await updatePrices(Ref, {
                     "canalizacion.canalizacionLosa": canalizacionLosa,
                     "canalizacion.canalizacionMamposteria": canalizacionMamposteria,
                     "canalizacion.canalizacionConstruccionSeca": canalizacionConstruccionSeca,
@@ -263,7 +130,7 @@ export const costoStore = defineStore({
                     const id = user.email;
 
                     const Ref = doc(db, "costos", id);
-                    await updateDoc(Ref, {
+                    await updatePrices(Ref, {
                         "cableado.cableadoObraNueva": cableadoObraNueva,
                         "cableado.cableadoRecableado": cableadoRecableado,
                         "cableado.cableadoPvcALaVista": cableadoPvcALaVista,
@@ -279,7 +146,7 @@ export const costoStore = defineStore({
                         const id = user.email;
 
                         const Ref = doc(db, "costos", id);
-                        await updateDoc(Ref, {
+                        await updatePrices(Ref, {
                             "conexion.conexionSimple": conexionSimple,
                             "conexion.conexionDoble": conexionDoble,
                             "conexion.conexionCombinacion": conexionCombinacion,
@@ -300,7 +167,7 @@ export const costoStore = defineStore({
                             const id = user.email;
 
                             const Ref = doc(db, "costos", id);
-                            await updateDoc(Ref, {
+                            await updatePrices(Ref, {
                                 "tablero.tableroPrincipal": tableroPrincipal,
                                 "tablero.tableroSeccional8": tableroSeccional8,
                                 "tablero.tableroSeccional36": tableroSeccional36,
@@ -318,7 +185,7 @@ export const costoStore = defineStore({
             const id = user.email;
 
             const Ref = doc(db, "costos", id);
-            await updateDoc(Ref, {
+            await updatePrices(Ref, {
                 "documentacion.documentacionProyecto": documentacionProyecto,
                 "documentacion.documentacionPlano": documentacionPlano,
                 "documentacion.documentacionLista": documentacionLista,
@@ -334,7 +201,7 @@ export const costoStore = defineStore({
             const id = user.email;
 
             const Ref = doc(db, "costos", id);
-            await updateDoc(Ref, {
+            await updatePrices(Ref, {
                 "emergencias.emergenciasDiasHabiles": emergenciasDiasHabiles,
                 "emergencias.emergenciasFindesFeriados": emergenciasFindesFeriados,
             });
@@ -347,7 +214,7 @@ export const costoStore = defineStore({
             const id = user.email;
 
             const Ref = doc(db, "costos", id);
-            await updateDoc(Ref, {
+            await updatePrices(Ref, {
                 "acometida.acometidaGabinete": acometidaGabinete,
                 "acometida.acometidaPat": acometidaPat,
                 "acometida.acometidaPilar": acometidaPilar,
@@ -387,7 +254,7 @@ export const costoStore = defineStore({
                 this.documentacionProyecto = datos.documentacion?.documentacionProyecto;
                 this.documentacionPlano = datos.documentacion?.documentacionPlano;
                 this.documentacionLista = datos.documentacion?.documentacionLista;
-                this.canalizacionALaVistaPVC = datos.canalizacion?.canalizacionALaVistaPVC;
+                this.canalizacionALaVistaPVC = datos.canalizacion?.canalizacionALaVistaPVC ?? datos.canalizacion?.canalizacionALaVistaPvc ?? null;
                 this.canalizacionEmbutidaPVC = datos.canalizacion?.canalizacionEmbutidaPVC;
                 this.canalizacionDurlockPvc = datos.canalizacion?.canalizacionDurlockPvc;
                 this.cableadoPvcALaVista = datos.cableado?.cableadoPvcALaVista;

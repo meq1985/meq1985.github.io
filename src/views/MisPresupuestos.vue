@@ -48,7 +48,7 @@ export default {
       <button class="btnLogin-popup" @click.prevent="logout">Logout</button>
     </nav>
   </header>
-  <body>
+  <div class="page-content">
   <div class="configuracion">
     <p style="color: white; grid-column: 1 / -1">Guardados en este navegador y dispositivo. Descargá una copia: borrar los datos del navegador elimina estos archivos. Los PDF antiguos de Firebase Storage no se migraron.</p>
     <p v-if="error" role="alert" style="color: white">{{ error }}</p>
@@ -61,13 +61,13 @@ export default {
       </div>
       <div class="iconos">
 
-        <span class="icon" @click.prevent="() => descargarPdf(pdf)"><font-awesome-icon icon="fa-solid fa-download" /></span>
+        <button type="button" class="icon" aria-label="Descargar presupuesto" @click.prevent="() => descargarPdf(pdf)"><font-awesome-icon icon="fa-solid fa-download" /></button>
 
-        <span class="icon" @click.prevent="() => deletePdf(pdf)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></span>
+        <button type="button" class="icon" aria-label="Eliminar presupuesto" @click.prevent="() => deletePdf(pdf)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></button>
       </div>
     </div>
   </div>
-  </body>
+  </div>
 </template>
 
 <style scoped>
@@ -117,6 +117,10 @@ export default {
 }
 .icon{
   color: white;
+  background: transparent;
+  border: 0;
+  font-size: inherit;
+  cursor: pointer;
 }
 .configuracion h2 {
   margin-bottom: 30px;

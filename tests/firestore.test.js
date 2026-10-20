@@ -2,9 +2,11 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 vi.mock('../src/firebase', () => ({ db: {} }));
 vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(), assertCurrentUser: vi.fn() }));
+vi.mock('../src/services/accountProvisioning', () => ({ ensureAccountReady: vi.fn() }));
 vi.mock('firebase/firestore', () => ({ doc: vi.fn((db, collection, id) => ({ collection, id })),
   getDoc: vi.fn(), setDoc: vi.fn(), updateDoc: vi.fn() }));
 import { requireUser } from '../src/firebase/session';
+import { ensureAccountReady } from '../src/services/accountProvisioning';
 import { getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { PostStore } from '../src/stores/dbUsers';
 import { costoStore } from '../src/stores/dbCostos';
@@ -31,7 +33,8 @@ describe('Firestore client protection', () => {
     await PostStore().addItem('owner@example.com');
     await costoStore().addCostos('owner@example.com');
     expect(setDoc).not.toHaveBeenCalled();
-    expect(requireUser).toHaveBeenCalledWith({ verified: false, email: 'owner@example.com' });
+    expect(requireUser).toHaveBeenCalledWith({ email: 'owner@example.com' });
+    expect(ensureAccountReady).toHaveBeenCalledTimes(2);
   });
   it('handles missing documents without reading undefined fields', async () => {
     requireUser.mockResolvedValue({ email: 'owner@example.com' });

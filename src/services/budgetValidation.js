@@ -6,7 +6,8 @@ export function validateBudget(cliente, rows) {
     const cantidad = Number(row.cantidad);
     const precioUnitario = Number(row.precioUnitario);
     if (!row.descripcion?.trim() || !Number.isFinite(cantidad) || cantidad <= 0 ||
-        row.precioUnitario === null || row.precioUnitario === '' ||
+        (typeof row.precioUnitario !== 'number' && typeof row.precioUnitario !== 'string') ||
+        !String(row.precioUnitario).trim() ||
         !Number.isFinite(precioUnitario) || precioUnitario < 0) {
       throw new Error('Cada ítem necesita descripción, cantidad positiva y precio válido (cero o mayor).');
     }

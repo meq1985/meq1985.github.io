@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "../firebase";
 import { waitForAuth } from "../firebase/session";
 import { createAuthGuard } from "./guard";
+import { ensureAccountReady } from '../services/accountProvisioning';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -38,6 +39,6 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach(createAuthGuard(auth, waitForAuth));
+router.beforeEach(createAuthGuard(auth, waitForAuth, ensureAccountReady));
 
 export default router;
