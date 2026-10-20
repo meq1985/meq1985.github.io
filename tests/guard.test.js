@@ -16,8 +16,8 @@ describe('navigation', () => {
   it.each([null, { emailVerified: false }])('rejects anonymous and unverified users', async currentUser => {
     expect(await createAuthGuard({ currentUser }, async () => {})(protectedRoute)).toBe('/');
   });
-  it('uses config as the single landing route', async () => {
-    expect(await createAuthGuard({ currentUser: { emailVerified: true } }, async () => {})(home)).toBe('/config');
+  it('keeps the public homepage accessible when signed in', async () => {
+    expect(await createAuthGuard({ currentUser: { emailVerified: true } }, async () => {})(home)).toBe(true);
   });
   it('blocks protected navigation until provisioning is complete and avoids a home redirect loop', async () => {
     const guard = createAuthGuard({ currentUser: { emailVerified: true } }, async () => {}, async () => { throw new Error('offline'); });
