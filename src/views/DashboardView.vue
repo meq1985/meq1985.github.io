@@ -31,8 +31,8 @@ async function outputBudget(save) {
   saving.value = true; error.value = ''; message.value = '';
   try {
     const user = await requireUser();
-    const budget = validateBudget(cliente.value, tabla.value);
-    const document = await buildBudgetPdf(budget, profileStore);
+    const budget = { ...validateBudget(cliente.value, tabla.value), createdAt: new Date().toISOString() };
+    const document = await buildBudgetPdf(budget, { ...profileStore, correo: user.email });
     if (save) {
       await saveBudget(user.uid, budget, document.output('blob'));
       message.value = 'Presupuesto guardado en este navegador. Descargá una copia para conservarlo.';
