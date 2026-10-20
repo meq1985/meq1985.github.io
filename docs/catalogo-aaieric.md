@@ -11,7 +11,7 @@ Fuente: PDF aportado por el titular del proyecto, «AAIERIC - Costos Sugeridos d
 - La migración agrega el catálogo una sola vez y completa ítems faltantes de forma idempotente. Mantiene los campos originales intactos. Los importes históricos cargados por el usuario, incluido cero y la variante antigua de la clave PVC, aparecen en «Mis ítems anteriores»; no se adivinan equivalencias entre descripciones con distinto alcance.
 - Los cambios individuales guardan únicamente los ítems modificados. Los ajustes porcentuales operan sobre los precios guardados actuales, para toda la cuenta o una categoría. La vista previa requiere aplicación explícita. Disminución máxima: 100%; aumento positivo, limitado por el rango monetario seguro. Redondeo a centavos.
 - La transacción compara los importes revisados con los actuales. Ante cambios en otra pestaña cancela y pide recargar; un reintento no vuelve a aplicar el porcentaje.
-- «Revisar valores sugeridos» restaura únicamente los 98 precios AAIERIC. No modifica los ítems anteriores.
+- «Consultar precios sugeridos actualizados» consulta el catálogo compartido mensual; ver [publicación y formato](precios-sugeridos-mensuales.md). Solo lo aplica después de revisión y confirmación. No modifica los ítems anteriores.
 - Cada presupuesto guarda sus cantidades, unidades e importes como una copia independiente. Cambiar la lista de precios no recalcula presupuestos anteriores. El PDF expresa la unidad y la moneda.
 
 ## Validación

@@ -2,9 +2,9 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import { PostStore } from '../stores/dbUsers';
-import { CATALOG_SOURCE, CATALOG_NOTES, CATALOG_GROUPS, LABOR_CATALOG, currency } from '../data/laborCatalog';
+import { CATALOG_NOTES, CATALOG_GROUPS, currency } from '../data/laborCatalog';
 import { adjustPrices, strictPrices } from '../services/catalogPrices';
-import { loadCatalog, saveCatalogPrices } from '../services/catalogPersistence';
+import { loadCatalog, loadSuggestedCatalog, saveCatalogPrices } from '../services/catalogPersistence';
 
 const profileStore = PostStore();
 const profileFields = [ ['nombre', 'Nombre'], ['apellido', 'Apellido'], ['cuit', 'CUIT'], ['empresa', 'Empresa'], ['matricula', 'Matrícula'], ['telefono', 'Teléfono'], ['direccion', 'Dirección'] ];
@@ -58,15 +58,22 @@ function reviewAdjustment() {
   } catch (cause) { error.value = cause.message; }
 }
 function reviewDefaults() {
-  error.value = ''; message.value = '';
   if (dirty.value) { error.value = 'Guardá o descartá primero los cambios individuales.'; return; }
-  preview.value = { prices: Object.fromEntries(LABOR_CATALOG.map(item => [item.id, item.price])),
-    title: 'Volver a los valores sugeridos de septiembre 2026', type: 'defaults' };
+  return perform(async () => {
+    preview.value = null;
+    const suggested = await loadSuggestedCatalog();
+    preview.value = { prices: suggested.prices, suggested,
+      title: `Precios sugeridos · ${suggested.label}`, type: 'defaults' };
+  }, 'Revisá los importes antes de cargarlos en tu cuenta.');
 }
 function applyPreview() {
   const reviewed = preview.value;
   if (!reviewed) return;
-  return perform(async () => { await saveCatalogPrices(reviewed.prices, baseline.value); await reload(); }, 'Actualización guardada en tu cuenta. Los presupuestos anteriores conservan sus valores.');
+  return perform(async () => {
+    if (reviewed.suggested) await saveCatalogPrices(reviewed.prices, baseline.value, reviewed.suggested);
+    else await saveCatalogPrices(reviewed.prices, baseline.value);
+    await reload();
+  }, 'Actualización guardada en tu cuenta. Los presupuestos anteriores conservan sus valores.');
 }
 onMounted(async () => {
   try {
@@ -102,8 +109,8 @@ onMounted(async () => {
       </section>
       <section class="catalog-panel">
         <h2>Mis precios</h2>
-        <p>{{ CATALOG_SOURCE }}</p>
-        <p>Las cuentas nuevas reciben estos valores automáticamente. Los precios de tu cuenta son editables. Los valores anteriores que ya habías cargado se conservan en «Mis ítems anteriores».</p>
+
+        <p>Consultá los precios sugeridos actualizados y elegí si querés cargarlos en tu cuenta. Primero podrás comparar los valores; tus precios solo cambian cuando confirmás.</p>
         <details><summary>Alcance y notas de la tabla</summary><ul><li v-for="note in CATALOG_NOTES" :key="note">{{ note }}</li></ul></details>
         <fieldset :disabled="!ready || loading || busy || !entries.length">
           <div class="catalog-panel">
@@ -116,12 +123,12 @@ onMounted(async () => {
             </div>
             <div class="catalog-actions">
               <button @click="reviewAdjustment" :disabled="dirty">Revisar ajuste</button>
-              <button @click="reviewDefaults" :disabled="dirty">Revisar valores sugeridos</button>
+              <button @click="reviewDefaults" :disabled="dirty">Consultar precios sugeridos actualizados</button>
             </div>
             <p v-if="dirty" class="muted">Hay cambios individuales sin guardar. Guardalos o descartalos para ajustar por porcentaje.</p>
             <div v-if="preview" class="catalog-preview">
               <h3>{{ preview.title }}</h3>
-              <p>{{ previewRows.length }} precios. {{ preview.type === 'defaults' ? 'Reemplaza los precios AAIERIC de tu cuenta; conserva tus ítems anteriores.' : 'No modifica presupuestos ya guardados.' }}</p>
+              <p>{{ previewRows.length }} precios. {{ preview.type === 'defaults' ? 'Reemplaza los precios del catálogo de tu cuenta por los sugeridos; conserva tus ítems anteriores y los presupuestos guardados.' : 'No modifica presupuestos ya guardados.' }}</p>
               <details><summary>Ver todos los importes antes de guardar</summary>
                 <div class="catalog-scroll"><table class="catalog-table"><thead><tr><th>Ítem</th><th>Actual</th><th>Nuevo</th></tr></thead><tbody>
                   <tr v-for="item in previewRows" :key="item.id"><td>{{ item.description }} / {{ item.unit }}</td><td class="money">{{ currency(baseline[item.id]) }}</td><td class="money">{{ currency(preview.prices[item.id]) }}</td></tr>
@@ -146,7 +153,7 @@ onMounted(async () => {
             <div class="catalog-actions"><button class="primary" type="submit" :disabled="!dirty">Guardar cambios individuales</button><button type="button" :disabled="!dirty" @click="draft = { ...baseline }">Descartar cambios</button><span>{{ Object.keys(changes).length }} precios modificados</span></div>
           </form>
         </fieldset>
-        <p v-if="busy" role="status">Guardando…</p>
+        <p v-if="busy" role="status">Procesando…</p>
       </section>
     </div>
   </div>

@@ -3,11 +3,11 @@ import { beforeEach, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 vi.mock('../src/components/CatalogHeader.vue', () => ({ default: { template: '<div />' } }));
 vi.mock('../src/stores/dbUsers', () => ({ PostStore: () => ({ obtenerDato: vi.fn(), updateItem: vi.fn(), nombre1: 'Demo' }) }));
-vi.mock('../src/services/catalogPersistence', () => ({ loadCatalog: vi.fn(), saveCatalogPrices: vi.fn() }));
+vi.mock('../src/services/catalogPersistence', () => ({ loadCatalog: vi.fn(), loadSuggestedCatalog: vi.fn(), saveCatalogPrices: vi.fn() }));
 vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(async () => ({ uid: 'demo' })) }));
 vi.mock('../src/services/localBudgets', () => ({ saveBudget: vi.fn() }));
 vi.mock('../src/services/budgetPdf', () => ({ buildBudgetPdf: vi.fn(async () => ({ output: () => new Blob(['pdf']), save: vi.fn() })) }));
-import { loadCatalog, saveCatalogPrices } from '../src/services/catalogPersistence';
+import { loadCatalog, loadSuggestedCatalog, saveCatalogPrices } from '../src/services/catalogPersistence';
 import { saveBudget } from '../src/services/localBudgets';
 import Config from '../src/views/ConfigView.vue';
 import Dashboard from '../src/views/DashboardView.vue';
@@ -63,5 +63,33 @@ it('uses account prices, allows repeating an item and saves unit and price snaps
   expect(owner).toBe('demo');
   expect(budget.total).toBe(171000);
   expect(budget.items[0]).toMatchObject({ unidad: 'boca', cantidad: 2, precioUnitario: 57000 });
+  wrapper.unmount();
+});
+
+it('fetches the current monthly suggestion only on request and saves only after confirmation', async () => {
+  const { LABOR_CATALOG } = await import('../src/data/laborCatalog');
+  const suggested = { version: '2026-11-v1', label: 'Noviembre 2026', prices: Object.fromEntries(LABOR_CATALOG.map(item => [item.id, 100])) };
+  loadSuggestedCatalog.mockResolvedValue(suggested);
+  const wrapper = mount(Config); await flushPromises();
+  expect(loadSuggestedCatalog).not.toHaveBeenCalled();
+  await button(wrapper, 'Consultar precios sugeridos').trigger('click'); await flushPromises();
+  expect(wrapper.text()).toContain('Noviembre 2026');
+  expect(saveCatalogPrices).not.toHaveBeenCalled();
+  await button(wrapper, 'Cancelar').trigger('click');
+  expect(saveCatalogPrices).not.toHaveBeenCalled();
+  await button(wrapper, 'Consultar precios sugeridos').trigger('click'); await flushPromises();
+  await button(wrapper, 'Aplicar y guardar').trigger('click'); await flushPromises();
+  expect(saveCatalogPrices).toHaveBeenCalledExactlyOnceWith(suggested.prices, { visita: 56393, losa_metal: 57000 }, suggested);
+  wrapper.unmount();
+});
+
+it('leaves prices untouched when the monthly catalog cannot be loaded', async () => {
+  loadSuggestedCatalog.mockRejectedValue(new Error('Catálogo no disponible'));
+  const wrapper = mount(Config); await flushPromises();
+  await button(wrapper, 'Consultar precios sugeridos').trigger('click'); await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toContain('no disponible');
+  expect(wrapper.find('.catalog-preview').exists()).toBe(false);
+  expect(saveCatalogPrices).not.toHaveBeenCalled();
+  expect(wrapper.get('#price-visita').element.value).toBe('56393');
   wrapper.unmount();
 });
