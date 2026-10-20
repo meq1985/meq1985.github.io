@@ -1,9 +1,12 @@
+import { createCatalog } from './catalogPrices';
+
 export function defaultProfile() {
   return { nombre: '', apellido: '', cuit: '', empresa: '', matricula: '', telefono: '', direccion: '' };
 }
 
 export function defaultCosts() {
 return {
+            catalog: createCatalog(),
             canalizacion:{
                 canalizacionLosa: null,
                 canalizacionMamposteria: null,

@@ -2,6 +2,7 @@ import { doc, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { assertCurrentUser } from '../firebase/session';
 import { defaultProfile, defaultCosts } from './accountDefaults';
+import { createCatalog, catalogNeedsUpdate } from './catalogPrices';
 
 // Auth and Firestore cannot share a transaction. Provision only verified accounts,
 // atomically create both documents, and retry safely on every login/navigation.
@@ -17,5 +18,8 @@ export async function ensureAccountReady(user = auth.currentUser) {
     assertCurrentUser(user);
     if (!profileSnapshot.exists()) transaction.set(profile, defaultProfile());
     if (!costsSnapshot.exists()) transaction.set(costs, defaultCosts());
+    else if (catalogNeedsUpdate(costsSnapshot.data())) {
+      transaction.update(costs, { catalog: createCatalog(costsSnapshot.data()) });
+    }
   });
 }

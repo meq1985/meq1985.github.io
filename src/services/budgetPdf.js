@@ -6,11 +6,11 @@ export async function buildBudgetPdf(budget, profile) {
       const rows = [];
       budget.items.forEach((fila) => {
         if (fila.cantidad !== 0) {
-          rows.push([fila.codigo, fila.descripcion, fila.cantidad, fila.precioUnitario, fila.precioTotal]);
+          rows.push([fila.codigo, fila.descripcion, `${fila.cantidad}${fila.unidad ? ' ' + fila.unidad : ''}`, fila.precioUnitario, fila.precioTotal]);
         }
       });
       autoTable(doc, {
-          head: [['Codigo','Descripcion', 'Cantidad', 'Precio Unitario', 'Subtotal']],
+          head: [['Codigo','Descripcion', 'Cantidad / unidad', 'Precio Unitario (ARS)', 'Subtotal (ARS)']],
           body: rows,
           startY: 55
         });
