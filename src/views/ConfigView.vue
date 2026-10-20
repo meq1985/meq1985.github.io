@@ -515,11 +515,11 @@ export default {
         <p>-Tramo de cañería adicional para la interconexión con las otras cajas de defecto, o derivación de la instalación.</p>
         <p>-Empotrado de cajas y punteado de fijación de instalación con cemento u otro material.</p>
         <p>NO INCLUYE</p>
-        <P>-Cobertura o revoque de la totalidad de la instalación.</P>
-        <P>-Cableado de la cañería.</P>
-        <P>-Montaje de tomas de energía e interruptores de efecto.</P>
-        <P>-Instalación de artefactos lumínicos o ventilación.</P>
-        <P>-Material de instalación.</P>
+        <p>-Cobertura o revoque de la totalidad de la instalación.</p>
+        <p>-Cableado de la cañería.</p>
+        <p>-Montaje de tomas de energía e interruptores de efecto.</p>
+        <p>-Instalación de artefactos lumínicos o ventilación.</p>
+        <p>-Material de instalación.</p>
       </div>
       </div>
       <div class="config__btn">
@@ -562,11 +562,11 @@ export default {
         <p>-El conductor de instalación está previsto de, hasta 2,5 mm de sección.</p>
         <p>-Conexión de hasta un interruptor de efecto, toma, o elemento electrónicos, tales como tomas USB, vareadores lumínicos, o cualquier otro de similares características.</p>
         <p>RECABLEADO</p>
-        <P>-Desmontaje de instalacion electrica existente.</P>
+        <p>-Desmontaje de instalacion electrica existente.</p>
         <p>-Re-conexion de interruptores, tomas y demas elementos instalados previamente.</p>
         <p>-Reinstalacion de luminarias y artefactos.</p>
-        <P>SUBTERRANEO POR METRO</P>
-        <P>-Zanjeo, colocacion del cable, proteccion mecanica, cierre de zanja, verificar con centro de distrubucion reglamentacion para el trabajo.</P>
+        <p>SUBTERRANEO POR METRO</p>
+        <p>-Zanjeo, colocacion del cable, proteccion mecanica, cierre de zanja, verificar con centro de distrubucion reglamentacion para el trabajo.</p>
       </div>
       </div>
       <div class="config__btn">
@@ -623,12 +623,12 @@ export default {
           </div>
           <div class="descripcion">
             <p>INCLUYE</p>
-            <P>LUMINARIA</P>
+            <p>LUMINARIA</p>
             <p>-Armado de aplique.</p>
             <p>-Fijación de aplique a pared o caja.</p>
             <p>-Conexión de alimentación al punto habilitado más próximo.</p>
-            <P>ARTEFACTOS</P>
-            <P>-Fijacion del artefacto.</P>
+            <p>ARTEFACTOS</p>
+            <p>-Fijacion del artefacto.</p>
             <p>-Conexion a la instalacion electrica.</p>
           </div>
         </div>
@@ -737,7 +737,7 @@ export default {
         </div>
       </div>
       <div class="descripcion">
-        <P>INLCUYE</P>
+        <p>INLCUYE</p>
         <p>Cantaleteado de pared y empotrado de caño de bajada de doble Aislación. </p>
         <p>Amurado de gabinete de medición de energía.</p>
         <p>Instalación y conexión de la jabalina para puesta a tierra de servicio al gabinete de medidor.</p>
@@ -782,7 +782,7 @@ export default {
          </div>
         </div>
         <div class="descripcion">
-          <P>INCLUYE</P>
+          <p>INCLUYE</p>
           <p>Distribución de los circuitos, bocas, líneas seccionales, tableros , etc. </p>
           <p>Plano de obra. Esquemas unifilares de tableros. Planillas de Carga.</p>
           <p>Memoria Técnica.</p>
