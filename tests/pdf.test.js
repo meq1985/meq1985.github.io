@@ -35,3 +35,10 @@ it('paginates long estimates, repeats table headers and prints the total exactly
 it('rejects invalid issue dates', async () => {
   await expect(buildBudgetPdf({ ...budget(), createdAt: 'invalid' }, profile)).rejects.toThrow('fecha');
 });
+
+it('prints the optional property type separately from the client name', async () => {
+  const pdf = (await buildBudgetPdf({ ...budget(), tipoInmueble: 'Vivienda unifamiliar' }, profile)).output();
+  expect(pdf).toContain('Tipo de inmueble: Vivienda unifamiliar');
+  expect(pdf).toContain('Cliente Demo');
+  expect((await buildBudgetPdf(budget(), profile)).output()).not.toContain('Tipo de inmueble:');
+});

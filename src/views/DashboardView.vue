@@ -10,6 +10,8 @@ import { loadCatalog } from '../services/catalogPersistence';
 import { CATALOG_SOURCE, CATALOG_NOTES, CATALOG_GROUPS, currency } from '../data/laborCatalog';
 
 const profileStore = PostStore();
+const tipoInmueble = ref('');
+const propertyTypes = ['Vivienda unifamiliar', 'Departamento', 'Local', 'Depósito', 'Oficina', 'Edificio', 'Taller', 'Galpón'];
 const cliente = ref(''), tabla = ref([]), entries = ref([]), search = ref(''), selected = ref('');
 const loading = ref(true), saving = ref(false), error = ref(''), message = ref('');
 const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -31,7 +33,7 @@ async function outputBudget(save) {
   saving.value = true; error.value = ''; message.value = '';
   try {
     const user = await requireUser();
-    const budget = { ...validateBudget(cliente.value, tabla.value), createdAt: new Date().toISOString() };
+    const budget = { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() };
     const document = await buildBudgetPdf(budget, { ...profileStore, correo: user.email });
     if (save) {
       await saveBudget(user.uid, budget, document.output('blob'));
@@ -55,7 +57,10 @@ onMounted(async () => {
       <p v-if="error" class="catalog-notice error" role="alert">{{ error }}</p>
       <p v-if="message" class="catalog-notice" role="status">{{ message }}</p>
       <section class="catalog-panel">
-        <label for="budget-client">Cliente<input id="budget-client" v-model="cliente" maxlength="120" placeholder="Nombre del cliente" /></label>
+        <div class="catalog-fields">
+          <label for="budget-client">Cliente<input id="budget-client" v-model="cliente" maxlength="120" placeholder="Nombre del cliente" /></label>
+          <label for="budget-property-type">Tipo de inmueble (opcional)<input id="budget-property-type" v-model="tipoInmueble" list="property-types" maxlength="80" placeholder="Elegí una opción o escribí otra" /><datalist id="property-types"><option v-for="type in propertyTypes" :key="type" :value="type" /></datalist></label>
+        </div>
         <p v-if="loading" role="status">Cargando tus precios…</p>
         <fieldset :disabled="loading || saving">
           <h2 style="margin-top: 24px">Agregar trabajos</h2>

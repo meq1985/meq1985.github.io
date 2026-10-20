@@ -70,7 +70,10 @@ export async function buildBudgetPdf(budget, profile) {
 
   const clientY = 44 + panelHeight + 13;
   text('PREPARADO PARA', left, clientY, 7, MUTED, 'bold');
-  const clientEnd = wrapped(clean(budget.cliente), left, clientY + 8, width, 14, NAVY, 'bold');
+  let clientEnd = wrapped(clean(budget.cliente), left, clientY + 8, width, 14, NAVY, 'bold');
+  if (clean(budget.tipoInmueble)) {
+    clientEnd = wrapped('Tipo de inmueble: ' + clean(budget.tipoInmueble), left, clientEnd + 3, width, 10, MUTED);
+  }
   const rows = budget.items.filter(item => item.cantidad !== 0).map(item => [
     clean(item.codigo), clean(item.descripcion), `${item.cantidad}${item.unidad ? ' ' + item.unidad : ''}`,
     money(item.precioUnitario), money(item.precioTotal),

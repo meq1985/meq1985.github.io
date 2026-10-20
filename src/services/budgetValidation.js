@@ -1,4 +1,7 @@
-export function validateBudget(cliente, rows) {
+export function validateBudget(cliente, rows, tipoInmueble = '') {
+  if (tipoInmueble != null && typeof tipoInmueble !== 'string') throw new Error('Ingresá un tipo de inmueble válido.');
+  const propertyType = (tipoInmueble ?? '').trim();
+  if (propertyType.length > 80) throw new Error('El tipo de inmueble no puede superar los 80 caracteres.');
   if (!cliente.trim()) throw new Error('Ingresá el nombre del cliente.');
   if (!rows.length) throw new Error('Agregá al menos un ítem.');
   let total = 0;
@@ -21,5 +24,5 @@ export function validateBudget(cliente, rows) {
   });
   total = Math.round(total * 100) / 100;
   if (!Number.isSafeInteger(Math.round(total * 100))) throw new Error('El total es demasiado grande.');
-  return { cliente: cliente.trim(), items, total };
+  return { cliente: cliente.trim(), items, total, ...(propertyType ? { tipoInmueble: propertyType } : {}) };
 }

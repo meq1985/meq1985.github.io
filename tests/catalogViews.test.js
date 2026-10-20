@@ -53,6 +53,7 @@ it('scopes decreases, cancels previews and blocks bulk edits while individual pr
 it('uses account prices, allows repeating an item and saves unit and price snapshots', async () => {
   const wrapper = mount(Dashboard); await flushPromises();
   await wrapper.get('#budget-client').setValue('Cliente Demo');
+  await wrapper.get('#budget-property-type').setValue('Vivienda unifamiliar');
   await wrapper.get('select').setValue('losa_metal');
   await button(wrapper, 'Agregar ítem').trigger('click');
   await button(wrapper, 'Agregar ítem').trigger('click');
@@ -65,6 +66,8 @@ it('uses account prices, allows repeating an item and saves unit and price snaps
   const [owner, budget] = saveBudget.mock.calls[0];
   expect(owner).toBe('demo');
   expect(budget.total).toBe(171000);
+  expect(budget.tipoInmueble).toBe('Vivienda unifamiliar');
+  expect(buildBudgetPdf.mock.calls.at(-1)[0].tipoInmueble).toBe('Vivienda unifamiliar');
   expect(budget.items[0]).toMatchObject({ unidad: 'boca', cantidad: 2, precioUnitario: 57000 });
   wrapper.unmount();
 });
