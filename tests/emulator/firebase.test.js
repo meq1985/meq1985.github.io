@@ -11,6 +11,9 @@ import { ensureAccountReady } from '../../src/services/accountProvisioning';
 import { useUserStore } from '../../src/stores/user';
 import { PostStore } from '../../src/stores/dbUsers';
 import { costoStore } from '../../src/stores/dbCostos';
+import { LABOR_CATALOG } from '../../src/data/laborCatalog';
+import { adjustPrices } from '../../src/services/catalogPrices';
+import { loadCatalog, saveCatalogPrices } from '../../src/services/catalogPersistence';
 
 const projectId = 'demo-presupuesto-electrico';
 let environment;
@@ -104,6 +107,8 @@ describe('registration, recovery and atomic provisioning against Auth + Firestor
     const profile = doc(db, 'usuarios', address), costs = doc(db, 'costos', address);
     expect((await getDoc(profile)).exists()).toBe(true);
     expect((await getDoc(costs)).exists()).toBe(true);
+    expect(Object.keys((await getDoc(costs)).data().catalog.prices)).toHaveLength(98);
+    expect((await getDoc(costs)).data().catalog.prices.visita).toBe(56393);
     await PostStore().updateItem('Demo', 'Test', '123', 'Demo', '456', '555', 'Demo street');
     await costoStore().updateCostosCanalizacion(1.25, 2, 3, 4, 5, 6);
     expect((await getDoc(profile)).data().nombre).toBe('Demo');
@@ -148,5 +153,39 @@ describe('registration, recovery and atomic provisioning against Auth + Firestor
     await ensureAccountReady();
     expect((await getDoc(doc(db, 'usuarios', address))).exists()).toBe(true);
     expect((await getDoc(doc(db, 'costos', address))).exists()).toBe(true);
+  });
+  it('migrates an existing account, persists adjustments and rejects stale concurrent edits', async () => {
+    const address = auth.currentUser.email;
+    const reference = doc(db, 'costos', address);
+    await environment.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), 'costos', address), {
+      canalizacion: { canalizacionLosa: 123.45, canalizacionALaVistaPvc: 0 }, retained: 'original data'
+    }));
+    await Promise.all([ensureAccountReady(), ensureAccountReady()]);
+    const migrated = (await getDoc(reference)).data();
+    expect(migrated.canalizacion.canalizacionLosa).toBe(123.45);
+    expect(migrated.retained).toBe('original data');
+    expect(migrated.catalog.prices.legacy_canalizacionLosa).toBe(123.45);
+    expect(migrated.catalog.prices.legacy_canalizacionALaVistaPVC).toBe(0);
+    expect(await loadCatalog()).toHaveLength(LABOR_CATALOG.length + 2);
+    const initial = migrated.catalog.prices;
+    const increased = adjustPrices(initial, 20, 'increase');
+    await saveCatalogPrices(increased, initial);
+    await ensureAccountReady();
+    expect((await getDoc(reference)).data().catalog.prices).toEqual(increased);
+    expect((await loadCatalog()).find(item => item.id === 'losa_metal').price).toBe(68400);
+    await expect(saveCatalogPrices(increased, initial)).rejects.toThrow('otra pestaña');
+    const current = (await getDoc(reference)).data().catalog.prices;
+    const concurrent = await Promise.allSettled([
+      saveCatalogPrices({ visita: 10 }, current), saveCatalogPrices({ visita: 20 }, current)
+    ]);
+    expect(concurrent.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(concurrent.filter(result => result.status === 'rejected')).toHaveLength(1);
+    expect([10, 20]).toContain((await getDoc(reference)).data().catalog.prices.visita);
+    await saveCatalogPrices({ losa_metal: 57000 }, { losa_metal: 68400 });
+    expect((await getDoc(reference)).data().catalog.prices.losa_metal).toBe(57000);
+    expect((await getDoc(reference)).data().retained).toBe('original data');
+    await signOut(auth);
+    await expect(saveCatalogPrices({ visita: 0 }, current)).rejects.toThrow('sesión');
+    await expect(loadCatalog()).rejects.toThrow('sesión');
   });
 });
