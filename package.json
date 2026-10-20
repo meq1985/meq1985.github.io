@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --port 5050"
+    "preview": "vite preview --port 5050",
+    "test": "vitest run --threads=false"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.4.0",
@@ -22,6 +23,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^2.3.1",
-    "vite": "^2.9.5"
+    "fake-indexeddb": "^6.2.6",
+    "vite": "^2.9.5",
+    "vitest": "^0.34.6"
   }
 }

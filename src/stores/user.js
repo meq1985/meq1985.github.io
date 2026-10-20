@@ -1,87 +1,68 @@
-import { defineStore } from "pinia";
-import { auth } from "../firebase";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, getAuth, sendEmailVerification, sendPasswordResetEmail} from "firebase/auth";
+import { defineStore } from 'pinia';
+import { auth } from '../firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
+    sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
+import { PostStore } from './dbUsers';
+import { costoStore } from './dbCostos';
 
-export const useUserStore = defineStore("user",{
-    state: () => {
-        return{
-            user: null,
-        };
-        
-    },
-
-    actions:{
-        async register(email, password){
+export const useUserStore = defineStore('user', {
+    state: () => ({ user: null, busy: false }),
+    actions: {
+        async register(email, password) {
+            if (this.busy) return;
+            this.busy = true;
+            let created = false;
             try {
-                await createUserWithEmailAndPassword(auth, email, password);
-                
-                
+                const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+                created = true;
+                await PostStore().addItem(user.email);
+                await costoStore().addCostos(user.email);
+                await sendEmailVerification(user);
+                alert('Se envió un correo de verificación. Verificá tu correo antes de ingresar.');
             } catch (error) {
-                switch(error.code){
-                    case "auth/amil-already-in-use":
-                        alert("Email ya esta en uso");
-                        break;
-                    case "auth/invalid-email":
-                        alert("Email invalido");
-                        break;
-                }
-                return;
+                const message = error.code === 'auth/email-already-in-use'
+                    ? 'El correo ya está registrado. Ingresá o recuperá tu contraseña.'
+                    : created
+                        ? 'La cuenta se creó, pero no se completó la configuración o el envío del correo. Ingresá para reintentar.'
+                        : 'No se pudo crear la cuenta. Revisá el correo y la contraseña (mínimo 6 caracteres).';
+                alert(message);
+            } finally {
+                try { if (created) await signOut(auth); }
+                finally { this.user = auth.currentUser; this.busy = false; }
             }
-        this.user = auth.currentUser;
-        await sendEmailVerification(auth.currentUser);
-        alert("Se envio un mail de verificacion a su correo.")
-        await signOut(auth);
-        this.user = null;
         },
-
+        async login(email, password) {
+            if (this.busy) return;
+            this.busy = true;
+            try {
+                const { user } = await signInWithEmailAndPassword(auth, email.trim(), password);
+                if (!user.emailVerified) {
+                    try { await sendEmailVerification(user); }
+                    finally { await signOut(auth); }
+                    alert('Verificá tu correo para ingresar. Se reenvió el enlace de verificación.');
+                    return;
+                }
+                // Repair incomplete registration without overwriting existing documents.
+                await PostStore().addItem(user.email);
+                await costoStore().addCostos(user.email);
+                this.user = user;
+                await this.$router.push('/config');
+            } catch (error) {
+                alert('No se pudo ingresar o completar la configuración. Revisá tus datos y reintentá.');
+                await signOut(auth);
+                this.user = null;
+            } finally { this.busy = false; }
+        },
         async resetPassword(email) {
             try {
-              await sendPasswordResetEmail(auth, email);
-              alert("Correo electrónico enviado para restablecer la contraseña");
-            } catch (error) {
-                switch(error.code){
-                    case "auth/invalid-email":
-                        alert("Email invalido");
-                        break;
-                }
-                return;
-            }
+                await sendPasswordResetEmail(auth, email.trim());
+                alert('Si existe una cuenta, recibirás un correo para restablecer la contraseña.');
+            } catch (error) { alert('No se pudo enviar el correo. Revisá la dirección e intentá de nuevo.'); }
         },
-
-        async login(email, password){
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-            } catch (error) {
-                switch(error.code){
-                    case "auth/user-not-found":
-                        alert("Usuario no encontrado");
-                        break;
-                    case "auth/wrong-password":
-                        alert("Contraseña invalida");
-                        break;
-                }
-                return;
-            }
-        this.user = auth.currentUser;
-        if (this.user && this.user.emailVerified) {
-            // El usuario ha verificado su correo electrónico
-            this.$router.push("/config")
-          } else {
-            // El usuario no ha verificado su correo electrónico
-            alert('El usuario no ha verificado su correo electrónico');
+        async logout() {
             await signOut(auth);
             this.user = null;
-          }
-        /*this.$router.push("/dashboard")*/
-        },
-
-        async logout(){
-            await signOut(auth);
-            this.user = null;
-            this.$router.push("/");
-        },
-        
-        
-        
-    },
+            await this.$router.push('/');
+        }
+    }
 });

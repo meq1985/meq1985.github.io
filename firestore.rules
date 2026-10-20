@@ -1,0 +1,21 @@
+// Proposed rules for review/emulator testing. NOT deployed by this PR.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(email) {
+      return request.auth != null && request.auth.token.email == email;
+    }
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    match /usuarios/{email} {
+      allow get, create: if owner(email);
+      allow update: if owner(email) && verified();
+    }
+    match /costos/{email} {
+      allow get: if (email == 'codigos' && verified()) || owner(email);
+      allow create: if email != 'codigos' && owner(email);
+      allow update: if email != 'codigos' && owner(email) && verified();
+    }
+  }
+}

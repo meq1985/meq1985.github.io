@@ -1,0 +1,25 @@
+import { beforeEach, it, expect, vi } from 'vitest';
+vi.mock('../src/firebase/index', () => ({ auth: { currentUser: null } }));
+vi.mock('firebase/auth', () => ({ onAuthStateChanged: vi.fn() }));
+import { auth } from '../src/firebase/index';
+import { onAuthStateChanged } from 'firebase/auth';
+beforeEach(() => { vi.resetModules(); vi.clearAllMocks(); auth.currentUser = null; });
+it('shares one initialization wait and checks the current user on every operation', async () => {
+  let restored;
+  const unsubscribe = vi.fn();
+  onAuthStateChanged.mockImplementation((auth, callback) => { restored = callback; return unsubscribe; });
+  const { waitForAuth, requireUser } = await import('../src/firebase/session');
+  const ready = waitForAuth();
+  expect(waitForAuth()).toBe(ready);
+  auth.currentUser = { uid: 'one', email: 'one@example.com', emailVerified: true };
+  restored();
+  await ready;
+  expect(unsubscribe).toHaveBeenCalledOnce();
+  expect(await requireUser()).toBe(auth.currentUser);
+  await expect(requireUser({ email: 'other@example.com' })).rejects.toThrow('otra cuenta');
+  auth.currentUser.emailVerified = false;
+  await expect(requireUser()).rejects.toThrow('verificado');
+  expect(await requireUser({ verified: false })).toBe(auth.currentUser);
+  auth.currentUser = null;
+  await expect(requireUser()).rejects.toThrow('sesión');
+});

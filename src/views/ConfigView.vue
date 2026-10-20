@@ -113,45 +113,49 @@ export default {
     const codigoFindesFeriados = ref('');
 
 
+    const saveConfiguration = async (action) => {
+      try { await action(); alert('Configuración guardada.'); }
+      catch (error) { alert('No se pudo guardar la configuración: ' + error.message); }
+    };
     const update = () => {
-      store.updateItem(nombre.value, apellido.value, cuit.value, empresa.value, matricula.value, telefono.value, direccion.value);
+      return saveConfiguration(() => store.updateItem(nombre.value, apellido.value, cuit.value, empresa.value, matricula.value, telefono.value, direccion.value));
     }
     const updateC = () => {
-      costosStore.updateCostos(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value, cableadoObraNueva.value, cableadoRecableado.value, 
+      return saveConfiguration(() => costosStore.updateCostos(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value, cableadoObraNueva.value, cableadoRecableado.value,
               conexionSimple.value, conexionDoble.value, conexionCombinacion.value,tableroPrincipal.value,tableroSeccional8.value,tableroSeccional36.value,tableroSeccional54.value,
               acometidaGabinete.value, acometidaPat.value, acometidaPilar.value, documentacionProyecto.value, documentacionPlano.value, documentacionLista.value, canalizacionALaVistaPVC.value,
-              canalizacionEmbutidaPVC.value, canalizacionDurlockPvc.value, cableadoPvcALaVista.value, cableadoPvcEmbutido.value, cableadoSubterraneoXmetro.value, 
+              canalizacionEmbutidaPVC.value, canalizacionDurlockPvc.value, cableadoPvcALaVista.value, cableadoPvcEmbutido.value, cableadoSubterraneoXmetro.value,
               conexionArtefactoCampana.value, conexionArtefactoExtractor.value, conexionArtefactoVentilador.value, conexionLuminariaAplique.value, conexionLuminariaColgante.value,
               conexionLuminariaExterior.value, conexionLuminariaLuzEmergencia.value, tableroTermomagneticaMonofasico.value, tableroTermomagneticaTrifasico.value, tableroDiferencialMonofasico.value,
               tableroDiferencialTrifasico.value, acometidaMonofasica.value, acometidaTrifasica.value, acometidaInstalacionMedidorMonofasico.value, acometidaInstalacionMedidorTrifasico.value,
               acometidaArmadoPilarMonofasico.value, acometidaArmadoPilarTrifasico.value, documentacionHasta30Bocas.value, documentacionHasta50Bocas.value, documentacionHasta100Bocas.value,
-              emergenciasDiasHabiles.value, emergenciasFindesFeriados.value);
+              emergenciasDiasHabiles.value, emergenciasFindesFeriados.value));
     };
     const updateCanalizacion = () => {
-      costosStore.updateCostosCanalizacion(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value, canalizacionALaVistaPVC.value,
-              canalizacionEmbutidaPVC.value, canalizacionDurlockPvc.value);
+      return saveConfiguration(() => costosStore.updateCostosCanalizacion(canalizacionLosa.value, canalizacionMamposteria.value, canalizacionConstruccionSeca.value, canalizacionALaVistaPVC.value,
+              canalizacionEmbutidaPVC.value, canalizacionDurlockPvc.value));
     };
     const updateCableado = () => {
-      costosStore.updateCostosCableado(cableadoObraNueva.value, cableadoRecableado.value, cableadoPvcALaVista.value, cableadoPvcEmbutido.value, cableadoSubterraneoXmetro.value);
+      return saveConfiguration(() => costosStore.updateCostosCableado(cableadoObraNueva.value, cableadoRecableado.value, cableadoPvcALaVista.value, cableadoPvcEmbutido.value, cableadoSubterraneoXmetro.value));
     };
     const updateConexion = () => {
-      costosStore.updateCostosConexion(conexionSimple.value, conexionDoble.value, conexionCombinacion.value, conexionArtefactoCampana.value, conexionArtefactoExtractor.value,
-      conexionArtefactoVentilador.value, conexionLuminariaAplique.value, conexionLuminariaColgante.value, conexionLuminariaExterior.value, conexionLuminariaLuzEmergencia.value);
+      return saveConfiguration(() => costosStore.updateCostosConexion(conexionSimple.value, conexionDoble.value, conexionCombinacion.value, conexionArtefactoCampana.value, conexionArtefactoExtractor.value,
+      conexionArtefactoVentilador.value, conexionLuminariaAplique.value, conexionLuminariaColgante.value, conexionLuminariaExterior.value, conexionLuminariaLuzEmergencia.value));
     };
     const updateTablero = () => {
-      costosStore.updateCostosTablero(tableroPrincipal.value,tableroSeccional8.value,tableroSeccional36.value,tableroSeccional54.value, tableroTermomagneticaMonofasico.value,
-      tableroTermomagneticaTrifasico.value, tableroDiferencialMonofasico.value, tableroDiferencialTrifasico.value);
+      return saveConfiguration(() => costosStore.updateCostosTablero(tableroPrincipal.value,tableroSeccional8.value,tableroSeccional36.value,tableroSeccional54.value, tableroTermomagneticaMonofasico.value,
+      tableroTermomagneticaTrifasico.value, tableroDiferencialMonofasico.value, tableroDiferencialTrifasico.value));
     };
     const updateAcometida = () => {
-      costosStore.updateCostosAcometida(acometidaGabinete.value, acometidaPat.value, acometidaPilar.value, acometidaMonofasica.value, acometidaTrifasica.value,
-      acometidaInstalacionMedidorMonofasico.value, acometidaInstalacionMedidorTrifasico.value, acometidaArmadoPilarMonofasico.value, acometidaArmadoPilarTrifasico.value);
+      return saveConfiguration(() => costosStore.updateCostosAcometida(acometidaGabinete.value, acometidaPat.value, acometidaPilar.value, acometidaMonofasica.value, acometidaTrifasica.value,
+      acometidaInstalacionMedidorMonofasico.value, acometidaInstalacionMedidorTrifasico.value, acometidaArmadoPilarMonofasico.value, acometidaArmadoPilarTrifasico.value));
     };
     const updateDocumentacion = () => {
-      costosStore.updateCostosDocumentacion(documentacionProyecto.value, documentacionPlano.value, documentacionLista.value, documentacionHasta30Bocas.value,
-      documentacionHasta50Bocas.value, documentacionHasta100Bocas.value);
+      return saveConfiguration(() => costosStore.updateCostosDocumentacion(documentacionProyecto.value, documentacionPlano.value, documentacionLista.value, documentacionHasta30Bocas.value,
+      documentacionHasta50Bocas.value, documentacionHasta100Bocas.value));
     };
     const updateEmergencias = () => {
-      costosStore.updateCostosEmergencias(emergenciasDiasHabiles.value, emergenciasFindesFeriados.value);
+      return saveConfiguration(() => costosStore.updateCostosEmergencias(emergenciasDiasHabiles.value, emergenciasFindesFeriados.value));
     };
     const logout = () => {
       userStore.logout();
@@ -198,9 +202,11 @@ export default {
     };
 
     onMounted(async () => {
+      try {
       await store.obtenerDato();
       await costosStore.obtenerCostos();
       await costosStore.obtenerCodigos();
+      } catch (error) { alert("No se pudo cargar la configuración: " + error.message); }
       nombre.value = store.nombre1
       apellido.value = store.apellido1
       cuit.value = store.cuit1
@@ -231,7 +237,7 @@ export default {
       canalizacionDurlockPvc.value = costosStore.canalizacionDurlockPvc
       cableadoPvcALaVista.value = costosStore.cableadoPvcALaVista
       cableadoPvcEmbutido.value = costosStore.cableadoPvcEmbutido
-      cableadoSubterraneoXmetro.value = costosStore.cableadoSubterraneoXmetro 
+      cableadoSubterraneoXmetro.value = costosStore.cableadoSubterraneoXmetro
       conexionArtefactoCampana.value = costosStore.conexionArtefactoCampana
       conexionArtefactoExtractor.value = costosStore.conexionArtefactoExtractor
       conexionArtefactoVentilador.value = costosStore.conexionArtefactoVentilador
@@ -277,7 +283,7 @@ export default {
       codigoDurlockPvc.value = costosStore.codigoDurlockPvc
       codigoPvcALaVista.value = costosStore.codigoPvcALaVista
       codigoPvcEmbutido.value = costosStore.codigoPvcEmbutido
-      codigoSubterraneoXmetro.value = costosStore.codigoSubterraneoXmetro 
+      codigoSubterraneoXmetro.value = costosStore.codigoSubterraneoXmetro
       codigoArtefactoCampana.value = costosStore.codigoArtefactoCampana
       codigoArtefactoExtractor.value = costosStore.codigoArtefactoExtractor
       codigoArtefactoVentilador.value = costosStore.codigoArtefactoVentilador
@@ -478,9 +484,9 @@ export default {
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
-      </div>                        
+      </div>
     </form>
-                  
+
   </div>
   <div class="configuracion" id="canalizacion">
     <h2>Canalizacion</h2>
@@ -530,7 +536,7 @@ export default {
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
-      </div>   
+      </div>
     </form>
   </div>
   <div class="configuracion" id="cableado">
@@ -577,7 +583,7 @@ export default {
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
-      </div>   
+      </div>
     </form>
   </div>
   <div class="configuracion" id="conexion">
@@ -601,31 +607,31 @@ export default {
           <div class="config__input">
             <input type="number" v-model="conexionArtefactoCampana">
             <label>Colocacion campana</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="conexionArtefactoExtractor">
             <label>Colocacion extractor</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="conexionArtefactoVentilador">
             <label>Colocacion ventilador</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="conexionLuminariaAplique">
             <label>Luminaria: aplique</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="conexionLuminariaColgante">
             <label>Luminaria: colgante</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="conexionLuminariaExterior">
             <label>Luminaria: exterior</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="conexionLuminariaLuzEmergencia">
             <label>Luz de emergencia</label>
-          </div>    
+          </div>
           </div>
           <div class="descripcion">
             <p>INCLUYE</p>
@@ -641,7 +647,7 @@ export default {
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
-      </div>   
+      </div>
     </form>
   </div>
   <div class="configuracion" id="tablero">
@@ -662,27 +668,27 @@ export default {
           <div class="config__input">
             <input type="number" v-model="tableroSeccional36">
             <label>Seccional 8/36 polos</label>
-          </div> 
+          </div>
           <div class="config__input">
             <input type="number" v-model="tableroSeccional54">
             <label>Seccional +36 polos</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="tableroTermomagneticaMonofasico">
             <label>Termomagnetica Monofasico</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="tableroTermomagneticaTrifasico">
             <label>Termomagnetica Trifasico</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="tableroDiferencialMonofasico">
             <label>DIferencial Monofasico</label>
-          </div>  
+          </div>
           <div class="config__input">
             <input type="number" v-model="tableroDiferencialTrifasico">
             <label>Diferencia Trifasico</label>
-          </div>  
+          </div>
           </div>
           <div class="descripcion">
             <p>INCLUYE</p>
@@ -695,7 +701,7 @@ export default {
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
-      </div>   
+      </div>
     </form>
   </div>
   <div class="configuracion" id="acometida">
@@ -715,31 +721,31 @@ export default {
          <div class="config__input">
           <input type="number" v-model="acometidaPilar">
           <label>Pilar completo</label>
-         </div>  
+         </div>
          <div class="config__input">
           <input type="number" v-model="acometidaMonofasica">
           <label>Acometida Monofasica</label>
-         </div>  
+         </div>
          <div class="config__input">
           <input type="number" v-model="acometidaTrifasica">
           <label>Acometida Trifasica</label>
-         </div>  
+         </div>
          <div class="config__input">
           <input type="number" v-model="acometidaInstalacionMedidorMonofasico">
           <label>Instalacion Medidor Monofasico</label>
-         </div>  
+         </div>
          <div class="config__input">
           <input type="number" v-model="acometidaInstalacionMedidorTrifasico">
           <label>Instalacion Medidor Trifasico</label>
-         </div>  
+         </div>
          <div class="config__input">
           <input type="number" v-model="acometidaArmadoPilarMonofasico">
           <label>Armado Completo Pilar Monofasico</label>
-         </div>  
+         </div>
          <div class="config__input">
           <input type="number" v-model="acometidaArmadoPilarTrifasico">
           <label>Armado Completo Pilar Trifasico</label>
-         </div>  
+         </div>
         </div>
       </div>
       <div class="descripcion">
@@ -753,7 +759,7 @@ export default {
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
-      </div>   
+      </div>
     </form>
   </div>
   <div class="configuracion" id="documentacion">
@@ -773,19 +779,19 @@ export default {
          <div class="config__input">
           <input type="number" v-model="documentacionLista">
           <label>Lista de materiales</label>
-         </div> 
+         </div>
          <div class="config__input">
           <input type="number" v-model="documentacionHasta30Bocas">
           <label>Proyecto completo hasta 30 bocas</label>
-         </div> 
+         </div>
          <div class="config__input">
           <input type="number" v-model="documentacionHasta50Bocas">
           <label>Proyecto completo hasta 50 bocas</label>
-         </div> 
+         </div>
          <div class="config__input">
           <input type="number" v-model="documentacionHasta100Bocas">
           <label>Proyecto completo hasta 100 bocas</label>
-         </div> 
+         </div>
         </div>
         <div class="descripcion">
           <P>INCLUYE</P>
@@ -798,7 +804,7 @@ export default {
         </div>
         <div class="config__btn">
           <button class="config__submit" type="submit">Guardar</button>
-        </div>   
+        </div>
     </form>
   </div>
   <div class="configuracion" id="emergencias">
@@ -826,7 +832,7 @@ export default {
       </div>
       <div class="config__btn">
         <button class="config__submit" type="submit">Guardar</button>
-      </div>   
+      </div>
     </form>
   </div>
     </div>
@@ -936,7 +942,7 @@ body{
   padding: 15px;
   font-size: 18px;
   color: rgb(212, 212, 212);
-  
+
 }
 .config__costos__ label {
   position: absolute;
@@ -970,13 +976,13 @@ body{
   padding: 0px 0px;
   position: relative;
   font-size: 1.1em;
-  
+
   color: rgb(212, 212, 212);
   text-decoration: none;
   font-weight: 500;
   margin-left: 40px;
   margin-top: 40px;
-  
+
 }
 .sidebar a::after{
   content:"";

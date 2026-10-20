@@ -1,37 +1,28 @@
 <script type="module">
 
-import { ref } from "/node_modules/vue/dist/vue.esm-browser.js";
+import { ref } from "vue";
 import { useUserStore } from "../stores/user";
-import { getAuth } from "firebase/auth";
-import { PostStore } from '../stores/dbUsers';
-import { costoStore } from "../stores/dbCostos";
 
 export default {
   setup() {
-    const store = PostStore();
-    const costosStore = costoStore();
     const email = ref("");
     const password = ref("");
     const userStore = useUserStore();
 
-    const register = () => {
-      userStore.register(email.value, password.value);
-      store.addItem(email.value);
-      costosStore.addCostos(email.value);
+    const register = async () => {
+      await userStore.register(email.value, password.value);
     };
 
     const login = () => {
       userStore.login(email.value, password.value);
-      
-      
+
+
     };
 
     const recoveryPassword = () => {
-      userStore.resetPassword(email.value); 
+      userStore.resetPassword(email.value);
     };
 
-    const auth = getAuth();
-    const user = auth.currentUser;
 
     const isActive = ref(false);
     function toggleLogin() {
@@ -53,7 +44,7 @@ export default {
           const contact = document.querySelector('.contact');
           const conectar = document.querySelector('.conectar');
           const about = document.querySelector('.about');
-          
+
           conectar.style.transform = isActiveC.value = 'scale(0)';
           about.style.transform = isActiveC.value = 'scale(0)';
           contact.style.transform = isActiveC.value ? 'scale(1)' : 'scale(0)';
@@ -68,7 +59,7 @@ export default {
           contact.style.transform = isActiveW.value = 'scale(0)';
           about.style.transform = isActiveW.value = 'scale(0)';
           conectar.style.transform = isActiveW.value ? 'scale(1)' : 'scale(0)';
-        } 
+        }
 
     const isActiveA = ref(false);
     function toggleAbout() {
@@ -79,7 +70,7 @@ export default {
           contact.style.transform = isActiveA.value = 'scale(0)';
           conectar.style.transform = isActiveA.value = 'scale(0)';
           about.style.transform = isActiveA.value ? 'scale(1)' : 'scale(0)';
-        }  
+        }
 
     const isClosed = ref(false);
     function toggleClose() {
@@ -93,19 +84,20 @@ export default {
         }
 
     function toggleWhatsapp(){
-        window.location.href = 'https://wa.me/+542964606826';  
+        window.location.href = 'https://wa.me/+542964606826';
     }
     function toggleFacebook(){
-        window.location.href = 'https://www.facebook.com/emanuel.quiroga.714';  
+        window.location.href = 'https://www.facebook.com/emanuel.quiroga.714';
     }
     function toggleEmail(){
-        window.location.href = 'mailto:emanuelquiroga.bgh@gmail.com';  
+        window.location.href = 'mailto:emanuelquiroga.bgh@gmail.com';
     }
     function toggleInstagram(){
-        window.location.href = 'https://www.instagram.com/emanuel.quiroga.714';  
+        window.location.href = 'https://www.instagram.com/emanuel.quiroga.714';
     }
 
     return {
+      userStore,
       email,
       password,
       isActive,
@@ -139,20 +131,20 @@ export default {
       <a href="#" class="about-link" @click="toggleAbout">Acerca de</a>
       <a href="#" class="contact-link" @click="toggleContact">Contacto</a>
       <a href="#" class="login-link" @click="toggleWrapper">Conectarse</a>
-      
+
     </nav>
   </header>
   <div class="about" :class="{ active: isActiveA }" >
     <span class="icon-close" @click="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
     <div class="about-box">
       <h1>Acerca de</h1>
-        <p>Nuestra página web está diseñada específicamente para electricistas matriculados que 
-        buscan una herramienta eficiente para generar presupuestos para sus clientes. Con una 
-        interfaz intuitiva y fácil de usar, nuestros usuarios pueden crear presupuestos en pocos 
-        minutos y enviarlos directamente a sus clientes. Además, ofrecemos una variedad de plantillas 
-        de presupuesto y opciones de personalización para adaptarse a las necesidades específicas de 
-        cada electricista. Ahorre tiempo y aumente su productividad con nuestra plataforma en línea.</p> 
-    </div> 
+        <p>Nuestra página web está diseñada específicamente para electricistas matriculados que
+        buscan una herramienta eficiente para generar presupuestos para sus clientes. Con una
+        interfaz intuitiva y fácil de usar, nuestros usuarios pueden crear presupuestos en pocos
+        minutos y enviarlos directamente a sus clientes. Además, ofrecemos una variedad de plantillas
+        de presupuesto y opciones de personalización para adaptarse a las necesidades específicas de
+        cada electricista. Ahorre tiempo y aumente su productividad con nuestra plataforma en línea.</p>
+    </div>
   </div>
   <div class="contact" :class="{ active: isActiveC }" >
     <span class="icon-close" @click="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
@@ -173,10 +165,10 @@ export default {
       <div class="input-box">
         <span class="icon"><font-awesome-icon icon="fa-solid fa-camera-retro" /></span>
         <a href="#" class="register-link" @click="toggleInstagram">Instagram</a>
-      </div>  
+      </div>
     </div>
   </div>
-  <div class="conectar" :class="{ active: isActiveW, active: isActive, activeR:isActiveR }" >
+  <div class="conectar" :class="{ active: isActive, activeR:isActiveR }" >
     <span class="icon-close" @click="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
     <div class="form-box login">
       <h2>Conectarse</h2>
@@ -191,7 +183,7 @@ export default {
           <input type="password" required v-model="password">
           <label>Password</label>
         </div>
-        <button type="submit" class="btn">Login</button>
+        <button type="submit" class="btn" :disabled="userStore.busy">Login</button>
         <div class="login-register">
           <p>Olvidaste tu contraseña? <a href="#" class="register-link" @click="toggleRecovery">Recuperar</a></p>
         </div>
@@ -213,7 +205,7 @@ export default {
           <input type="password" required v-model="password">
           <label>Password</label>
         </div>
-        <button type="submit" class="btn">Register</button>
+        <button type="submit" class="btn" :disabled="userStore.busy">Register</button>
         <div class="login-register">
           <p>Ya tienes cuenta? <a href="#" class="login-link" @click="toggleLogin">Conectarse</a></p>
         </div>
@@ -227,21 +219,21 @@ export default {
           <input type="email" required v-model="email">
           <label>Email</label>
         </div>
-        <button type="submit" class="btn">Enviar</button>
+        <button type="submit" class="btn" :disabled="userStore.busy">Enviar</button>
         <div class="login-register">
           <p>Ya tienes cuenta? <a href="#" class="login-link" @click="toggleRecovery">Conectarse</a></p>
         </div>
       </form>
     </div>
   </div>
-  
+
   <footer>
     <p>Diseño y desarrollo realizado por Martin E. Quiroga</p>
     <div class="footer_link">
       <span href="#" class="register-link" @click="toggleWhatsapp"><font-awesome-icon icon="fa-brands fa-whatsapp" /></span>
       <span href="#" class="register-link" @click="toggleInstagram"><font-awesome-icon icon="fa-solid fa-camera-retro" /></span>
     </div>
-    
+
   </footer>
 </body>
 

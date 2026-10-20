@@ -15,6 +15,11 @@ import { faFilePdf } from '@fortawesome/free-regular-svg-icons'
 /* add icons to the library */
 library.add(faUserSecret,faUser,faEnvelope,faThumbsUp,faUnlockKeyhole,faComments,faCameraRetro,faXmark,faDownload,faShare,faWhatsapp,faFilePdf,faTrashCan)
 
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase';
+import { useUserStore } from './stores/user';
+import { PostStore } from './stores/dbUsers';
+import { costoStore } from './stores/dbCostos';
 import App from './App.vue'
 import router from './router'
 
@@ -27,6 +32,16 @@ pinia.use(({ store }) => {
 });
 
 app.use(pinia)
+let previousUid;
+onAuthStateChanged(auth, user => {
+    if (previousUid !== user?.uid) {
+        PostStore(pinia).$reset();
+        costoStore(pinia).$reset();
+    }
+    previousUid = user?.uid;
+    useUserStore(pinia).user = user;
+    if (!user && router.currentRoute.value.meta.auth) router.replace('/');
+});
 app.use(router)
 app.component('font-awesome-icon', FontAwesomeIcon)
 app.mount('#app')

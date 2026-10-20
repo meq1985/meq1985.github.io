@@ -1,0 +1,3 @@
+# Keep this review branch and its pull request from deploying automatically.
+[build]
+  ignore = "node ./scripts/ignore-netlify-build.cjs"
