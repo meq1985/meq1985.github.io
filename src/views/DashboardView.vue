@@ -1,16 +1,14 @@
 
 <script type="module">
 import { useUserStore } from '../stores/user';
-import { onMounted, watch } from 'vue';
+import { onMounted } from 'vue';
 import { ref } from "vue";
 import { PostStore } from '../stores/dbUsers';
 import { costoStore } from "../stores/dbCostos";
-import {jsPDF} from 'jspdf';
-import { applyPlugin } from 'jspdf-autotable'
-applyPlugin(jsPDF)
-import { ref as firebaseRef, getStorage, uploadBytes} from "firebase/storage";
-import { imageBase64 } from '../assets/image';
-import { getAuth } from "firebase/auth";
+import { requireUser } from '../firebase/session';
+import { validateBudget } from '../services/budgetValidation';
+import { saveBudget } from '../services/localBudgets';
+import { buildBudgetPdf } from '../services/budgetPdf';
 import { computed } from 'vue';
 
 export default {
@@ -41,7 +39,7 @@ export default {
     const acometidaPilar = ref('');
     const documentacionProyecto = ref('');
     const documentacionPlano = ref('');
-    const documentacionLista = ref(''); 
+    const documentacionLista = ref('');
     const codigoLosa = ref('');
     const codigoMamposteria = ref('');
     const codigoConstruccionSeca = ref('');
@@ -117,11 +115,11 @@ export default {
     const codigoDiasHabiles = ref('');
     const codigoFindesFeriados = ref('');
     const cliente = ref('');
-    costosStore.obtenerCodigos();
+
     const tabla = ref([]);
 
     const selectedOption = ref('');
-    
+
     const options = [
       'Canalización en Losa',
       'Canalización en Mampostería',
@@ -188,47 +186,35 @@ export default {
       });
     };
 
-    
+
     const agregarEliminar = (fila) => {
       fila.eliminar = (index) => {
         filas.value.splice(index, 1);
-      }; 
+      };
     };
-    
+
     const createFila = (propCodigo, propName, descripcion) => {
-      
-      const refProp = ref(costosStore[propName]);
-      const refProp1 = ref(costosStore[propCodigo]);
-      // Observa los cambios en costosStore y actualiza los valores correspondientes en las filas
-      watch(() => costosStore[propName], (value) => {
-        refProp.value = value;
-      });
-      
+
+
+
+
+
       return {
         get codigo(){
-          return refProp1.value;
+          return costosStore[propCodigo];
         },
         descripcion,
         cantidad: 0,
         get precioUnitario() {
-          return refProp.value;
+          return costosStore[propName];
         }
       }
     }
-    
-    const tablaConPrecioTotal = computed(() => {
-      return this.tabla.map((fila) =>{
-        return {
-          ...fila,
-          precioTotal: fila.cantidad * fila.precioUnitario,
-        };
-      });
-    });
-    watch(() => tabla.value, (filas) => {
-      filas.forEach((fila) => {
-        fila.precioTotal = fila.cantidad * fila.precioUnitario;
-      });
-    }, { deep: true });
+
+    const subtotal = fila => {
+      const amount = Math.round(Number(fila.cantidad) * Number(fila.precioUnitario) * 100) / 100;
+      return Number.isFinite(amount) ? amount : 0;
+    };
 
     const filas = ref([
       createFila('codigoLosa','canalizacionLosa', 'Canalización en Losa'),
@@ -277,118 +263,65 @@ export default {
       createFila('codigoDiasHabiles','emergenciasDiasHabiles','Urgencias Dias Habiles'),
       createFila('codigoFindesFeriados','emergenciasFindesFeriados','Urgencias Domingos y Feriados'),
     ]);
- 
+
     const calcularTotal = () => {
       let total = 0;
       tabla.value.forEach(fila => {
-        total += fila.cantidad * fila.precioUnitario;
+        total += subtotal(fila);
       });
-      return total;
+      return Math.round(total * 100) / 100;
     }
     const calcularTotalPorFila = () => {
       const totalesPorFila = tabla.value.map(fila => fila.cantidad * fila.precioUnitario);
       return totalesPorFila;
     }
     let codigo = 700;
-    
-    
+
+
     const agregarFila = () => {
       tabla.value.push({ codigo:codigo+1,descripcion: '', cantidad: 0, precioUnitario: 0 });
       codigo ++ ;
       };
-      
+
     const eliminarFila = (index) => {
       tabla.value.splice(index, 1);
     }
 
-    const exportarPDF = () => {
-      const doc = new jsPDF();
-      const rows = [];
-      tabla.value.forEach((fila) => {
-        if (fila.cantidad !== 0) {
-          rows.push([fila.codigo, fila.descripcion, fila.cantidad, fila.precioUnitario, fila.cantidad * fila.precioUnitario]);
-        }
-      });
-      doc.autoTable({
-          head: [['Codigo','Descripcion', 'Cantidad', 'Precio Unitario', 'Subtotal']],
-          body: rows,
-          startY: 55
-        });
-        const total = calcularTotal();
-        const date = new Date();
-        const dateString = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
-        const image = imageBase64;
-        doc.setFontSize(20);
-        doc.addImage(image, 'PNG', 15, 10, 25, 15);
-        doc.text(`PRESUPUESTO`, 75, 15)
-        doc.setFontSize(10);
-        doc.text(`Fecha: ${dateString}`, 150, 15);
-        doc.text(`Nombre: ${store.nombre1} ${store.apellido1}`, 14, 30);
-        doc.text(`Cuit: ${store.cuit1}`, 14, 35);
-        doc.text(`Empresa: ${store.empresa1}`, 14, 40);
-        doc.text(`Matricula: ${store.matricula1}`, 14, 45);
-        doc.text(`Telefono: ${store.telefono1}`, 14, 50);
-        doc.text(`Cliente: ${cliente.value}`, 150, 30);
-        doc.setFontSize(15);
-        doc.text(`Total: $${total}`, 160, doc.autoTable.previous.finalY + 10);
-        doc.save('presupuesto.pdf');
-      }
+    const saving = ref(false);
+    const buildPDF = budget => buildBudgetPdf(budget, store);
+    const exportarPDF = async () => {
+      try {
+        const budget = validateBudget(cliente.value, tabla.value);
+        (await buildPDF(budget)).save('presupuesto.pdf');
+      } catch (error) { alert(error.message); }
+    };
+    const guardarPDF = async () => {
+      if (saving.value) return;
+      saving.value = true;
+      try {
+        const user = await requireUser();
+        const budget = validateBudget(cliente.value, tabla.value);
+        const document = await buildPDF(budget);
+        await saveBudget(user.uid, budget, document.output('blob'));
+        alert('Presupuesto guardado en este navegador. Descargá una copia para conservarlo.');
+      } catch (error) { alert('No se pudo guardar: ' + error.message); }
+      finally { saving.value = false; }
+    };
 
-    const guardarPDF = () => {
-      const doc = new jsPDF();
-      const rows = [];
-      tabla.value.forEach((fila) => {
-        if (fila.cantidad !== 0) {
-          rows.push([fila.codigo, fila.descripcion, fila.cantidad, fila.precioUnitario, fila.cantidad * fila.precioUnitario]);
-        }
-      });
-      doc.autoTable({
-          head: [['Codigo','Descripcion', 'Cantidad', 'Precio Unitario', 'Subtotal']],
-          body: rows,
-          startY: 55
-        });
-        const total = calcularTotal();
-        const date = new Date();
-        const dateString = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
-        const image = imageBase64;
-        doc.setFontSize(20);
-        doc.addImage(image, 'PNG', 15, 10, 25, 15);
-        doc.text(`PRESUPUESTO`, 75, 15)
-        doc.setFontSize(10);
-        doc.text(`Fecha: ${dateString}`, 150, 15);
-        doc.text(`Nombre: ${store.nombre1} ${store.apellido1}`, 14, 30);
-        doc.text(`Cuit: ${store.cuit1}`, 14, 35);
-        doc.text(`Empresa: ${store.empresa1}`, 14, 40);
-        doc.text(`Matricula: ${store.matricula1}`, 14, 45);
-        doc.text(`Telefono: ${store.telefono1}`, 14, 50);
-        doc.text(`Cliente: ${cliente.value}`, 150, 30);
-        doc.setFontSize(15);
-        doc.text(`Total: $${total}`, 160, doc.autoTable.previous.finalY + 10);
-      
-        const pdfFile = doc.output('blob');
-        const auth = getAuth();
-        const user = auth.currentUser;  
-        const id = user.email;
-        const fileName = dateString + '-' + cliente.value + '.pdf';
-        // Subir el archivo PDF al Storage de Firebase
-        const storage = getStorage();
-        const storageRef = firebaseRef(storage, 'pdfs/' + id+'/' + fileName);
-        uploadBytes(storageRef, pdfFile).then((snapshot) => {
-         console.log('Uploaded a blob or file!');
-        });
-      }    
-      
     const logout = () => {
       userStore.logout();
     };
     onMounted(async () => {
+      try {
       await store.obtenerDato()
-      await costosStore.obtenerCostos(); 
+      await costosStore.obtenerCostos();
       await costosStore.obtenerCodigos();
+      } catch (error) { alert('No se pudo cargar la configuración: ' + error.message); }
     })
     return {
+      saving,
       agregarEliminar,
-      tablaConPrecioTotal,
+      subtotal,
       selectedOption,
       options,
       filteredFilas,
@@ -517,18 +450,19 @@ export default {
       <button class="btnLogin-popup" @click.prevent="logout">Logout</button>
     </nav>
   </header>
-  <body>
+  <div class="page-content">
   <div class="configuracion">
     <h2>Presupuesto</h2>
     <div class="cliente_input">
-      
-      <input  v-model="cliente" />
-      <label>Cliente:</label>
+
+      <input id="budget-client" v-model="cliente" maxlength="120" />
+      <label for="budget-client">Cliente:</label>
     </div>
     <div class="cliente_input">
       <h3>Seleccionar item:</h3>
       <select class="selectOption" v-model="selectedOption" @change="agregarFilas(selectedOption)">
-        <option v-for="option in options" :key="option.codigo" :value="option">{{ option }}</option>
+        <option disabled value="">Elegí un ítem</option>
+        <option v-for="option in options" :key="option" :value="option">{{ option }}</option>
       </select>
     </div>
     <div>
@@ -544,13 +478,13 @@ export default {
           </tr>
         </thead>
         <tbody class="tableBody">
-          <tr v-for="(fila, index) in tabla" :key="fila.codigo">
+          <tr v-for="(fila, index) in tabla" :key="index">
             <td class="codigo">{{ fila.codigo }}</td>
             <td class="descripcion"><input class="descripcion_input" v-model="fila.descripcion" /></td>
-            <td class="cantidad"><input class="cantidad_input" v-model.number="fila.cantidad"></td>
-            <td class="precio"><input class="precio_input" v-model="fila.precioUnitario" /></td>
-            <td class="total">{{fila.precioTotal}}</td>
-            <td><span class="icon" @click.prevent="() => eliminarFila(index)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></span></td>  
+            <td class="cantidad"><input aria-label="Cantidad" class="cantidad_input" type="number" min="0.01" step="0.01" v-model.number="fila.cantidad"></td>
+            <td class="precio"><input aria-label="Precio unitario" class="precio_input" type="number" min="0" step="0.01" v-model.number="fila.precioUnitario" /></td>
+            <td class="total">{{ subtotal(fila) }}</td>
+            <td><span class="icon" @click.prevent="() => eliminarFila(index)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></span></td>
           </tr>
         </tbody>
         <tfoot class="tableFoot">
@@ -558,11 +492,11 @@ export default {
             <td colspan="4">Total:</td>
             <td>{{ calcularTotal() }}</td>
           </tr>
-          <tr class="row_btn">
+          <tr><td colspan="6" class="row_btn">
               <button class="btn" @click="agregarFila()">Agregar fila</button>
-              <button class="btn" @click="guardarPDF()">Guardar</button>
+              <button class="btn" @click="guardarPDF()" :disabled="saving">Guardar</button>
               <button class="btn" @click="exportarPDF()">Exportar a PDF</button>
-          </tr>
+          </td></tr>
           <tr>
             <td></td>
           </tr>
@@ -570,7 +504,7 @@ export default {
       </table>
     </div>
   </div>
-  </body>
+  </div>
 </template>
 
 <style scoped>

@@ -1,118 +1,59 @@
 <script type="module">
 
-import { ref } from "/node_modules/vue/dist/vue.esm-browser.js";
+import { ref } from "vue";
 import { useUserStore } from "../stores/user";
-import { getAuth } from "firebase/auth";
-import { PostStore } from '../stores/dbUsers';
-import { costoStore } from "../stores/dbCostos";
 
 export default {
   setup() {
-    const store = PostStore();
-    const costosStore = costoStore();
     const email = ref("");
     const password = ref("");
     const userStore = useUserStore();
 
-    const register = () => {
-      userStore.register(email.value, password.value);
-      store.addItem(email.value);
-      costosStore.addCostos(email.value);
+    const register = async () => {
+      await userStore.register(email.value, password.value);
     };
 
     const login = () => {
       userStore.login(email.value, password.value);
-      
-      
+
+
     };
 
     const recoveryPassword = () => {
-      userStore.resetPassword(email.value); 
+      userStore.resetPassword(email.value);
     };
 
-    const auth = getAuth();
-    const user = auth.currentUser;
 
+    const panel = ref('');
     const isActive = ref(false);
-    function toggleLogin() {
-          isActive.value = !isActive.value;
-          const conectar = document.querySelector('.form-box login');
-          const login = document.querySelector('.form-box register');
-        }
-
     const isActiveR = ref(false);
-    function toggleRecovery() {
-          isActiveR.value = !isActiveR.value;
-          const conectar = document.querySelector('.form-box login');
-          const recovery = document.querySelector('.form-box recovery');
-        }
-
-    const isActiveC = ref(false);
-    function toggleContact() {
-          isActiveC.value = !isActiveC.value;
-          const contact = document.querySelector('.contact');
-          const conectar = document.querySelector('.conectar');
-          const about = document.querySelector('.about');
-          
-          conectar.style.transform = isActiveC.value = 'scale(0)';
-          about.style.transform = isActiveC.value = 'scale(0)';
-          contact.style.transform = isActiveC.value ? 'scale(1)' : 'scale(0)';
-        }
-
-    const isActiveW = ref(false);
-    function toggleWrapper() {
-          isActiveW.value = !isActiveW.value;
-          const contact = document.querySelector('.contact');
-          const conectar = document.querySelector('.conectar');
-          const about = document.querySelector('.about');
-          contact.style.transform = isActiveW.value = 'scale(0)';
-          about.style.transform = isActiveW.value = 'scale(0)';
-          conectar.style.transform = isActiveW.value ? 'scale(1)' : 'scale(0)';
-        } 
-
-    const isActiveA = ref(false);
-    function toggleAbout() {
-          isActiveA.value = !isActiveA.value;
-          const contact = document.querySelector('.contact');
-          const conectar = document.querySelector('.conectar');
-          const about = document.querySelector('.about');
-          contact.style.transform = isActiveA.value = 'scale(0)';
-          conectar.style.transform = isActiveA.value = 'scale(0)';
-          about.style.transform = isActiveA.value ? 'scale(1)' : 'scale(0)';
-        }  
-
-    const isClosed = ref(false);
-    function toggleClose() {
-          isClosed.value = !isClosed.value;
-          const contact = document.querySelector('.contact');
-          const conectar = document.querySelector('.conectar');
-          const about = document.querySelector('.about');
-          contact.style.transform = isActiveW.value = 'scale(0)';
-          conectar.style.transform = isActiveW.value = 'scale(0)';
-          about.style.transform = isActiveW.value = 'scale(0)';
-        }
+    function toggleLogin() { isActive.value = !isActive.value; isActiveR.value = false; }
+    function toggleRecovery() { isActiveR.value = !isActiveR.value; isActive.value = false; }
+    function toggleContact() { panel.value = 'contact'; }
+    function toggleWrapper() { panel.value = 'login'; isActive.value = false; isActiveR.value = false; }
+    function toggleAbout() { panel.value = 'about'; }
+    function toggleClose() { panel.value = ''; }
 
     function toggleWhatsapp(){
-        window.location.href = 'https://wa.me/+542964606826';  
+        window.location.href = 'https://wa.me/+542964606826';
     }
     function toggleFacebook(){
-        window.location.href = 'https://www.facebook.com/emanuel.quiroga.714';  
+        window.location.href = 'https://www.facebook.com/emanuel.quiroga.714';
     }
     function toggleEmail(){
-        window.location.href = 'mailto:emanuelquiroga.bgh@gmail.com';  
+        window.location.href = 'mailto:emanuelquiroga.bgh@gmail.com';
     }
     function toggleInstagram(){
-        window.location.href = 'https://www.instagram.com/emanuel.quiroga.714';  
+        window.location.href = 'https://www.instagram.com/emanuel.quiroga.714';
     }
 
     return {
+      userStore,
       email,
       password,
       isActive,
       isActiveR,
-      isActiveC,
-      isActiveW,
-      isActiveA,
+      panel,
       register,
       login,
       recoveryPassword,
@@ -132,71 +73,76 @@ export default {
 </script>
 
 <template>
-<body>
+<div class="home-page">
   <header class="head_home">
     <h2 class="logo">Electricidad Domiciliaria</h2>
     <nav class="navigation">
-      <a href="#" class="about-link" @click="toggleAbout">Acerca de</a>
-      <a href="#" class="contact-link" @click="toggleContact">Contacto</a>
-      <a href="#" class="login-link" @click="toggleWrapper">Conectarse</a>
-      
+      <a href="#" class="about-link" @click.prevent="toggleAbout">Acerca de</a>
+      <a href="#" class="contact-link" @click.prevent="toggleContact">Contacto</a>
+      <a href="#" class="login-link" @click.prevent="toggleWrapper">Conectarse</a>
+
     </nav>
   </header>
-  <div class="about" :class="{ active: isActiveA }" >
-    <span class="icon-close" @click="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
+  <div class="auth-feedback" v-if="userStore.notice || userStore.error || $route.query.setup">
+    <p role="status" v-if="userStore.notice">{{ userStore.notice }}</p>
+    <p role="alert" v-if="userStore.error">{{ userStore.error }}</p>
+    <p role="alert" v-if="$route.query.setup">No se pudo completar la configuración. Ingresá para reintentar sin perder tus datos.</p>
+  </div>
+  <div class="about" :class="{ active: panel === 'about' }" >
+    <span class="icon-close" @click.prevent="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
     <div class="about-box">
       <h1>Acerca de</h1>
-        <p>Nuestra página web está diseñada específicamente para electricistas matriculados que 
-        buscan una herramienta eficiente para generar presupuestos para sus clientes. Con una 
-        interfaz intuitiva y fácil de usar, nuestros usuarios pueden crear presupuestos en pocos 
-        minutos y enviarlos directamente a sus clientes. Además, ofrecemos una variedad de plantillas 
-        de presupuesto y opciones de personalización para adaptarse a las necesidades específicas de 
-        cada electricista. Ahorre tiempo y aumente su productividad con nuestra plataforma en línea.</p> 
-    </div> 
+        <p>Nuestra página web está diseñada específicamente para electricistas matriculados que
+        buscan una herramienta eficiente para generar presupuestos para sus clientes. Con una
+        interfaz intuitiva y fácil de usar, nuestros usuarios pueden crear presupuestos en pocos
+        minutos y enviarlos directamente a sus clientes. Además, ofrecemos una variedad de plantillas
+        de presupuesto y opciones de personalización para adaptarse a las necesidades específicas de
+        cada electricista. Ahorre tiempo y aumente su productividad con nuestra plataforma en línea.</p>
+    </div>
   </div>
-  <div class="contact" :class="{ active: isActiveC }" >
-    <span class="icon-close" @click="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
+  <div class="contact" :class="{ active: panel === 'contact' }" >
+    <span class="icon-close" @click.prevent="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
     <div class="contact-box">
       <h1>Contacto</h1>
       <div class="input-box" >
         <span class="icon"><font-awesome-icon icon="fa-brands fa-whatsapp" /></span>
-        <a href="#" class="register-link" @click="toggleWhatsapp">Whatsapp</a>
+        <a href="#" class="register-link" @click.prevent="toggleWhatsapp">Whatsapp</a>
       </div>
       <div class="input-box">
         <span class="icon"><font-awesome-icon icon="fa-solid fa-envelope" /></span>
-        <a href="#" class="register-link" @click="toggleEmail">Email</a>
+        <a href="#" class="register-link" @click.prevent="toggleEmail">Email</a>
       </div>
       <div class="input-box">
         <span class="icon"><font-awesome-icon icon="fa-solid fa-thumbs-up" /></span>
-        <a href="#" class="register-link" @click="toggleFacebook">Facebook</a>
+        <a href="#" class="register-link" @click.prevent="toggleFacebook">Facebook</a>
       </div>
       <div class="input-box">
         <span class="icon"><font-awesome-icon icon="fa-solid fa-camera-retro" /></span>
-        <a href="#" class="register-link" @click="toggleInstagram">Instagram</a>
-      </div>  
+        <a href="#" class="register-link" @click.prevent="toggleInstagram">Instagram</a>
+      </div>
     </div>
   </div>
-  <div class="conectar" :class="{ active: isActiveW, active: isActive, activeR:isActiveR }" >
-    <span class="icon-close" @click="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
+  <div class="conectar" :class="{ open: panel === 'login', active: isActive, activeR: isActiveR }" >
+    <span class="icon-close" @click.prevent="toggleClose"><font-awesome-icon icon="fa-solid fa-xmark" /></span>
     <div class="form-box login">
       <h2>Conectarse</h2>
       <form action="#" @submit.prevent="login">
         <div class="input-box">
           <span class="icon"><font-awesome-icon icon="fa-solid fa-user" /></span>
-          <input type="email" required v-model="email">
-          <label>Email</label>
+          <input id="login-email" type="email" autocomplete="email" required v-model="email">
+          <label for="login-email">Email</label>
         </div>
         <div class="input-box">
           <span class="icon"><font-awesome-icon icon="fa-solid fa-unlock-keyhole" /></span>
-          <input type="password" required v-model="password">
-          <label>Password</label>
+          <input id="login-password" type="password" autocomplete="current-password" minlength="6" required v-model="password">
+          <label for="login-password">Contraseña</label>
         </div>
-        <button type="submit" class="btn">Login</button>
+        <button type="submit" class="btn" :disabled="userStore.busy">Login</button>
         <div class="login-register">
-          <p>Olvidaste tu contraseña? <a href="#" class="register-link" @click="toggleRecovery">Recuperar</a></p>
+          <p>Olvidaste tu contraseña? <a href="#" class="register-link" @click.prevent="toggleRecovery">Recuperar</a></p>
         </div>
         <div class="login-register">
-          <p>No tienes cuenta? <a href="#" class="register-link" @click="toggleLogin">Registrarse</a></p>
+          <p>No tienes cuenta? <a href="#" class="register-link" @click.prevent="toggleLogin">Registrarse</a></p>
         </div>
       </form>
     </div>
@@ -205,17 +151,17 @@ export default {
       <form action="#" @submit.prevent="register">
         <div class="input-box">
           <span class="icon"><font-awesome-icon icon="fa-solid fa-user" /></span>
-          <input type="email" required v-model="email">
-          <label>Email</label>
+          <input id="register-email" type="email" autocomplete="email" required v-model="email">
+          <label for="register-email">Email</label>
         </div>
         <div class="input-box">
           <span class="icon"><font-awesome-icon icon="fa-solid fa-unlock-keyhole" /></span>
-          <input type="password" required v-model="password">
-          <label>Password</label>
+          <input id="register-password" type="password" autocomplete="new-password" minlength="6" required v-model="password">
+          <label for="register-password">Contraseña</label>
         </div>
-        <button type="submit" class="btn">Register</button>
+        <button type="submit" class="btn" :disabled="userStore.busy">Register</button>
         <div class="login-register">
-          <p>Ya tienes cuenta? <a href="#" class="login-link" @click="toggleLogin">Conectarse</a></p>
+          <p>Ya tienes cuenta? <a href="#" class="login-link" @click.prevent="toggleLogin">Conectarse</a></p>
         </div>
       </form>
     </div>
@@ -224,33 +170,37 @@ export default {
       <form action="#" @submit.prevent="recoveryPassword">
         <div class="input-box">
           <span class="icon"><font-awesome-icon icon="fa-solid fa-user" /></span>
-          <input type="email" required v-model="email">
-          <label>Email</label>
+          <input id="recovery-email" type="email" autocomplete="email" required v-model="email">
+          <label for="recovery-email">Email</label>
         </div>
-        <button type="submit" class="btn">Enviar</button>
+        <button type="submit" class="btn" :disabled="userStore.busy">Enviar</button>
         <div class="login-register">
-          <p>Ya tienes cuenta? <a href="#" class="login-link" @click="toggleRecovery">Conectarse</a></p>
+          <p>Ya tienes cuenta? <a href="#" class="login-link" @click.prevent="toggleRecovery">Conectarse</a></p>
         </div>
       </form>
     </div>
   </div>
-  
+
   <footer>
     <p>Diseño y desarrollo realizado por Martin E. Quiroga</p>
     <div class="footer_link">
-      <span href="#" class="register-link" @click="toggleWhatsapp"><font-awesome-icon icon="fa-brands fa-whatsapp" /></span>
-      <span href="#" class="register-link" @click="toggleInstagram"><font-awesome-icon icon="fa-solid fa-camera-retro" /></span>
+      <span href="#" class="register-link" @click.prevent="toggleWhatsapp"><font-awesome-icon icon="fa-brands fa-whatsapp" /></span>
+      <span href="#" class="register-link" @click.prevent="toggleInstagram"><font-awesome-icon icon="fa-solid fa-camera-retro" /></span>
     </div>
-    
+
   </footer>
-</body>
+</div>
 
 </template>
 
 <style scoped>
 @import "../styles/navbar.css";
+.auth-feedback { position: fixed; top: 85px; left: 5%; width: 90%; z-index: 10; color: white; background: #282828; padding: 12px; box-sizing: border-box; }
+.conectar.open, .contact.active, .about.active { transform: scale(1); }
 
-body {
+
+
+.home-page {
   display: flex;
   justify-content: center;
   align-items: center;

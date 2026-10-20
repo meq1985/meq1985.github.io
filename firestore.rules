@@ -1,0 +1,27 @@
+// Owner-scoped rules reviewed in Firebase Rules Playground on 2026-10-20.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(email) {
+      return request.auth != null && request.auth.token.email == email;
+    }
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    match /usuarios/{email} {
+      // During signup, permit checking that the document is absent.
+      // Existing personal data requires a verified email, including on reused emails.
+      allow get: if owner(email) &&
+        (verified() || !exists(/databases/$(database)/documents/usuarios/$(email)));
+      allow create: if owner(email);
+      allow update: if owner(email) && verified();
+    }
+    match /costos/{email} {
+      allow get: if (email == 'codigos' && verified()) ||
+        (owner(email) && (verified() ||
+          !exists(/databases/$(database)/documents/costos/$(email))));
+      allow create: if email != 'codigos' && owner(email);
+      allow update: if email != 'codigos' && owner(email) && verified();
+    }
+  }
+}

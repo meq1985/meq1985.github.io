@@ -1,81 +1,41 @@
 <script>
 import { useUserStore } from '../stores/user';
-import { onMounted } from 'vue';
-import { ref } from "vue";
-import { ref as firebaseRef, getStorage, list, deleteObject, getDownloadURL} from "firebase/storage";
-import { getAuth } from "firebase/auth";
+import { onMounted, ref } from 'vue';
+import { requireUser } from '../firebase/session';
+import { listBudgets, deleteBudget, downloadBudget } from '../services/localBudgets';
 
 export default {
   setup() {
     const userStore = useUserStore();
     const pdfList = ref([]);
-    async function pageTokenExample(){
-      
-      const storage = getStorage();
-      const auth = getAuth();
-      const user = auth.currentUser;  
-      const id = user.email;
-      const listRef = firebaseRef(storage, 'pdfs/'+ id + '/');
-      
-      const firstPage = await list(listRef, { maxResults: 100 });
-      pdfList.value = firstPage.items;
-      
-      if (firstPage.nextPageToken) {
-        const secondPage = await list(listRef, {
-          maxResults: 100,
-          pageToken: firstPage.nextPageToken,
-        });
-        pdfList.value = pdfList.value.concat(secondPage.items);
-        
-      }
-    }
-
-    const deletePdf = async (pdf) => {
-      const storage = getStorage();
-      const auth = getAuth();
-      const user = auth.currentUser;
-      const id = user.email;
-      const pdfRef = firebaseRef(storage, `pdfs/${id}/${pdf.name}`);
-      await deleteObject(pdfRef);
-      pdfList.value = pdfList.value.filter(item => item !== pdf);
-    }
-    
-    const descargarPdf = async (pdf) => {
-      const storage = getStorage();
-      const auth = getAuth();
-      const user = auth.currentUser;
-      const id = user.email;
-      const pdfRef = firebaseRef(storage, `pdfs/${id}/${pdf.name}`);
-      const downloadUrl = await getDownloadURL(pdfRef);
-      window.open(downloadUrl, '_blank'); // abrir la URL en una nueva pestaña
-    }
-  
-    /*const imprimirPdf = async (pdf) => {
-      const storage = getStorage();
-      const auth = getAuth();
-      const user = auth.currentUser;
-      const id = user.email;
-      const pdfRef = firebaseRef(storage, `pdfs/${id}/${pdf.name}`);
-      const url = await getDownloadURL(pdfRef);
-      window.print(url, '_blank');
-      
-    }*/
-  
-    const logout = () => {
-      userStore.logout();
+    const error = ref('');
+    const loading = ref(true);
+    const pageTokenExample = async () => {
+      try {
+        const user = await requireUser();
+        pdfList.value = await listBudgets(user.uid);
+      } catch (err) { error.value = 'No se pudieron cargar los presupuestos: ' + err.message; }
+      finally { loading.value = false; }
     };
-    onMounted(async () => {
-      await pageTokenExample();
-    })
-    return {
-      pageTokenExample,
-      logout,
-      pdfList,
-      deletePdf,
-      descargarPdf,
-    }
+    const deletePdf = async pdf => {
+      if (!confirm('¿Eliminar este presupuesto de este navegador?')) return;
+      try {
+        const user = await requireUser();
+        await deleteBudget(user.uid, pdf.id);
+        pdfList.value = pdfList.value.filter(item => item.id !== pdf.id);
+      } catch (err) { error.value = 'No se pudo eliminar: ' + err.message; }
+    };
+    const descargarPdf = async pdf => {
+      try {
+        const user = await requireUser();
+        if (pdf.owner !== user.uid) throw new Error('La cuenta no coincide.');
+        downloadBudget(pdf);
+      } catch (err) { error.value = 'No se pudo descargar: ' + err.message; }
+    };
+    onMounted(pageTokenExample);
+    return { pdfList, error, loading, deletePdf, descargarPdf, logout: () => userStore.logout() };
   }
-}
+};
 </script>
 
 <template>
@@ -88,22 +48,26 @@ export default {
       <button class="btnLogin-popup" @click.prevent="logout">Logout</button>
     </nav>
   </header>
-  <body>
+  <div class="page-content">
   <div class="configuracion">
-    <div class="pdfList" v-for="pdf in pdfList" :key="pdf.name">
+    <p style="color: white; grid-column: 1 / -1">Guardados en este navegador y dispositivo. Descargá una copia: borrar los datos del navegador elimina estos archivos. Los PDF antiguos de Firebase Storage no se migraron.</p>
+    <p v-if="error" role="alert" style="color: white">{{ error }}</p>
+    <p v-else-if="loading" style="color: white">Cargando…</p>
+    <p v-else-if="!pdfList.length" style="color: white">Todavía no hay presupuestos locales.</p>
+    <div class="pdfList" v-for="pdf in pdfList" :key="pdf.id">
       <div>
         <span class="iconPdf"><font-awesome-icon icon="fa-regular fa-file-pdf" /></span>
-        <p>{{ pdf.name }}</p>
+        <p>{{ pdf.cliente }} — {{ pdf.createdAt.slice(0, 10) }}</p>
       </div>
       <div class="iconos">
-        
-        <span class="icon" @click.prevent="() => descargarPdf(pdf)"><font-awesome-icon icon="fa-solid fa-download" /></span>
-        
-        <span class="icon" @click.prevent="() => deletePdf(pdf)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></span>
+
+        <button type="button" class="icon" aria-label="Descargar presupuesto" @click.prevent="() => descargarPdf(pdf)"><font-awesome-icon icon="fa-solid fa-download" /></button>
+
+        <button type="button" class="icon" aria-label="Eliminar presupuesto" @click.prevent="() => deletePdf(pdf)" ><font-awesome-icon icon="fa-solid fa-trash-can"  /></button>
       </div>
     </div>
   </div>
-  </body>
+  </div>
 </template>
 
 <style scoped>
@@ -153,6 +117,10 @@ export default {
 }
 .icon{
   color: white;
+  background: transparent;
+  border: 0;
+  font-size: inherit;
+  cursor: pointer;
 }
 .configuracion h2 {
   margin-bottom: 30px;
@@ -171,7 +139,7 @@ export default {
   color: rgb(212, 212, 212);
   font-weight: 500;
   margin-left: 10px;
-  transition: .5s; 
+  transition: .5s;
 }
 .btn:hover{
   background: rgb(212, 212, 212);
