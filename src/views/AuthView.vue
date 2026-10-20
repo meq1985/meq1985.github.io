@@ -1,4 +1,5 @@
 <script setup>
+import BrandMark from '../components/BrandMark.vue';
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useUserStore } from '../stores/user';
@@ -18,7 +19,7 @@ async function submit() {
 </script>
 <template>
   <div class="auth-page">
-    <RouterLink class="brand" to="/">ϟ Electricidad Domiciliaria</RouterLink>
+    <RouterLink class="brand" to="/"><BrandMark class="auth-logo" /><span>Electricidad Domiciliaria</span></RouterLink>
     <section aria-labelledby="auth-title" class="auth-card">
       <RouterLink class="back" to="/">← Volver al inicio</RouterLink>
       <h1 id="auth-title">{{ title }}</h1>
@@ -40,5 +41,5 @@ async function submit() {
   </div>
 </template>
 <style scoped>
-.auth-page{min-height:100vh;background:#101720;color:#edf2f8;font:16px/1.6 Arial,sans-serif;padding:32px 20px;box-sizing:border-box}.brand{display:block;text-align:center;color:#99d2ff;font-size:20px;font-weight:700;text-decoration:none;margin-bottom:32px}.auth-card{box-sizing:border-box;width:100%;max-width:460px;margin:auto;padding:32px;background:#19232f;border:1px solid #3a4d60;border-radius:12px}.back{font-size:13px}a{color:#99d2ff;text-underline-offset:4px}h1{font-size:28px;line-height:1.25;margin:24px 0 12px}p,small{color:#b6c3d2}fieldset{border:0;margin:24px 0 0;padding:0;min-width:0}label{display:block;font-size:14px;font-weight:700;margin:18px 0 7px}input{box-sizing:border-box;width:100%;min-height:48px;border:1px solid #647789;border-radius:6px;background:#101720;color:#edf2f8;padding:10px 12px;font:inherit}small{display:block;font-size:12px;margin-top:6px}button{width:100%;min-height:48px;margin-top:26px;border:0;border-radius:6px;background:#99d2ff;color:#102335;font-size:16px;font-weight:700;cursor:pointer}fieldset:disabled{opacity:.65}nav{display:flex;flex-direction:column;gap:15px;margin-top:24px;font-size:14px}.notice,.error{padding:12px;margin-top:20px;border-radius:6px}.notice{background:#1c3c45;color:#d9f5ef}.error{background:#482c31;color:#ffe0e2}:where(a,input,button):focus-visible{outline:3px solid #ffda84;outline-offset:4px}@media(max-width:400px){.auth-card{padding:24px}.auth-page{padding:24px 16px}}
+.auth-page{min-height:100vh;background:#101720;color:#edf2f8;font:16px/1.6 Arial,sans-serif;padding:32px 20px;box-sizing:border-box}.auth-logo{width:32px;height:38px;flex-shrink:0}.brand{display:flex;align-items:center;justify-content:center;gap:12px;text-align:left;color:#99d2ff;font-size:20px;font-weight:700;text-decoration:none;margin-bottom:32px}.auth-card{box-sizing:border-box;width:100%;max-width:460px;margin:auto;padding:32px;background:#19232f;border:1px solid #3a4d60;border-radius:12px}.back{font-size:13px}a{color:#99d2ff;text-underline-offset:4px}h1{font-size:28px;line-height:1.25;margin:24px 0 12px}p,small{color:#b6c3d2}fieldset{border:0;margin:24px 0 0;padding:0;min-width:0}label{display:block;font-size:14px;font-weight:700;margin:18px 0 7px}input{box-sizing:border-box;width:100%;min-height:48px;border:1px solid #647789;border-radius:6px;background:#101720;color:#edf2f8;padding:10px 12px;font:inherit}small{display:block;font-size:12px;margin-top:6px}button{width:100%;min-height:48px;margin-top:26px;border:0;border-radius:6px;background:#99d2ff;color:#102335;font-size:16px;font-weight:700;cursor:pointer}fieldset:disabled{opacity:.65}nav{display:flex;flex-direction:column;gap:15px;margin-top:24px;font-size:14px}.notice,.error{padding:12px;margin-top:20px;border-radius:6px}.notice{background:#1c3c45;color:#d9f5ef}.error{background:#482c31;color:#ffe0e2}:where(a,input,button):focus-visible{outline:3px solid #ffda84;outline-offset:4px}@media(max-width:400px){.auth-card{padding:24px}.auth-page{padding:24px 16px}}
 </style>

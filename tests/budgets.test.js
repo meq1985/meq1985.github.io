@@ -41,3 +41,10 @@ describe('local persistence', () => {
     expect(await listBudgets('user-a')).toEqual([]);
   });
 });
+
+it('preserves a custom property type, accepts old budgets without it and limits its length', () => {
+  expect(validateBudget('Cliente', [row], '  Depósito industrial  ').tipoInmueble).toBe('Depósito industrial');
+  expect(validateBudget('Cliente', [row], null).tipoInmueble).toBeUndefined();
+  expect(validateBudget('Cliente', [row]).tipoInmueble).toBeUndefined();
+  expect(() => validateBudget('Cliente', [row], 'x'.repeat(81))).toThrow('80 caracteres');
+});

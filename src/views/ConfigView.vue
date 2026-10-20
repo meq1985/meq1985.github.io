@@ -99,8 +99,8 @@ onMounted(async () => {
         <form @submit.prevent="saveProfile">
           <fieldset :disabled="!ready || loading || busy">
             <div class="catalog-fields">
-              <label v-for="[key, label] in profileFields" :key="key">{{ label }}
-                <input v-model="profile[key]" type="text" required maxlength="160" :name="key" />
+              <label v-for="[key, label] in profileFields" :key="key">{{ label }}{{ key === 'empresa' ? ' (opcional)' : '' }}
+                <input v-model="profile[key]" type="text" :required="key !== 'empresa'" maxlength="160" :name="key" />
               </label>
             </div>
             <button class="primary" type="submit">Guardar mis datos</button>
