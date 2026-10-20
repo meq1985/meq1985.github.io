@@ -24,4 +24,3 @@ Las cuentas nuevas usan el catálogo compartido vigente al crear sus precios. Si
 Antes de guardar, una transacción vuelve a comprobar los valores personales y los sugeridos. Si otra pestaña o el administrador modificaron los datos después de la revisión, se cancela la operación y se solicita revisar de nuevo. La aplicación no escribe el catálogo compartido y no necesita Firebase Storage, Cloud Functions ni un cambio de plan.
 
 Añadir trabajos o cambiar descripciones/unidades requiere una actualización de la aplicación; la publicación mensual está destinada a los importes de los trabajos existentes.
-

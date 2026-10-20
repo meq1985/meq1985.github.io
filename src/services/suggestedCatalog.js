@@ -24,4 +24,3 @@ export function resolveSuggestedCatalog(data) {
   };
   return validateSuggestedCatalog(data.suggestedCatalog);
 }
-
