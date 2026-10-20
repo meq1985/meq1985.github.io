@@ -7,9 +7,12 @@ import { ensureAccountReady } from '../services/accountProvisioning';
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    ...[
+      ["/ingresar", "login"], ["/registrarse", "register"], ["/recuperar", "recovery"],
+    ].map(([path, authMode]) => ({ path, name: authMode, component: () => import("../views/AuthView.vue"), meta: { authMode } })),
     {
       path: "/",
-      name: "",
+      name: "home",
       component: () => import("../views/HomeView.vue"),
     },
     {
