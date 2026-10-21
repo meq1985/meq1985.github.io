@@ -13,7 +13,7 @@ export async function buildBudgetPdf(budget, profile) {
   const timestamp = new Date(budget.createdAt ?? Date.now());
   if (Number.isNaN(timestamp.getTime())) throw new Error('La fecha del presupuesto no es válida.');
   const issued = timestamp.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
-  doc.setProperties({ title: `Presupuesto - ${clean(budget.cliente)}`, subject: 'Presupuesto de mano de obra eléctrica', creator: 'Electricidad Domiciliaria' });
+  doc.setProperties({ title: `Presupuesto - ${clean(budget.cliente)}`, subject: 'Presupuesto de mano de obra eléctrica', creator: 'Electricista Xpress' });
 
   function text(value, x, y, size = 10, color = NAVY, weight = 'normal', options) {
     doc.setFont('helvetica', weight); doc.setFontSize(size); doc.setTextColor(...color);
