@@ -90,6 +90,10 @@ it('enforces one free project atomically, blocks resets and denies forged subscr
     await assertFails(setDoc(config, { enabled: false }));
     await assertFails(setDoc(doc(db, 'administradores', uid), { enabled: true }));
     await assertFails(getDoc(doc(db, 'suscripciones', 'other')));
+    for (const path of ['billingCheckouts', 'billingBindings', 'billingPayments', 'billingLocks', 'billingTesters']) {
+      await assertFails(getDoc(doc(db, path, uid)));
+      await assertFails(setDoc(doc(db, path, uid), { enabled: true }));
+    }
     await assertFails(setDoc(doc(db, 'accesos', 'other'), { freeProjectId: freeId, claimedAt: serverTimestamp() }));
     // An allowance cannot refer to a nonexistent project, even in a forged batch.
     const intruder = env.authenticatedContext('unused', { email: 'unused@example.invalid', email_verified: true }).firestore();

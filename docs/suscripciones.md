@@ -17,11 +17,25 @@ suscripciones/{uid} se consulta solo por su titular y nunca admite escrituras de
 
 Las reglas protegen tanto la creación de proyectos como nuevas versiones. Una suscripción vencida conserva lectura de proyectos anteriores; se puede seguir editando el proyecto gratuito. Los guards y el reloj del navegador no conceden permisos. Los clientes solo pueden consultar su propio registro de administrador; no pueden crearlo ni modificarlo. Ningún campo admin en el perfil concede acceso especial.
 
-## Cobro: pendiente de conectar y verificar
+## Servidor de Mercado Pago: implementado, pendiente de validación con el proveedor
 
-Esta entrega no crea suscripciones en Mercado Pago, no procesa tarjetas, no contiene credenciales y no ejecuta cargos. Los botones de contratación están deshabilitados y explican su estado. No debe activarse el límite comercial hasta tener un medio de contratación probado, salvo una prueba local deliberada.
+functions/ contiene Cloud Functions de segunda generación, Node 22. createSubscription, refreshSubscription y cancelSubscription son callable y exigen Firebase Authentication con correo verificado. El webhook mercadoPagoWebhook usa una URL independiente del dominio del frontend. Ninguna función se despliega por fusionar este PR. No se habilitan límites ni cobros en producción desde el repositorio.
 
-Siguiente etapa: implementar y probar el servidor de Mercado Pago con credenciales de prueba. Mantener las claves fuera de Vite y del repositorio. El servidor debe validar Firebase ID tokens, fijar ARS y el precio del plan, controlar solicitudes repetidas y consultar pagos reales antes de escribir suscripciones/{uid}. Procesar aprobación, rechazo, renovación, cancelación, reembolso y notificaciones duplicadas o desordenadas. No activar planes ni registrar clientes reales durante las pruebas.
+El importe, la moneda, la frecuencia y el plan se fijan en el servidor: ARS 12.000 mensuales, sin plan croquis. El cliente debe confirmar la renovación mensual y completar el pago en el checkout de Mercado Pago. No se procesan ni guardan tarjetas en la aplicación. El administrador no puede contratar por accidente.
+
+Un bloqueo transaccional por cuenta serializa creación, consulta, cancelación y notificaciones. La referencia opaca se guarda ANTES de crear la suscripción. Solicitudes repetidas retoman el checkout pendiente. Una respuesta perdida se recupera buscando la referencia; si el resultado es ambiguo, se bloquea otra creación para revisión manual. No se presupone que Mercado Pago garantiza idempotencia de POST /preapproval. Una suscripción vigente impide crear otra.
+
+Las notificaciones exigen firma HMAC y solo disparan consultas autenticadas al proveedor. El receptor no confía en importe, estado o usuario del cuerpo. Verifica suscripción propia, referencia, vendedor, ARS, importe y entorno; consulta la factura recurrente y el pago real. Guarda un período por factura y calcula el acceso desde la fecha de débito programada más un mes calendario. Notificaciones duplicadas no suman meses; pagos pendientes, rechazados, reembolsos incluso parciales y contracargos no conceden período. Una cancelación detiene renovaciones y conserva los períodos ya pagados. El cliente puede consultar nuevamente al volver del checkout; la URL de retorno no concede acceso.
+
+Los registros billingCheckouts, billingBindings, billingPayments, billingAccounts, billingLocks y billingTesters son exclusivos del servidor y quedan denegados al cliente por las reglas. El frontend solo consulta suscripciones/{uid}, que no contiene tokens ni datos de tarjeta. Las notificaciones se reconsultan dentro del bloqueo para evitar que una copia anterior revoque un reembolso nuevo. Las respuestas fallidas del proveedor no se vuelcan a los logs.
+
+Limitaciones antes de habilitar producción:
+
+- Confirmar con una suscripción de prueba real que notification_url se acepta, que llegan los tópicos y que incluyen la firma/configuración esperada. La documentación de MP distingue suscripciones de la configuración general de Webhooks; NO se admite un evento sin firma como atajo. Si el flujo real usa IPN sin firma, adaptar la integración de forma explícita y volver a probar antes de habilitarla.
+- Verificar payer_email, vendedor de prueba, init_point, collector_id y live_mode con las credenciales del entorno correcto. No usar tarjetas ni fondos reales en esta etapa.
+- Probar primera aprobación, rechazo, repetición, renovación, cancelación y reembolso de punta a punta, además de pérdida de notificación y recuperación manual. Las pruebas locales actuales simulan la API de MP y no sustituyen estas comprobaciones.
+- La reconciliación pagina el historial de facturas, con un límite de seguridad de 5.000 registros; un historial mayor requiere mantenimiento. No hay un trabajo periódico de conciliación todavía. El usuario puede actualizar el estado y MP reintenta webhooks fallidos; se debe definir supervisión/conciliación antes de operar a escala.
+- Configurar alertas de errores/costos y revisar la política comercial/fiscal antes de activar renovaciones reales.
 
 Las credenciales y el circuito de prueba del vendedor deben configurarse en el servidor elegido; nunca deben pegarse en el chat. Conectar Mercado Pago no resuelve automáticamente la facturación fiscal.
 
@@ -29,8 +43,27 @@ Fuentes: https://www.mercadopago.com.ar/developers/es/docs/subscriptions/overvie
 
 ## Costos y publicación
 
-Este código usa las consultas y transacciones de Firestore existentes; agrega lecturas de configuración, asignación y suscripción. En Spark se aplican sus cuotas gratuitas, sin prometer capacidad ilimitada. No habilita Blaze, Firebase Storage, Functions, tarjetas de facturación ni recargas automáticas.
+El proyecto ya utiliza Blaze. Además de lecturas/escrituras de Firestore, desplegar el servidor puede generar consumo de Cloud Functions/Cloud Run, Cloud Build, Artifact Registry, red y Secret Manager. Cada función tiene minInstances=0 y maxInstances=2; esto no es un tope de facturación del proyecto. Los webhooks y las reconciliaciones también consumen recursos. Configurar alertas de presupuesto; una alerta no detiene por sí sola el gasto.
 
-El servidor de pagos futuro puede consumir recursos: Firebase Cloud Functions requiere Blaze; Netlify Functions depende del plan real y sus límites. Antes de elegirlo, revisar y aprobar ese costo potencial. Mercado Pago cobra comisión por mensualidad según cuenta y plazo de disponibilidad. Dominio, correo externo, respaldos y servicios de facturación pueden sumar costos si se incorporan.
+Mercado Pago cobra comisión por mensualidad según cuenta y plazo de disponibilidad. Dominio, correo externo, respaldos y servicios de facturación pueden sumar costos si se incorporan. Netlify queda fuera del circuito: ignore-netlify-build.cjs cancela TODOS sus builds automáticos cuando reciba esta configuración. Solo se publican cambios en Firebase.
 
 Publicar primero las reglas y luego la interfaz, manteniendo enabled ausente o false durante la preparación. La limpieza de usuarios en producción es una operación distinta y requiere verificar que se preserve el administrador, sus proyectos, su perfil, sus precios y costos/codigos.
+
+## Configuración y despliegue separado
+
+1. Guardar MP_ACCESS_TOKEN y MP_WEBHOOK_SECRET exclusivamente en Google Secret Manager del proyecto de destino, mediante Firebase CLI functions:secrets:set o la consola. Nunca VITE_*, GitHub, commits, chat, capturas ni logs. Los .env y .secret de functions/ están ignorados.
+2. Parámetros no secretos: MP_MODE=disabled (predeterminado), test (solo billingTesters/{uid}.enabled=true) o live; APP_ORIGIN=https://electricistaxpress.web.app; MP_COLLECTOR_ID del vendedor del entorno; MP_WEBHOOK_URL=https://us-central1-presupuesto-electrico.cloudfunctions.net/mercadoPagoWebhook. Para pruebas aisladas usar otro proyecto Firebase o los emuladores; una prueba en el proyecto real requiere cuentas ficticias específicamente autorizadas.
+3. El workflow manual firebase-billing-manual.yml permite únicamente disabled o test. Usa el environment firebase-billing (configurar aprobación de despliegue), sus variables APP_ORIGIN/MP_COLLECTOR_ID y el secreto de despliegue existente. Requiere permisos de despliegue Functions/Cloud Run y acceso a los secretos para el runtime. Revisar IAM con el titular; no otorgar Owner/Editor ni publicar claves. No hay ampliaciones de permisos automáticas.
+4. Desplegar primero Functions y reglas, verificar el endpoint real y configurar la URL en MP. Completar las pruebas con comprador/vendedor ficticios. Mantener configuracion/facturacion.enabled y checkoutAvailable ausentes o false.
+5. Solo después de revisión y autorización del titular: credenciales de producción, MP_MODE=live y ambos flags enabled=true/checkoutAvailable=true. El workflow de prueba no permite esta activación. Confirmar el acceso del administrador y la asignación del proyecto gratuito antes de habilitar la interfaz.
+
+## Cambio de dominio
+
+Actualizar APP_ORIGIN y redesplegar Functions modifica back_url para NUEVAS suscripciones; la URL de notificaciones permanece fija en cloudfunctions.net. Agregar el dominio al Hosting y a Authentication. Conservar electricistaxpress.web.app y las antiguas direcciones de retorno para checkouts ya creados o actualizar sus back_url en MP de forma controlada. No cambiar de vendedor ni proyecto Firebase. Cambiar el dominio del frontend no migra automáticamente la configuración de suscripciones existentes.
+
+## Pruebas reproducibles
+
+- npm test y npm run build en la raíz.
+- npm ci --prefix functions --ignore-scripts y npm test --prefix functions (Node 22).
+- Ejecutar tests/emulator con firebase.emulators.json y proyecto demo-presupuesto-electrico.
+- Con GCLOUD_PROJECT=demo-presupuesto-electrico y Firestore Emulator en 127.0.0.1:8080: node --test functions/emulator-test/billing.test.js. La suite rechaza otros proyectos/hosts y sustituye toda la API de Mercado Pago por un simulador sin red real. Valida concurrencia, recuperación de respuesta perdida y ciclo de pagos/cancelación/reembolso.

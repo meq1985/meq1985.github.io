@@ -2,8 +2,8 @@
 import { it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 vi.mock('../src/components/CatalogHeader.vue', () => ({ default: { template: '<div />' } }));
-vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn() }));
-import { loadBillingAccess } from '../src/services/billing';
+vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(), startSubscription: vi.fn(), refreshSubscription: vi.fn(), cancelSubscription: vi.fn() }));
+import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription } from '../src/services/billing';
 import Plans from '../src/views/PlansView.vue';
 beforeEach(() => vi.clearAllMocks());
 const render = () => mount(Plans, { global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } });
@@ -22,4 +22,27 @@ it('shows administrator access without offering a payment', async () => {
 it('reports status errors instead of assuming an account is subscribed', async () => {
   loadBillingAccess.mockRejectedValue(new Error('Sin conexión'));
   const wrapper = render(); await flushPromises(); expect(wrapper.get('[role="alert"]').text()).toContain('Sin conexión'); wrapper.unmount();
+});
+it('requires explicit monthly renewal consent before starting checkout and handles failure', async () => {
+  loadBillingAccess.mockResolvedValue({ enabled: true, checkoutAvailable: true });
+  startSubscription.mockRejectedValue(new Error('Provider unavailable'));
+  const wrapper = render(); await flushPromises();
+  const button = wrapper.findAll('button').find(button => button.text() === 'Continuar a Mercado Pago');
+  expect(button.attributes('disabled')).toBeDefined();
+  await wrapper.get('input[type="checkbox"]').setValue(true);
+  await button.trigger('click'); await flushPromises();
+  expect(startSubscription).toHaveBeenCalledTimes(1);
+  expect(wrapper.get('[role="alert"]').text()).toContain('Consultá el estado');
+  wrapper.unmount();
+});
+it('cancels renewal only after explicit confirmation and refreshes server state', async () => {
+  loadBillingAccess.mockResolvedValue({ enabled: true, subscription: { manageable: true, providerStatus: 'authorized', status: 'active', paidThrough: Date.now() + 86400000 } });
+  const wrapper = render(); await flushPromises();
+  const button = wrapper.findAll('button').find(button => button.text() === 'Cancelar renovación');
+  expect(button.attributes('disabled')).toBeDefined();
+  await wrapper.get('input[type="checkbox"]').setValue(true); await button.trigger('click'); await flushPromises();
+  expect(cancelSubscription).toHaveBeenCalledTimes(1); expect(wrapper.text()).toContain('Renovación cancelada');
+  await wrapper.findAll('button').find(button => button.text() === 'Actualizar estado del pago').trigger('click'); await flushPromises();
+  expect(refreshSubscription).toHaveBeenCalledTimes(1);
+  wrapper.unmount();
 });

@@ -1,0 +1,52 @@
+name: Deploy Firebase billing (disabled or private test)
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Keep disabled, or use private Mercado Pago test accounts only'
+        type: choice
+        options: [disabled, test]
+        default: disabled
+permissions:
+  contents: read
+concurrency:
+  group: firebase-billing-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: firebase-billing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci --prefix functions --ignore-scripts
+      - run: npm test --prefix functions
+      - run: npm audit --prefix functions --audit-level=low
+      - uses: google-github-actions/auth@v3
+        with:
+          credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PRESUPUESTO_ELECTRICO }}'
+      - run: npm install --prefix "$RUNNER_TEMP/firebase-cli" firebase-tools@15.34.0 --ignore-scripts
+      - name: Prepare non-secret parameters
+        env:
+          BILLING_MODE: '${{ inputs.mode }}'
+          BILLING_ORIGIN: '${{ vars.APP_ORIGIN }}'
+          BILLING_COLLECTOR: '${{ vars.MP_COLLECTOR_ID }}'
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const origin = process.env.BILLING_ORIGIN || 'https://electricistaxpress.web.app';
+          const collector = process.env.BILLING_COLLECTOR;
+          if (!/^https:\/\/[a-z0-9.-]+$/.test(origin) || !/^\d+$/.test(collector || '')) throw new Error('Set APP_ORIGIN and MP_COLLECTOR_ID in the protected environment.');
+          writeFileSync('functions/.env.presupuesto-electrico', [
+            `MP_MODE=${process.env.BILLING_MODE}`,
+            `APP_ORIGIN=${origin}`,
+            `MP_COLLECTOR_ID=${collector}`,
+            'MP_WEBHOOK_URL=https://us-central1-presupuesto-electrico.cloudfunctions.net/mercadoPagoWebhook',
+          ].join('\n'));
+          NODE
+      - name: Deploy only the billing codebase
+        run: '"$RUNNER_TEMP/firebase-cli/node_modules/.bin/firebase" deploy --only functions:billing --project presupuesto-electrico --non-interactive'
