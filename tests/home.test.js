@@ -21,7 +21,7 @@ async function page(path = '/') {
   return { wrapper, router };
 }
 describe('professional landing and access', () => {
-  it('offers working signup navigation and clearly explains local storage and illustrative prices', async () => {
+  it('offers working signup navigation and clearly explains account storage and illustrative prices', async () => {
     const { wrapper, router } = await page();
     expect(wrapper.findAll('h1')).toHaveLength(1);
     expect(wrapper.text()).toContain('Valores ilustrativos');

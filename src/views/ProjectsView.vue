@@ -39,7 +39,7 @@ async function download(project, version = null) {
     const user = await requireUser();
     if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Volvé a abrir Mis proyectos.');
     const stored = version ?? await loadProjectVersion(project.id, project.revision);
-    if (!stored.profile) throw new Error('Este presupuesto importado no incluía datos profesionales. Abrí el proyecto, revisá tus datos y guardá una nueva versión para generar su PDF. El PDF original sigue en los presupuestos locales.');
+    if (!stored.profile) throw new Error('Este proyecto no incluía datos profesionales. Abrí el proyecto, revisá tus datos y guardá una nueva versión para generar su PDF.');
     const document = await buildBudgetPdf(stored.budget, stored.profile);
     if ((await requireUser()).uid !== user.uid) throw new Error('La sesión cambió. Volvé a abrir Mis proyectos.');
     const filename = project.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
@@ -55,7 +55,6 @@ onMounted(more);
     <div class="catalog-main">
       <div class="project-heading"><div><p class="eyebrow">DISPONIBLES DONDE TRABAJES</p><h1>Mis proyectos</h1><p class="muted">Guardados en tu cuenta, con sus datos, precios y versiones.</p></div><RouterLink class="project-link" to="/dashboard">+ Crear proyecto</RouterLink></div>
       <p class="catalog-notice">Podés continuar desde otro dispositivo al ingresar con la misma cuenta. Cada guardado crea una versión; los cambios de precios no modifican las anteriores.</p>
-      <p><RouterLink to="/mispresupuestos">Ver e importar presupuestos guardados en este navegador →</RouterLink></p>
       <p v-if="error" role="alert" class="catalog-notice error">{{ error }}</p>
       <p v-if="loading" role="status">Cargando proyectos de tu cuenta…</p>
       <section v-if="!loading && !error && !items.length" class="catalog-panel"><h2>Tu próximo proyecto empieza acá</h2><p>Creá un presupuesto y elegí «Guardar proyecto en mi cuenta» para retomarlo más adelante.</p><RouterLink to="/dashboard">Preparar mi primer proyecto →</RouterLink></section>

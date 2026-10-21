@@ -10,18 +10,16 @@ Los importes se vuelven a calcular y se validan antes de guardar y al recuperar 
 
 ## Uso
 
-- Presupuestar ofrece «Guardar proyecto en mi cuenta», «Guardar presupuesto local» y «Descargar PDF». El nombre del proyecto es opcional: se usa el cliente si no se completa.
+- Presupuestar ofrece «Guardar proyecto en mi cuenta» y «Descargar PDF». El nombre del proyecto es opcional: se usa el cliente si no se completa.
 - Mis proyectos permite abrir la última versión, editar manteniendo precios históricos y descargar cualquier versión. El PDF usa la fecha y los datos profesionales de esa copia. «Usar mis datos profesionales actuales» actualiza el perfil de la siguiente versión de forma explícita.
-- Cada actualización comprueba la versión esperada. Dos dispositivos no pueden sobrescribir cambios silenciosamente. El editor conserva los datos al fallar el guardado, permite guardar una copia local y advierte al abandonar cambios pendientes.
+- Cada actualización comprueba la versión esperada. Dos dispositivos no pueden sobrescribir cambios silenciosamente. El editor conserva los datos al fallar el guardado, permite descargar un PDF y advierte al abandonar cambios pendientes.
 - Un reintento con el mismo contenido reconoce el guardado anterior si se perdió su respuesta. Nunca se anuncia guardado correcto antes de que la transacción termine.
 - Se consultan 20 proyectos y 10 versiones por página, sin listeners permanentes ni consultas sobre todas las cuentas. Las listas se leen del servidor; un fallo de conexión se muestra como error, no como lista vacía.
 - Al cambiar de cuenta se recrea la vista para no conservar datos privados del usuario anterior.
 
-## Importación local
+## Compatibilidad
 
-Presupuestos locales conserva los archivos originales en IndexedDB. «Copiar a mi cuenta» importa los datos del presupuesto, con un identificador estable para evitar duplicados incluso después de editar el proyecto importado. No borra ni modifica el PDF original.
-
-Las copias antiguas no contienen los datos profesionales con los que se generó su PDF. La versión importada conserva `profile: null`; para generar un nuevo PDF desde la cuenta se debe abrir el proyecto, revisar los datos actuales y guardar una nueva versión. El PDF original se sigue descargando desde el historial local. No se reconstruyen datos históricos por suposición ni se migran los archivos antiguos de Storage.
+La aplicación conserva la lectura de proyectos ya guardados y sus versiones anteriores. Si falta la copia de datos profesionales, exige revisarlos y guardar una nueva versión antes de generar un PDF. El campo de procedencia del esquema anterior se mantiene únicamente para compatibilidad con las reglas existentes.
 
 ## Publicación
 

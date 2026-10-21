@@ -5,7 +5,7 @@ import { doc, getDoc, getDocs, collection, updateDoc, deleteDoc, setDoc, serverT
 import { createUserWithEmailAndPassword, sendEmailVerification, applyActionCode, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { deleteApp } from 'firebase/app';
 import { auth, db } from '../../src/firebase';
-import { saveProject, loadProject, listProjects, loadProjectVersion, listProjectVersions, importLocalBudget } from '../../src/services/projects';
+import { saveProject, loadProject, listProjects, loadProjectVersion, listProjectVersions } from '../../src/services/projects';
 const project = 'demo-presupuesto-electrico';
 let env, uid;
 const email = 'cloud-projects@example.invalid', password = 'Demo-only-Password42';
@@ -60,22 +60,11 @@ it('rejects mutations, deletions, orphan versions and metadata-only saves', asyn
   await assertFails(updateDoc(version, { name: 'Modificado' })); await assertFails(deleteDoc(version));
   await assertFails(setDoc(doc(ref('missing'), 'versiones', '1'), { ...(await getDoc(version)).data(), createdAt: serverTimestamp() }));
 });
-it('imports source once, keeps later edits and does not store or delete the original PDF', async () => {
-  const record = { ...input('ignored').budget, owner: uid, id: 'local-demo', pdf: new Blob(['original']) };
-  const id = await importLocalBudget(record);
-  expect((await loadProject(id)).version.profile).toBe(null);
-  expect((await getDoc(doc(ref(id), 'versiones', '1'))).data()).not.toHaveProperty('pdf');
-  await saveProject({ ...input(id, 1), name: 'Editado' });
-  expect(await importLocalBudget(record)).toBe(id); expect((await loadProject(id)).revision).toBe(2);
-  expect((await loadProjectVersion(id, 1)).profile).toBe(null);
-  expect(await record.pdf.text()).toBe('original');
-  await expect(importLocalBudget({ ...record, owner: 'other' })).rejects.toThrow('no corresponde');
-});
 it('paginates projects and versions without duplicates or omissions', async () => {
   await Promise.all(Array.from({ length: 20 }, (_, index) => saveProject(input('page-' + index))));
   const first = await listProjects(), second = await listProjects(first.cursor);
   expect(first.items).toHaveLength(20);
-  expect(new Set([...first.items, ...second.items].map(item => item.id)).size).toBe(22);
+  expect(new Set([...first.items, ...second.items].map(item => item.id)).size).toBe(21);
   for (let revision = 3; revision < 12; revision++) await saveProject(input('first', revision));
   const versions = await listProjectVersions('first'); expect(versions.items).toHaveLength(10);
   expect(versions.items[0].revision).toBe(12);
