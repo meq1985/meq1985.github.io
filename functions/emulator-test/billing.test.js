@@ -44,7 +44,7 @@ const webhook = async (id, type = 'subscription_authorized_payment', signed = tr
   return status;
 };
 test('complete billing lifecycle uses only the emulator and a simulated provider', async t => {
-  await db.doc('billingTesters/billing-owner').set({ enabled: true });
+  await db.doc('billingTesters/billing-owner').set({ enabled: true, payerEmail: 'buyer@testuser.com' });
   await t.test('rejects anonymous, unverified, non-testers and future croquis plan', async () => {
     await assert.rejects(billing.createSubscription.run({ data: {} }), /correo verificado/);
     await assert.rejects(billing.createSubscription.run({ ...request(), auth: { ...request().auth, token: { email_verified: false } } }), /correo verificado/);
@@ -56,15 +56,27 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     await assert.rejects(billing.createSubscription.run(request()), /no está habilitada/);
     await db.doc('administradores/billing-owner').delete();
   });
+  await t.test('test checkout requires a privately configured fictitious payer', async () => {
+    await db.doc('billingTesters/missing-payer').set({ enabled: true });
+    const before = posts;
+    await assert.rejects(billing.createSubscription.run(request('missing-payer', {
+      planId: 'presupuestos', consent: true, payerEmail: 'injected@testuser.com',
+    })), /comprador ficticio/);
+    await db.doc('billingTesters/missing-payer').update({ payerEmail: 'real@example.com' });
+    await assert.rejects(billing.createSubscription.run(request('missing-payer')), /comprador ficticio/);
+    assert.equal(posts, before);
+    assert.equal((await billing.refreshSubscription.run(request('missing-payer'))).status, 'inactive');
+  });
   await t.test('test mode rejects real seller credentials before creating a subscription', async () => {
     const before = posts; realMerchant = true;
     await assert.rejects(billing.createSubscription.run(request()), /credenciales no corresponden/);
     assert.equal(posts, before); realMerchant = false;
   });
   await t.test('repeated checkout resumes one subscription and never trusts client price', async () => {
-    await billing.createSubscription.run(request('billing-owner', { planId: 'presupuestos', consent: true, amount: 1 }));
+    await billing.createSubscription.run(request('billing-owner', { planId: 'presupuestos', consent: true, amount: 1, payerEmail: 'injected@example.com' }));
     await billing.createSubscription.run(request());
     assert.equal(posts, 1); assert.equal(subscriptions.get('sub1').auto_recurring.transaction_amount, 12000);
+    assert.equal(subscriptions.get('sub1').payer_email, 'buyer@testuser.com');
     assert.equal((await db.doc('suscripciones/billing-owner').get()).data().status, undefined);
   });
   await t.test('authorization alone grants no access', async () => {
@@ -99,7 +111,7 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     assert.equal((await db.doc('suscripciones/billing-owner').get()).data().status, 'inactive');
   });
   await t.test('lost create response recovers by reference without charging twice', async () => {
-    await db.doc('billingTesters/billing-recovery').set({ enabled: true });
+    await db.doc('billingTesters/billing-recovery').set({ enabled: true, payerEmail: 'buyer@testuser.com' });
     failPost = true;
     await assert.rejects(billing.createSubscription.run(request('billing-recovery')), /lost-response/);
     failPost = false;
@@ -107,7 +119,7 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     assert.ok(result.url.includes('sub2')); assert.equal(posts, 2);
   });
   await t.test('two simultaneous checkout requests create only one subscription', async () => {
-    await db.doc('billingTesters/billing-concurrent').set({ enabled: true });
+    await db.doc('billingTesters/billing-concurrent').set({ enabled: true, payerEmail: 'buyer@testuser.com' });
     const before = posts;
     const results = await Promise.allSettled([billing.createSubscription.run(request('billing-concurrent')), billing.createSubscription.run(request('billing-concurrent'))]);
     assert.equal(results.some(result => result.status === 'fulfilled'), true);

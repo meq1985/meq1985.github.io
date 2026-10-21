@@ -36,6 +36,13 @@ async function permitted(uid, { purchase = false } = {}) {
   if (purchase && (admin.data()?.enabled === true || (mode.value() === 'live' && !(config.data()?.enabled === true && config.data()?.checkoutAvailable === true)))) {
     throw new HttpsError('failed-precondition', 'La contratación no está habilitada para esta cuenta.');
   }
+  // Firebase QA identities need not have an email belonging to a Mercado Pago test account.
+  // This override is server-only and is never accepted from the callable request.
+  const payerEmail = mode.value() === 'test' ? tester.data()?.payerEmail : undefined;
+  if (purchase && mode.value() === 'test' && !/^[^\s@]+@testuser\.com$/i.test(payerEmail ?? '')) {
+    throw new HttpsError('failed-precondition', 'Falta configurar el comprador ficticio de Mercado Pago para esta prueba.');
+  }
+  return { payerEmail };
 }
 // All provider operations for one account are serialized. The lease outlives the function.
 async function withAccountLock(uid, operation) {
@@ -68,7 +75,7 @@ async function bindCheckout(uid, stored, remote) {
 export const createSubscription = onCall(options, async request => {
   const { uid, email } = identity(request);
   if (request.data?.planId !== 'presupuestos' || request.data?.consent !== true) throw new HttpsError('invalid-argument', 'Confirmá la mensualidad del plan Presupuestos.');
-  await permitted(uid, { purchase: true });
+  const { payerEmail } = await permitted(uid, { purchase: true });
   return withAccountLock(uid, async () => {
     const api = await provider(), existing = (await checkoutRef(uid).get()).data();
     if (existing && existing.mode !== mode.value()) throw new HttpsError('failed-precondition', 'Revisá la configuración de pruebas antes de continuar.');
@@ -86,7 +93,7 @@ export const createSubscription = onCall(options, async request => {
     const stored = { reference: randomUUID(), mode: mode.value(), state: 'creating', createdAt: FieldValue.serverTimestamp() };
     await checkoutRef(uid).set(stored);
     const remote = await api('/preapproval', { method: 'POST', key: stored.reference,
-      body: subscriptionBody({ email, reference: stored.reference, returnOrigin: returnOrigin.value(), webhook: webhookUrl.value() }) });
+      body: subscriptionBody({ email: payerEmail ?? email, reference: stored.reference, returnOrigin: returnOrigin.value(), webhook: webhookUrl.value() }) });
     return bindCheckout(uid, stored, remote);
   });
 });
