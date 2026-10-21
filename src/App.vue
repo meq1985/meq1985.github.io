@@ -1,7 +1,11 @@
 
+<script setup>
+import { useUserStore } from './stores/user';
+const userStore = useUserStore();
+</script>
 <template>
     <main>
-    <RouterView />
+    <RouterView :key="userStore.user?.uid || 'guest'" />
   </main>
 </template>
 

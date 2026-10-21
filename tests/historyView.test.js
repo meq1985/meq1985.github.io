@@ -3,6 +3,7 @@ import { beforeEach, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 vi.mock('../src/components/CatalogHeader.vue', () => ({ default: { template: '<div />' } }));
 vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn() }));
+vi.mock('../src/services/projects', () => ({ importLocalBudget: vi.fn() }));
 vi.mock('../src/services/localBudgets', () => ({ listBudgets: vi.fn(), deleteBudget: vi.fn(), downloadBudget: vi.fn() }));
 import { requireUser } from '../src/firebase/session';
 import { listBudgets, deleteBudget, downloadBudget } from '../src/services/localBudgets';
@@ -47,4 +48,16 @@ it('rejects download after switching accounts and displays loading failures', as
 it('offers a first-budget action when there are no saved budgets', async () => {
   listBudgets.mockResolvedValue([]); const wrapper = render(); await flushPromises();
   expect(wrapper.text()).toContain('Preparar mi primer presupuesto'); wrapper.unmount();
+});
+
+
+it('copies local budgets to the account without deleting their PDF', async () => {
+  const { importLocalBudget } = await import('../src/services/projects');
+  importLocalBudget.mockResolvedValue('local-one');
+  const wrapper = render(); await flushPromises();
+  await wrapper.findAll('button').find(item => item.text() === 'Copiar a mi cuenta').trigger('click'); await flushPromises();
+  expect(importLocalBudget).toHaveBeenCalledExactlyOnceWith(record);
+  expect(deleteBudget).not.toHaveBeenCalled();
+  expect(wrapper.text()).toContain('archivo original sigue guardado');
+  expect(wrapper.findAll('.budget-card')).toHaveLength(1); wrapper.unmount();
 });
