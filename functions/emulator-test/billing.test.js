@@ -29,7 +29,11 @@ globalThis.fetch = async (url, options) => {
   else if (path.startsWith('/preapproval/')) {
     result = subscriptions.get(path.split('/').at(-1));
     if (options.method === 'PUT') Object.assign(result, JSON.parse(options.body));
-  } else if (path === '/authorized_payments/search') result = { results: [...invoices.values()].filter(i => i.preapproval_id === query.get('preapproval_id')) };
+  } else if (path === '/authorized_payments/search') {
+    assert.equal(query.get('limit'), '5');
+    const offset = Number(query.get('offset'));
+    result = { results: [...invoices.values()].filter(i => i.preapproval_id === query.get('preapproval_id')).slice(offset, offset + 5) };
+  }
   else if (path.startsWith('/authorized_payments/')) result = invoices.get(path.split('/').at(-1));
   else if (path.startsWith('/v1/payments/')) result = payments.get(path.split('/').at(-1));
   assert.ok(result, `Unexpected provider request: ${path}`);
@@ -85,7 +89,7 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
   });
   const debit = new Date(Date.now() - 60000).toISOString();
   invoices.set('inv1', { id: 'inv1', preapproval_id: 'sub1', payment: { id: 'pay1' }, debit_date: debit, currency_id: 'ARS', transaction_amount: 12000 });
-  payments.set('pay1', { id: 'pay1', status: 'approved', collector_id: 123, currency_id: 'ARS', transaction_amount: 12000, live_mode: false });
+  payments.set('pay1', { id: 'pay1', status: 'approved', collector_id: 123, currency_id: 'ARS', transaction_amount: 12000, live_mode: true, payer: { email: 'buyer@testuser.com' } });
   let originalExpiry;
   await t.test('forged webhook is denied and confirmed payment activates only its owner', async () => {
     assert.equal(await webhook('inv1', undefined, false), 401);
@@ -136,5 +140,15 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     process.env.MP_MODE = 'live';
     await assert.rejects(billing.createSubscription.run(request('new-live-user')), /no está habilitada/);
     process.env.MP_MODE = 'test';
+  });
+  await t.test('reconciliation reaches a paid invoice beyond the first five results', async () => {
+    await db.doc('billingTesters/billing-pages').set({ enabled: true, payerEmail: 'buyer@testuser.com' });
+    await billing.createSubscription.run(request('billing-pages'));
+    const sub = `sub${posts}`;
+    for (let n = 0; n < 6; n++) invoices.set(`page${n}`, {
+      ...invoices.get('inv1'), id: `page${n}`, preapproval_id: sub, payment: n === 5 ? { id: 'pagepay' } : {},
+    });
+    payments.set('pagepay', { ...payments.get('pay1'), id: 'pagepay', transaction_amount_refunded: 0 });
+    assert.equal((await billing.refreshSubscription.run(request('billing-pages'))).status, 'active');
   });
 });

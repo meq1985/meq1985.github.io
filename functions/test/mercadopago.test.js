@@ -49,10 +49,14 @@ test('calendar months clamp month-end, preserve offset and support leap years', 
 });
 test('only exact confirmed, unreversed payments for this subscription/merchant/environment grant a period', () => {
   const invoice = { preapproval_id: 'sub', payment: { id: 100 }, debit_date: '2026-10-20T10:00:00Z', currency_id: 'ARS', transaction_amount: '12000' };
-  const payment = { id: 100, status: 'approved', currency_id: 'ARS', transaction_amount: 12000, collector_id: 123, live_mode: false };
-  const args = ['sub', '123', false];
+  const payment = { id: 100, status: 'approved', currency_id: 'ARS', transaction_amount: 12000, collector_id: 123, live_mode: false, payer: { email: 'buyer@testuser.com' } };
+  const args = ['sub', '123', false, 'buyer@testuser.com'];
   assert.equal(paidPeriod(invoice, payment, ...args).through, Date.parse('2026-11-20T10:00:00Z'));
-  for (const patch of [{ status: 'pending' }, { status: 'rejected' }, { status: 'charged_back' }, { transaction_amount_refunded: 1 }, { collector_id: 456 }, { transaction_amount: 25000 }, { live_mode: true }, { currency_id: 'USD' }, { id: 200 }]) assert.equal(paidPeriod(invoice, { ...payment, ...patch }, ...args), null);
+  for (const patch of [{ status: 'pending' }, { status: 'rejected' }, { status: 'charged_back' }, { transaction_amount_refunded: 1 }, { collector_id: 456 }, { transaction_amount: 25000 }, { live_mode: undefined }, { payer: { email: 'other@testuser.com' } }, { currency_id: 'USD' }, { id: 200 }]) assert.equal(paidPeriod(invoice, { ...payment, ...patch }, ...args), null);
+  assert.ok(paidPeriod(invoice, { ...payment, live_mode: true }, ...args));
+  assert.equal(paidPeriod(invoice, payment, 'sub', '123', false), null);
+  assert.equal(paidPeriod(invoice, payment, 'sub', '123', true), null);
+  assert.ok(paidPeriod(invoice, { ...payment, live_mode: true }, 'sub', '123', true));
   assert.equal(paidPeriod({ ...invoice, preapproval_id: 'other' }, payment, ...args), null);
 });
 test('provider never follows redirects or exposes financial error bodies', async () => {

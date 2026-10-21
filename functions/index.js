@@ -107,7 +107,8 @@ async function updateInvoice(uid, invoice, api) {
   }
   const paymentId = safeId(invoice.payment?.id);
   const payment = await api(`/v1/payments/${paymentId}`);
-  const period = paidPeriod(invoice, payment, String(invoice.preapproval_id), collectorId.value(), mode.value() === 'live');
+  const testPayerEmail = mode.value() === 'test' ? (await db.doc(`billingTesters/${uid}`).get()).data()?.payerEmail : undefined;
+  const period = paidPeriod(invoice, payment, String(invoice.preapproval_id), collectorId.value(), mode.value() === 'live', testPayerEmail);
   const batch = db.batch();
   batch.set(db.doc(`billingPayments/${paymentId}`), { uid, invoiceId: safeId(invoice.id) });
   batch.set(db.doc(`billingAccounts/${uid}/periods/${safeId(invoice.id)}`), {
@@ -129,15 +130,16 @@ async function reconcile(uid, stored, api) {
   const remote = await api(`/preapproval/${safeId(stored.providerId)}`);
   validateRemote(remote, stored);
   // Fetch all pages: never interpret a truncated history as a complete payment record.
-  for (let offset = 0; ; offset += 100) {
+  for (let offset = 0; ; offset += 5) {
     if (offset >= 5000) throw new Error('history-requires-review');
-    const page = await api(`/authorized_payments/search?preapproval_id=${safeId(remote.id)}&limit=100&offset=${offset}`);
+    // The subscription API rejects limit=100 (and even 20); 5 is supported.
+    const page = await api(`/authorized_payments/search?preapproval_id=${safeId(remote.id)}&limit=5&offset=${offset}`);
     if (!Array.isArray(page.results)) throw new Error('invalid-history');
     for (const invoice of page.results) {
       if (String(invoice.preapproval_id) !== String(remote.id)) throw new Error('invalid-history');
       await updateInvoice(uid, invoice, api);
     }
-    if (page.results.length < 100) break;
+    if (page.results.length < 5) break;
   }
   return publishAccess(uid, remote);
 }
