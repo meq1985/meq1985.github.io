@@ -19,7 +19,7 @@ async function submit() {
 </script>
 <template>
   <div class="auth-page">
-    <RouterLink class="brand" to="/"><BrandMark class="auth-logo" /><span>Electricidad Domiciliaria</span></RouterLink>
+    <RouterLink class="brand" to="/"><BrandMark class="auth-logo" /><span>Electricista Xpress</span></RouterLink>
     <section aria-labelledby="auth-title" class="auth-card">
       <RouterLink class="back" to="/">← Volver al inicio</RouterLink>
       <h1 id="auth-title">{{ title }}</h1>
