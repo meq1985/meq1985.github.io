@@ -1,6 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const PRICE = 12000;
+export function validMerchant(merchant, collectorId, mode) {
+  if (String(merchant.id) !== String(collectorId) || merchant.site_id !== 'MLA' || !Array.isArray(merchant.tags)) return false;
+  return mode === 'test' ? merchant.tags.includes('test_user') : mode === 'live' && !merchant.tags.includes('test_user');
+}
 export function safeId(value) {
   const id = String(value ?? '');
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) throw new Error('invalid-resource');

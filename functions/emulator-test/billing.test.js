@@ -13,13 +13,14 @@ const { deleteApp, getApp } = await import('firebase-admin/app');
 const billing = await import('../index.js');
 const db = getFirestore();
 after(async () => { await db.terminate(); await deleteApp(getApp()); });
-let posts = 0, failPost = false;
+let posts = 0, failPost = false, realMerchant = false;
 const subscriptions = new Map(), invoices = new Map(), payments = new Map();
 globalThis.fetch = async (url, options) => {
   assert.equal(new URL(url).origin, 'https://api.mercadopago.com');
   const path = new URL(url).pathname, query = new URL(url).searchParams;
   let result;
-  if (path === '/preapproval' && options.method === 'POST') {
+  if (path === '/users/me') result = { id: 123, site_id: 'MLA', tags: realMerchant ? ['normal'] : ['test_user'] };
+  else if (path === '/preapproval' && options.method === 'POST') {
     posts++; const body = JSON.parse(options.body), id = `sub${posts}`;
     result = { ...body, id, collector_id: 123, init_point: `https://www.mercadopago.com.ar/subscriptions/checkout?id=${id}` };
     subscriptions.set(id, result);
@@ -54,6 +55,11 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     await db.doc('administradores/billing-owner').set({ enabled: true });
     await assert.rejects(billing.createSubscription.run(request()), /no está habilitada/);
     await db.doc('administradores/billing-owner').delete();
+  });
+  await t.test('test mode rejects real seller credentials before creating a subscription', async () => {
+    const before = posts; realMerchant = true;
+    await assert.rejects(billing.createSubscription.run(request()), /credenciales no corresponden/);
+    assert.equal(posts, before); realMerchant = false;
   });
   await t.test('repeated checkout resumes one subscription and never trusts client price', async () => {
     await billing.createSubscription.run(request('billing-owner', { planId: 'presupuestos', consent: true, amount: 1 }));

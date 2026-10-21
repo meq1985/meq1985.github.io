@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret, defineString } from 'firebase-functions/params';
-import { createProvider, safeId, verifySignature, checkoutUrl, subscriptionBody, validSubscription, paidPeriod } from './mercadopago.js';
+import { createProvider, safeId, verifySignature, checkoutUrl, subscriptionBody, validSubscription, validMerchant, paidPeriod } from './mercadopago.js';
 
 initializeApp();
 const db = getFirestore();
@@ -16,7 +16,13 @@ const collectorId = defineString('MP_COLLECTOR_ID', { default: '' });
 const options = { region: 'us-central1', minInstances: 0, maxInstances: 2, concurrency: 10, timeoutSeconds: 120, memory: '256MiB', secrets: [accessToken] };
 const checkoutRef = uid => db.doc(`billingCheckouts/${uid}`);
 const subscriptionRef = uid => db.doc(`suscripciones/${uid}`);
-const provider = () => createProvider(accessToken.value());
+async function provider() {
+  const api = createProvider(accessToken.value());
+  if (!validMerchant(await api('/users/me'), collectorId.value(), mode.value())) {
+    throw new HttpsError('failed-precondition', 'Las credenciales no corresponden al vendedor y entorno configurados.');
+  }
+  return api;
+}
 function identity(request) {
   if (!request.auth || request.auth.token.email_verified !== true || !request.auth.token.email) throw new HttpsError('unauthenticated', 'Ingresá con un correo verificado.');
   return { uid: request.auth.uid, email: request.auth.token.email };
@@ -64,7 +70,7 @@ export const createSubscription = onCall(options, async request => {
   if (request.data?.planId !== 'presupuestos' || request.data?.consent !== true) throw new HttpsError('invalid-argument', 'Confirmá la mensualidad del plan Presupuestos.');
   await permitted(uid, { purchase: true });
   return withAccountLock(uid, async () => {
-    const api = provider(), existing = (await checkoutRef(uid).get()).data();
+    const api = await provider(), existing = (await checkoutRef(uid).get()).data();
     if (existing && existing.mode !== mode.value()) throw new HttpsError('failed-precondition', 'Revisá la configuración de pruebas antes de continuar.');
     if (existing?.providerId) {
       const remote = await api(`/preapproval/${safeId(existing.providerId)}`);
@@ -133,7 +139,7 @@ export const refreshSubscription = onCall(options, async request => {
   return withAccountLock(uid, async () => {
     const stored = (await checkoutRef(uid).get()).data();
     if (!stored?.providerId || stored.mode !== mode.value()) return { status: 'inactive' };
-    return reconcile(uid, stored, provider());
+    return reconcile(uid, stored, await provider());
   });
 });
 export const cancelSubscription = onCall(options, async request => {
@@ -142,7 +148,7 @@ export const cancelSubscription = onCall(options, async request => {
   return withAccountLock(uid, async () => {
     const stored = (await checkoutRef(uid).get()).data();
     if (!stored?.providerId || stored.mode !== mode.value()) throw new HttpsError('not-found', 'No hay una suscripción para cancelar.');
-    const api = provider(), path = `/preapproval/${safeId(stored.providerId)}`;
+    const api = await provider(), path = `/preapproval/${safeId(stored.providerId)}`;
     const remote = await api(path); validateRemote(remote, stored);
     if (remote.status !== 'cancelled') await api(path, { method: 'PUT', body: { status: 'cancelled' } });
     // Cancellation stops renewals. Previously paid periods remain usable.
@@ -158,7 +164,7 @@ export async function handleMercadoPagoWebhook(req, res) {
   const topic = req.body?.type;
   if (!['subscription_preapproval', 'subscription_authorized_payment', 'payment'].includes(topic)) return res.sendStatus(200);
   try {
-    const api = provider();
+    const api = await provider();
     let binding, invoice;
     if (topic === 'subscription_preapproval') binding = (await db.doc(`billingBindings/${id}`).get()).data();
     else if (topic === 'subscription_authorized_payment') {

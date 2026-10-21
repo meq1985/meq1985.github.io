@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { verifySignature, checkoutUrl, subscriptionBody, validSubscription, paidPeriod, createProvider, periodEnd, safeId } from '../mercadopago.js';
+import { verifySignature, checkoutUrl, subscriptionBody, validSubscription, validMerchant, paidPeriod, createProvider, periodEnd, safeId } from '../mercadopago.js';
 
 test('signatures reject missing, forged, wrong-resource and malformed notifications', () => {
   const fields = { id: 'ABC123', secret: 'test-secret', requestId: 'request' };
@@ -9,6 +9,17 @@ test('signatures reject missing, forged, wrong-resource and malformed notificati
   assert.equal(verifySignature({ ...fields, signature: `ts=123,v1=${hash}` }), true);
   for (const signature of [undefined, 'ts=123,v1=aa', `ts=124,v1=${hash}`, `ts=123,v1=${'0'.repeat(64)}`]) assert.equal(verifySignature({ ...fields, signature }), false);
   assert.equal(verifySignature({ ...fields, id: 'other', signature: `ts=123,v1=${hash}` }), false);
+});
+test('test mode rejects real seller credentials and live mode rejects fictitious sellers', () => {
+  const testSeller = { id: 123, site_id: 'MLA', tags: ['test_user'] };
+  const realSeller = { ...testSeller, tags: ['normal'] };
+  assert.equal(validMerchant(testSeller, '123', 'test'), true);
+  assert.equal(validMerchant(testSeller, '123', 'live'), false);
+  assert.equal(validMerchant(realSeller, '123', 'test'), false);
+  assert.equal(validMerchant(realSeller, '123', 'live'), true);
+  assert.equal(validMerchant(testSeller, '456', 'test'), false);
+  assert.equal(validMerchant({ ...testSeller, site_id: 'MLB' }, '123', 'test'), false);
+  assert.equal(validMerchant({ id: 123 }, '123', 'test'), false);
 });
 test('checkout accepts only the HTTPS Mercado Pago Argentina host', () => {
   assert.equal(checkoutUrl('https://www.mercadopago.com.ar/subscriptions/checkout?id=1'), 'https://www.mercadopago.com.ar/subscriptions/checkout?id=1');
