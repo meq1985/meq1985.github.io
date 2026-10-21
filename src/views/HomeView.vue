@@ -10,7 +10,7 @@ const signedIn = computed(() => userStore.user?.emailVerified);
   <div class="landing">
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="site-header shell">
-      <RouterLink class="brand" to="/" aria-label="Electricidad Domiciliaria, inicio"><BrandMark class="brand-mark" /><span>Electricidad<br><strong>Domiciliaria</strong></span></RouterLink>
+      <RouterLink class="brand" to="/" aria-label="Electricista Xpress, inicio"><BrandMark class="brand-mark" /><span>Electricista<br><strong>Xpress</strong></span></RouterLink>
       <nav aria-label="Navegación principal"><a href="#herramientas">Herramientas</a><a href="#como-funciona">Cómo funciona</a><RouterLink class="button secondary" :to="signedIn ? '/config' : '/ingresar'">{{ signedIn ? 'Ir a mi cuenta' : 'Ingresar' }}</RouterLink></nav>
     </header>
     <div id="contenido" class="shell">
@@ -24,7 +24,7 @@ const signedIn = computed(() => userStore.user?.emailVerified);
       <section class="section faq" aria-labelledby="faq-title"><p class="eyebrow">ANTES DE EMPEZAR</p><h2 id="faq-title">Preguntas frecuentes</h2><details><summary>¿Puedo usar mis propios precios?</summary><p>Sí. Podés editar los valores del catálogo, aplicar ajustes porcentuales y agregar trabajos personalizados al presupuesto.</p></details><details><summary>¿Los precios incluyen materiales?</summary><p>No. El catálogo AAIERIC corresponde a mano de obra y toma como referencia CABA y GBA. Revisá los valores según tu zona y las condiciones del trabajo.</p></details><details><summary>¿Dónde se guardan mis presupuestos?</summary><p>Los proyectos se guardan en tu cuenta cuando elegís «Guardar proyecto en mi cuenta» y podés retomarlos desde otro dispositivo. Descargá tus PDF para conservar una copia.</p></details><details><summary>¿Qué necesito para empezar?</summary><p>Un correo electrónico que puedas verificar y tus datos profesionales. El catálogo inicial se carga al completar el registro.</p></details></section>
       <section id="contacto" class="contact section"><div><p class="eyebrow">DALE FORMA A TU PRÓXIMO TRABAJO</p><h2>Empezá con un presupuesto claro.</h2><p>¿Tenés una consulta? <a href="mailto:emanuelquiroga.bgh@gmail.com">Escribinos por correo</a> o <a href="https://wa.me/542964606826">WhatsApp</a>.</p></div><RouterLink class="button" :to="signedIn ? '/dashboard' : '/registrarse'">{{ signedIn ? 'Ir a presupuestar' : 'Crear mi cuenta' }} ↗</RouterLink></section>
     </div>
-    <footer class="shell footer"><span>Electricidad Domiciliaria</span><span>Diseño y desarrollo · Martin E. Quiroga</span><a href="#contacto">Contacto</a></footer>
+    <footer class="shell footer"><span>Electricista Xpress</span><span>Diseño y desarrollo · Martin E. Quiroga</span><a href="#contacto">Contacto</a></footer>
   </div>
 </template>
 

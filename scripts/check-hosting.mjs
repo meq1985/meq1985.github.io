@@ -14,4 +14,4 @@ const builtAsset = await fetch(base + asset);
 assert.equal(builtAsset.status, 200);
 const entry = await fetch(base + '/index.html');
 assert.ok((await builtAsset.text()).length > 1000);
-console.log('Hosting local: portada, 8 rutas directas, build JavaScript, caché y cabeceras correctos.');
+console.log('Hosting local: portada, 8 rutas directas y JavaScript correctos. Verificar cabeceras en la vista previa publicada.');

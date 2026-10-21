@@ -51,7 +51,8 @@
           }
         ]
       }
-    ]
+    ],
+    "site": "electricistaxpress"
   },
   "emulators": {
     "hosting": {
