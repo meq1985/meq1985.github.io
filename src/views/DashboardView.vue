@@ -7,7 +7,6 @@ import CatalogHeader from '../components/CatalogHeader.vue';
 import { PostStore } from '../stores/dbUsers';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { validateBudget } from '../services/budgetValidation';
-import { saveBudget } from '../services/localBudgets';
 import { buildBudgetPdf } from '../services/budgetPdf';
 import { loadCatalog } from '../services/catalogPersistence';
 import { CATALOG_SOURCE, CATALOG_NOTES, CATALOG_GROUPS, currency } from '../data/laborCatalog';
@@ -47,21 +46,18 @@ function addItem() {
     cantidad: ['proyecto_m2', 'plano_m2'].includes(item.id) ? 30 : 1, precioUnitario: item.price });
 }
 function addCustom() { tabla.value.push({ key: ++counter, codigo: `P-${counter}`, descripcion: '', unidad: 'ud.', cantidad: 1, precioUnitario: 0 }); }
-async function outputBudget(save) {
+async function outputBudget() {
   if (saving.value) return;
   saving.value = true; error.value = ''; message.value = '';
   try {
     const user = await requireUser();
     if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Recargá el proyecto.');
-    if (requiresProfileReview.value) throw new Error('Revisá los datos profesionales y guardá una nueva versión en tu cuenta antes de generar el PDF importado.');
+    if (requiresProfileReview.value) throw new Error('Revisá los datos profesionales y guardá una nueva versión en tu cuenta antes de generar el PDF.');
     const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() };
     const snapshot = { ...validateBudget(budget.cliente, budget.items, budget.tipoInmueble), createdAt: budget.createdAt };
     const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email));
     assertCurrentUser(user);
-    if (save) {
-      await saveBudget(user.uid, snapshot, document.output('blob'));
-      message.value = 'Presupuesto guardado en este navegador. Descargá una copia para conservarlo.';
-    } else { document.save('presupuesto.pdf'); message.value = 'PDF descargado.'; }
+    document.save('presupuesto.pdf'); message.value = 'PDF descargado.';
   } catch (cause) { error.value = cause.message; }
   finally { saving.value = false; }
 }
@@ -108,7 +104,7 @@ async function initialize() {
     selectedProfile.value = project?.version.profile ?? projectProfile(profileStore, user.email);
     requiresProfileReview.value = Boolean(project && !project.version.profile);
     cloudSaved.value = Boolean(project); savedBudget.value = project?.version.budget ?? null;
-    if (project && !project.version.profile) message.value = 'Este presupuesto local no incluía una copia de tus datos profesionales. Se usarán los datos actuales: revisalos y guardá una nueva versión antes de compartir el PDF.';
+    if (project && !project.version.profile) message.value = 'Este proyecto no incluye una copia de tus datos profesionales. Se usarán los datos actuales: revisalos y guardá una nueva versión antes de compartir el PDF.';
     savedForm.value = formSignature.value; ready.value = true;
   } catch (cause) { if (sequence === loadSequence) error.value = 'No se pudo cargar el proyecto: ' + cause.message; }
   finally { if (sequence === loadSequence) loading.value = false; }
@@ -155,8 +151,8 @@ watch(() => props.projectId, initialize);
           </tr>
         </tbody></table></div>
         <div class="catalog-total">Total: {{ currency(total) }}</div>
-        <div class="catalog-actions"><button class="primary" :disabled="saving || loading || !tabla.length" @click="saveToAccount">Guardar proyecto en mi cuenta</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget(true)">Guardar presupuesto local</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget(false)">Descargar PDF</button></div>
-        <p class="muted">Guardar en mi cuenta conserva el proyecto y sus versiones para acceder desde otros dispositivos. El guardado local mantiene una copia en este navegador.</p>
+        <div class="catalog-actions"><button class="primary" :disabled="saving || loading || !tabla.length" @click="saveToAccount">Guardar proyecto en mi cuenta</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget()">Descargar PDF</button></div>
+        <p class="muted">Guardar en mi cuenta conserva el proyecto y sus versiones para acceder desde otros dispositivos.</p>
       </section>
       </fieldset>
       <p v-if="dirty" role="status">Tenés cambios sin guardar en tu cuenta.</p>

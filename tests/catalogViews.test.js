@@ -6,10 +6,8 @@ vi.mock('../src/stores/dbUsers', () => ({ PostStore: () => ({ obtenerDato: vi.fn
 vi.mock('../src/services/catalogPersistence', () => ({ loadCatalog: vi.fn(), loadSuggestedCatalog: vi.fn(), saveCatalogPrices: vi.fn() }));
 vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(async () => ({ uid: 'demo', email: 'demo@example.invalid' })), assertCurrentUser: vi.fn() }));
 vi.mock('../src/services/projects', () => ({ newProjectId: () => 'project-demo', loadProject: vi.fn(), saveProject: vi.fn() }));
-vi.mock('../src/services/localBudgets', () => ({ saveBudget: vi.fn() }));
 vi.mock('../src/services/budgetPdf', () => ({ buildBudgetPdf: vi.fn(async () => ({ output: () => new Blob(['pdf']), save: vi.fn() })) }));
 import { loadCatalog, loadSuggestedCatalog, saveCatalogPrices } from '../src/services/catalogPersistence';
-import { saveBudget } from '../src/services/localBudgets';
 import { buildBudgetPdf } from '../src/services/budgetPdf';
 import Config from '../src/views/ConfigView.vue';
 import Dashboard from '../src/views/DashboardView.vue';
@@ -61,12 +59,10 @@ it('uses account prices, allows repeating an item and saves unit and price snaps
   await button(wrapper, 'Agregar ítem').trigger('click');
   expect(wrapper.findAll('tbody tr')).toHaveLength(2);
   await wrapper.get('[aria-label="Cantidad del ítem 1"]').setValue(2);
-  await button(wrapper, 'Guardar presupuesto').trigger('click'); await flushPromises();
-  expect(saveBudget).toHaveBeenCalledOnce();
+  await button(wrapper, 'Descargar PDF').trigger('click'); await flushPromises();
   expect(buildBudgetPdf.mock.calls.at(-1)[1].correo).toBe('demo@example.invalid');
   expect(buildBudgetPdf.mock.calls.at(-1)[0].createdAt).toMatch(/^\d{4}-/);
-  const [owner, budget] = saveBudget.mock.calls[0];
-  expect(owner).toBe('demo');
+  const budget = buildBudgetPdf.mock.calls.at(-1)[0];
   expect(budget.total).toBe(171000);
   expect(budget.tipoInmueble).toBe('Vivienda unifamiliar');
   expect(buildBudgetPdf.mock.calls.at(-1)[0].tipoInmueble).toBe('Vivienda unifamiliar');
@@ -112,7 +108,7 @@ it('allows saving a profile without a company while keeping other professional f
 });
 
 
-it('saves to the account without generating or locally storing a PDF and preserves the same retry payload', async () => {
+it('saves to the account without generating a PDF and preserves the same retry payload', async () => {
   const { saveProject } = await import('../src/services/projects');
   saveProject.mockRejectedValueOnce(new Error('Sin conexión')).mockResolvedValueOnce({ id: 'project-demo', revision: 1 });
   const wrapper = mount(Dashboard); await flushPromises();
@@ -124,12 +120,8 @@ it('saves to the account without generating or locally storing a PDF and preserv
   const first = JSON.parse(JSON.stringify(saveProject.mock.calls.at(-1)[0]));
   await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();
   expect(saveProject.mock.calls.at(-1)[0]).toEqual(first);
-  expect(saveBudget).not.toHaveBeenCalled(); expect(buildBudgetPdf).not.toHaveBeenCalled();
+  expect(buildBudgetPdf).not.toHaveBeenCalled();
   expect(wrapper.text()).toContain('Versión 1');
-  saveBudget.mockImplementationOnce(async (_owner, budget) => structuredClone(budget));
-  await button(wrapper, 'Guardar presupuesto local').trigger('click'); await flushPromises();
-  expect(wrapper.text()).toContain('Presupuesto guardado en este navegador');
-  expect(saveBudget).toHaveBeenCalledOnce();
   wrapper.unmount();
 });
 
@@ -157,11 +149,11 @@ it('warns before leaving unsaved source data and respects cancellation', async (
   confirm.mockRestore(); wrapper.unmount();
 });
 
-it('requires saving a reviewed new version before regenerating an imported PDF with current professional data', async () => {
+it('requires saving a reviewed new version before regenerating a PDF with a missing saved profile with current professional data', async () => {
   const { loadProject, saveProject } = await import('../src/services/projects');
-  loadProject.mockResolvedValue({ revision: 1, name: 'Importado', version: { budget: { cliente: 'Cliente', createdAt: '2026-10-20T12:00:00Z', items: [{ descripcion: 'Trabajo', cantidad: 1, unidad: 'ud.', precioUnitario: 100 }] }, profile: null } });
-  saveProject.mockResolvedValue({ id: 'local-one', revision: 2 });
-  const wrapper = mount(Dashboard, { props: { projectId: 'local-one' } }); await flushPromises();
+  loadProject.mockResolvedValue({ revision: 1, name: 'Proyecto anterior', version: { budget: { cliente: 'Cliente', createdAt: '2026-10-20T12:00:00Z', items: [{ descripcion: 'Trabajo', cantidad: 1, unidad: 'ud.', precioUnitario: 100 }] }, profile: null } });
+  saveProject.mockResolvedValue({ id: 'saved-one', revision: 2 });
+  const wrapper = mount(Dashboard, { props: { projectId: 'saved-one' } }); await flushPromises();
   await button(wrapper, 'Descargar PDF').trigger('click'); await flushPromises();
   expect(buildBudgetPdf).not.toHaveBeenCalled(); expect(wrapper.get('[role="alert"]').text()).toContain('guardá una nueva versión');
   await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();

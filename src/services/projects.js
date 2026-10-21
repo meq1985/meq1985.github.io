@@ -48,7 +48,8 @@ async function writeProject(user, input) {
   const budget = projectBudget(input.budget);
   const name = projectName(input.name, budget.cliente);
   const profile = input.profile === null ? null : projectProfile(input.profile, user.email);
-  const sourceLocalId = input.sourceLocalId ?? null;
+  // Keep the existing Firestore schema compatible with previously saved projects.
+  const sourceLocalId = null;
   const expected = input.expectedRevision;
   if (!Number.isSafeInteger(expected) || expected < 0) throw new Error('Recargá el proyecto antes de guardar.');
   const revision = validRevision(expected + 1);
@@ -60,15 +61,13 @@ async function writeProject(user, input) {
       const [existing, previous] = await Promise.all([transaction.get(reference), transaction.get(target)]);
       assertCurrentUser(user);
       const current = existing.data();
-      // Import is idempotent even after the imported project has been edited elsewhere.
-      if (sourceLocalId && current?.sourceLocalId === sourceLocalId) return;
       // A retry after a lost response recognizes the exact same committed version.
       if (current?.revision === revision && previous.exists()) {
         const saved = previous.data();
         if (JSON.stringify({ ...payload, budget: projectBudget(saved.budget), profile: saved.profile === null ? null : projectProfile(saved.profile, saved.profile?.correo), name: saved.name, sourceLocalId: saved.sourceLocalId }) === JSON.stringify(payload)) return;
       }
       if ((current?.revision ?? 0) !== expected || previous.exists() || (expected && !existing.exists())) {
-        throw new Error('El proyecto cambió en otra pestaña o dispositivo. Guardá una copia local de tus cambios y volvé a abrir el proyecto desde Mis proyectos.');
+        throw new Error('El proyecto cambió en otra pestaña o dispositivo. Descargá un PDF con tus cambios antes de volver a abrir el proyecto desde Mis proyectos.');
       }
       if (current && current.ownerUid !== user.uid) throw new Error('El proyecto no corresponde a tu cuenta.');
       const now = serverTimestamp();
@@ -84,12 +83,4 @@ async function writeProject(user, input) {
 export async function saveProject(input) {
   const user = await requireUser();
   return writeProject(user, { ...input, sourceLocalId: null, profile: input.profile ?? {} });
-}
-export async function importLocalBudget(record) {
-  const user = await requireUser();
-  if (record.owner !== user.uid) throw new Error('El presupuesto local no corresponde a tu cuenta.');
-  const localId = validProjectId(record.id);
-  const id = validProjectId('local_' + localId);
-  await writeProject(user, { id, expectedRevision: 0, name: record.cliente, budget: record, profile: null, sourceLocalId: localId });
-  return id;
 }
