@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, getDocs, collection, updateDoc, deleteDoc, setDoc, serverTimestamp, disableNetwork, enableNetwork } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp, writeBatch, disableNetwork, enableNetwork } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, sendEmailVerification, applyActionCode, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { deleteApp } from 'firebase/app';
 import { auth, db } from '../../src/firebase';
@@ -74,6 +74,51 @@ it('does not report a cached list as a successful cloud read when offline', asyn
   await listProjects(); await disableNetwork(db);
   try { await expect(listProjects()).rejects.toThrow(); }
   finally { await enableNetwork(db); }
+});
+it('enforces one free project atomically, blocks resets and denies forged subscriptions', async () => {
+  const config = doc(db, 'configuracion', 'facturacion');
+  const allowance = doc(db, 'accesos', uid), subscription = doc(db, 'suscripciones', uid);
+  await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'configuracion', 'facturacion'), { enabled: true }); });
+  try {
+    const attempts = await Promise.allSettled([saveProject(input('free-a')), saveProject(input('free-b'))]);
+    expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const freeId = (await getDoc(allowance)).data().freeProjectId;
+    await saveProject(input(freeId, 1));
+    await expect(saveProject(input('free-c'))).rejects.toThrow('suscripción');
+    await assertFails(updateDoc(allowance, { freeProjectId: 'free-c' })); await assertFails(deleteDoc(allowance));
+    await assertFails(setDoc(subscription, { planId: 'presupuestos', status: 'active', paidThrough: Timestamp.fromMillis(Date.now() + 86400000) }));
+    await assertFails(setDoc(config, { enabled: false }));
+    await assertFails(setDoc(doc(db, 'administradores', uid), { enabled: true }));
+    await assertFails(getDoc(doc(db, 'suscripciones', 'other')));
+    await assertFails(setDoc(doc(db, 'accesos', 'other'), { freeProjectId: freeId, claimedAt: serverTimestamp() }));
+    // An allowance cannot refer to a nonexistent project, even in a forged batch.
+    const intruder = env.authenticatedContext('unused', { email: 'unused@example.invalid', email_verified: true }).firestore();
+    await assertFails(setDoc(doc(intruder, 'accesos', 'unused'), { freeProjectId: 'nonexistent', claimedAt: serverTimestamp() }));
+    await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'suscripciones', uid), { planId: 'presupuestos', status: 'active', paidThrough: Timestamp.fromMillis(Date.now() + 86400000) }); });
+    await saveProject(input('paid-project'));
+    await env.withSecurityRulesDisabled(async context => { await updateDoc(doc(context.firestore(), 'suscripciones', uid), { paidThrough: Timestamp.fromMillis(Date.now() - 1000) }); });
+    await expect(saveProject(input('paid-project', 1))).rejects.toThrow('suscripción');
+    await saveProject(input(freeId, 2));
+    expect((await loadProject('paid-project')).revision).toBe(1);
+  } finally { await env.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'configuracion', 'facturacion')); }); }
+});
+it('gives only the verified designated administrator unlimited own projects', async () => {
+  const adminUid = 'administrator-demo';
+  await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'administradores', adminUid), { enabled: true }); });
+  await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'configuracion', 'facturacion'), { enabled: true }); });
+  const base = (await getDoc(ref('first'))).data(), version = (await getDoc(doc(ref('first'), 'versiones', '1'))).data();
+  try {
+    for (const verified of [true, false]) {
+      const database = env.authenticatedContext(adminUid, { email: 'admin@example.invalid', email_verified: verified }).firestore();
+      for (const id of ['admin-a', 'admin-b']) {
+        const batch = writeBatch(database), target = doc(database, 'cuentas', adminUid, 'proyectos', id);
+        batch.set(target, { ...base, ownerUid: adminUid, revision: 1, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        batch.set(doc(target, 'versiones', '1'), { ...version, name: base.name, revision: 1, createdAt: serverTimestamp() });
+        if (verified) await batch.commit(); else await assertFails(batch.commit());
+      }
+      await assertFails(getDoc(doc(database, 'cuentas', uid, 'proyectos', 'first')));
+    }
+  } finally { await env.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'configuracion', 'facturacion')); }); }
 });
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');

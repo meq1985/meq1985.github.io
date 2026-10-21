@@ -1,5 +1,7 @@
 import { collection, doc, getDocFromServer, getDocsFromServer, query, orderBy, limit, startAfter, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { billingConfigRef, allowanceRef, subscriptionRef } from './billing';
+import { isAdministrator, projectAccess, subscriptionRequired } from './billingPolicy';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { projectBudget, projectProfile, projectName, validProjectId, validRevision } from './projectValidation';
 
@@ -60,6 +62,10 @@ async function writeProject(user, input) {
     await runTransaction(db, async transaction => {
       const [existing, previous] = await Promise.all([transaction.get(reference), transaction.get(target)]);
       assertCurrentUser(user);
+      const [config, administrator] = await Promise.all([transaction.get(billingConfigRef()), transaction.get(doc(db, 'administradores', user.uid))]);
+      let allowance, subscription;
+      const metered = config.data()?.enabled === true && !isAdministrator(user, administrator.data());
+      if (metered) [allowance, subscription] = await Promise.all([transaction.get(allowanceRef(user.uid)), transaction.get(subscriptionRef(user.uid))]);
       const current = existing.data();
       // A retry after a lost response recognizes the exact same committed version.
       if (current?.revision === revision && previous.exists()) {
@@ -70,7 +76,11 @@ async function writeProject(user, input) {
         throw new Error('El proyecto cambió en otra pestaña o dispositivo. Descargá un PDF con tus cambios antes de volver a abrir el proyecto desde Mis proyectos.');
       }
       if (current && current.ownerUid !== user.uid) throw new Error('El proyecto no corresponde a tu cuenta.');
+      const state = { enabled: metered, freeProjectId: allowance?.data()?.freeProjectId ?? null,
+        subscription: subscription?.exists() ? { ...subscription.data(), paidThrough: subscription.data().paidThrough?.toMillis?.() } : null };
+      if (!projectAccess(state, input.id)) throw subscriptionRequired();
       const now = serverTimestamp();
+      if (metered && !allowance.exists()) transaction.set(allowanceRef(user.uid), { freeProjectId: input.id, claimedAt: now });
       transaction.set(target, { ...payload, createdAt: now });
       const metadata = { name, cliente: budget.cliente, tipoInmueble: budget.tipoInmueble ?? '', total: budget.total, revision, updatedAt: now };
       if (existing.exists()) transaction.update(reference, metadata);

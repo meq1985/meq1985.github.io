@@ -10,6 +10,7 @@ const userStore = useUserStore();
       <router-link to="/dashboard">Presupuestar</router-link>
       <router-link to="/config">Configuración</router-link>
       <router-link to="/proyectos">Mis proyectos</router-link>
+      <router-link to="/planes">Planes</router-link>
       <button @click="userStore.logout()">Salir</button>
     </nav>
   </div>

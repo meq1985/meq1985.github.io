@@ -1,6 +1,8 @@
 <script setup>
 import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { routerKey, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
+import { loadBillingAccess } from '../services/billing';
+import { projectAccess } from '../services/billingPolicy';
 import { newProjectId, loadProject, saveProject } from '../services/projects';
 import { projectProfile } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
@@ -15,6 +17,7 @@ const props = defineProps({ projectId: String });
 const router = inject(routerKey, null);
 const profileStore = PostStore();
 const name = ref(''), revision = ref(0), cloudId = ref(props.projectId || newProjectId()), selectedProfile = ref(null);
+const access = ref(null), subscriptionBlocked = ref(false);
 const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
 const savedForm = ref(null), savedBudget = ref(null), requiresProfileReview = ref(false);
 const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value]));
@@ -53,6 +56,14 @@ async function outputBudget() {
     const user = await requireUser();
     if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Recargá el proyecto.');
     if (requiresProfileReview.value) throw new Error('Revisá los datos profesionales y guardá una nueva versión en tu cuenta antes de generar el PDF.');
+    const currentAccess = await loadBillingAccess();
+    if (!projectAccess(currentAccess, cloudId.value)) { subscriptionBlocked.value = true; throw new Error('Para trabajar en otro proyecto necesitás una suscripción.'); }
+    if (currentAccess.enabled && (dirty.value || !cloudSaved.value)) {
+      saving.value = false;
+      const saved = await saveToAccount();
+      saving.value = true;
+      if (!saved) return;
+    }
     const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() };
     const snapshot = { ...validateBudget(budget.cliente, budget.items, budget.tipoInmueble), createdAt: budget.createdAt };
     const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email));
@@ -77,7 +88,9 @@ async function saveToAccount() {
     revision.value = result.revision; cloudSaved.value = true; requiresProfileReview.value = false; savedBudget.value = pendingSave.value.input.budget;
     savedForm.value = formSignature.value; pendingSave.value = null;
     message.value = `Proyecto guardado en tu cuenta. Versión ${result.revision}. Podés retomarlo desde Mis proyectos.`;
-  } catch (cause) { error.value = cause.message; }
+    subscriptionBlocked.value = false;
+    return true;
+  } catch (cause) { error.value = cause.message; subscriptionBlocked.value = cause.code === 'billing/subscription-required'; return false; }
   finally { saving.value = false; }
 }
 async function useCurrentProfile() {
@@ -94,8 +107,9 @@ async function initialize() {
   const sequence = ++loadSequence;
   loading.value = true; ready.value = false; error.value = ''; message.value = ''; pendingSave.value = null;
   try {
-    const [user, , catalog, project] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), props.projectId ? loadProject(props.projectId) : null]);
+    const [user, , catalog, project, billing] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), props.projectId ? loadProject(props.projectId) : null, loadBillingAccess()]);
     if (sequence !== loadSequence) return;
+    access.value = billing; subscriptionBlocked.value = !projectAccess(billing, props.projectId);
     entries.value = catalog; ownerUid.value = user.uid;
     cloudId.value = props.projectId || newProjectId(); revision.value = project?.revision ?? 0;
     name.value = project?.name ?? ''; cliente.value = project?.version.budget.cliente ?? '';
@@ -118,16 +132,19 @@ watch(() => props.projectId, initialize);
     <div class="catalog-main">
       <h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
       <p class="muted">{{ CATALOG_SOURCE }}. Se usan los precios guardados en tu cuenta.</p>
+      <p v-if="access?.admin" class="catalog-notice">Cuenta administradora: acceso completo sin suscripción.</p>
+      <p v-else-if="access?.enabled" class="catalog-notice">Tu cuenta incluye un proyecto gratuito, sin vencimiento. <RouterLink to="/planes">Ver planes</RouterLink></p>
+      <p v-if="subscriptionBlocked" class="catalog-notice" role="status">Para trabajar en otro proyecto necesitás una suscripción. <RouterLink to="/planes">Ver suscripción →</RouterLink><span v-if="access?.freeProjectId"> · <RouterLink :to="'/proyectos/' + access.freeProjectId + '/editar'">Abrir mi proyecto gratuito</RouterLink></span></p>
       <p v-if="error" class="catalog-notice error" role="alert">{{ error }}</p>
       <p v-if="message" class="catalog-notice" role="status">{{ message }}</p>
-      <fieldset :disabled="loading || saving || !ready">
+      <fieldset :disabled="subscriptionBlocked || loading || saving || !ready">
       <section class="catalog-panel">
         <div class="catalog-fields">
           <label for="project-name">Nombre del proyecto (opcional)<input id="project-name" v-model="name" maxlength="120" placeholder="Ej.: Reforma de cocina" /></label><label for="budget-client">Cliente<input id="budget-client" v-model="cliente" maxlength="120" placeholder="Nombre del cliente" /></label>
           <label for="budget-property-type">Tipo de inmueble (opcional)<input id="budget-property-type" v-model="tipoInmueble" list="property-types" maxlength="80" placeholder="Elegí una opción o escribí otra" /><datalist id="property-types"><option v-for="type in propertyTypes" :key="type" :value="type" /></datalist></label>
         </div>
         <p v-if="loading" role="status">Cargando tus precios…</p>
-        <fieldset :disabled="loading || saving">
+        <fieldset :disabled="subscriptionBlocked || loading || saving">
           <h2 style="margin-top: 24px">Agregar trabajos</h2>
           <div class="catalog-fields">
             <label>Buscar ítem<input v-model="search" type="search" placeholder="Ej.: boca, tablero, bandeja…" /></label>
