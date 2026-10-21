@@ -3,11 +3,23 @@ import { onMounted, ref } from 'vue';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import { requireUser } from '../firebase/session';
 import { listBudgets, deleteBudget, downloadBudget } from '../services/localBudgets';
+import { importLocalBudget } from '../services/projects';
 import { currency } from '../data/laborCatalog';
 
 const pdfList = ref([]);
 const error = ref('');
 const loading = ref(true);
+const importing = ref(''), imported = ref({}), notice = ref('');
+async function copyToAccount(pdf) {
+  if (importing.value) return;
+  importing.value = pdf.id; error.value = ''; notice.value = '';
+  try {
+    const id = await importLocalBudget(pdf);
+    imported.value[pdf.id] = id;
+    notice.value = 'Presupuesto copiado a tu cuenta. El archivo original sigue guardado en este navegador. Revisá los datos profesionales al abrir el proyecto.';
+  } catch (cause) { error.value = 'No se pudo importar: ' + cause.message; }
+  finally { importing.value = ''; }
+}
 const date = value => {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? 'Sin fecha' : parsed.toLocaleDateString('es-AR', { timeZone: 'UTC' });
@@ -42,10 +54,11 @@ onMounted(load);
     <CatalogHeader />
     <div class="catalog-main">
       <div class="history-heading">
-        <div><p class="eyebrow">TU TRABAJO, ORGANIZADO</p><h1>Mis presupuestos</h1><p class="muted">Consultá y descargá los presupuestos que guardaste.</p></div>
+        <div><p class="eyebrow">TU TRABAJO, ORGANIZADO</p><h1>Presupuestos locales</h1><p class="muted">Tus archivos originales de este navegador. Podés copiarlos a tu cuenta para continuar como proyectos.</p></div>
         <RouterLink class="new-budget" to="/dashboard">+ Crear presupuesto</RouterLink>
       </div>
       <aside class="storage-note" aria-label="Almacenamiento de presupuestos"><span class="storage-icon" aria-hidden="true">↓</span><div><strong>Tu historial en este dispositivo</strong><p>Guardado en este navegador. Descargá una copia de tus PDF: borrar los datos del navegador puede eliminar este historial.</p><small>Los PDF antiguos de Firebase Storage no se migraron.</small></div></aside>
+      <p v-if="notice" role="status" class="catalog-notice">{{ notice }}</p><p><RouterLink to="/proyectos">Ver Mis proyectos guardados en la cuenta →</RouterLink></p>
       <p v-if="error" role="alert" class="catalog-notice error">{{ error }}</p>
       <p v-if="loading" role="status" class="catalog-panel">Cargando tus presupuestos…</p>
       <section v-else-if="!pdfList.length && !error" class="catalog-panel empty-history" aria-labelledby="empty-title"><span class="empty-icon" aria-hidden="true">↗</span><h2 id="empty-title">Tu próximo trabajo empieza acá</h2><p class="muted">Todavía no guardaste presupuestos en este navegador. Creá uno para tener su detalle y PDF a mano.</p><RouterLink to="/dashboard">Preparar mi primer presupuesto →</RouterLink></section>
@@ -56,7 +69,7 @@ onMounted(load);
             <div class="card-top"><span class="pdf-badge">PDF</span><time :datetime="pdf.createdAt">{{ date(pdf.createdAt) }}</time></div>
             <p class="client-label">CLIENTE</p><h3>{{ pdf.cliente }}</h3>
             <div class="budget-amount"><span>Total presupuestado</span><strong>{{ currency(pdf.total) }}</strong></div>
-            <div class="card-actions"><button type="button" class="primary" :aria-label="'Descargar presupuesto de ' + pdf.cliente" @click="download(pdf)">Descargar PDF <span aria-hidden="true">↓</span></button><button type="button" class="delete-budget" :aria-label="'Eliminar presupuesto de ' + pdf.cliente" @click="remove(pdf)">Eliminar</button></div>
+            <div class="catalog-actions"><button v-if="!imported[pdf.id]" :disabled="Boolean(importing)" @click="copyToAccount(pdf)">{{ importing === pdf.id ? 'Copiando…' : 'Copiar a mi cuenta' }}</button><RouterLink v-else :to="'/proyectos/' + imported[pdf.id] + '/editar'">Abrir proyecto importado →</RouterLink></div><div class="card-actions"><button type="button" class="primary" :aria-label="'Descargar presupuesto de ' + pdf.cliente" @click="download(pdf)">Descargar PDF <span aria-hidden="true">↓</span></button><button type="button" class="delete-budget" :aria-label="'Eliminar presupuesto de ' + pdf.cliente" @click="remove(pdf)">Eliminar</button></div>
           </article>
         </div>
       </section>

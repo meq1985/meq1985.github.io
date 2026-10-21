@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, it, expect, vi } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { mount, flushPromises, config } from '@vue/test-utils';
 vi.mock('../src/components/CatalogHeader.vue', () => ({ default: { template: '<div />' } }));
 vi.mock('../src/stores/dbUsers', () => ({ PostStore: () => ({ obtenerDato: vi.fn(), updateItem: vi.fn(), nombre1: 'Demo' }) }));
 vi.mock('../src/services/catalogPersistence', () => ({ loadCatalog: vi.fn(), loadSuggestedCatalog: vi.fn(), saveCatalogPrices: vi.fn() }));
-vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(async () => ({ uid: 'demo', email: 'demo@example.invalid' })) }));
+vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(async () => ({ uid: 'demo', email: 'demo@example.invalid' })), assertCurrentUser: vi.fn() }));
+vi.mock('../src/services/projects', () => ({ newProjectId: () => 'project-demo', loadProject: vi.fn(), saveProject: vi.fn() }));
 vi.mock('../src/services/localBudgets', () => ({ saveBudget: vi.fn() }));
 vi.mock('../src/services/budgetPdf', () => ({ buildBudgetPdf: vi.fn(async () => ({ output: () => new Blob(['pdf']), save: vi.fn() })) }));
 import { loadCatalog, loadSuggestedCatalog, saveCatalogPrices } from '../src/services/catalogPersistence';
@@ -12,6 +13,7 @@ import { saveBudget } from '../src/services/localBudgets';
 import { buildBudgetPdf } from '../src/services/budgetPdf';
 import Config from '../src/views/ConfigView.vue';
 import Dashboard from '../src/views/DashboardView.vue';
+config.global.stubs.RouterLink = { template: '<a><slot /></a>' };
 const entries = [
   { id: 'visita', category: 'general', code: 'A26-001', description: 'Visita', unit: 'visita', price: 56393 },
   { id: 'losa_metal', category: 'canalizacion', code: 'A26-008', description: 'Losa', unit: 'boca', price: 57000 },
@@ -107,4 +109,62 @@ it('allows saving a profile without a company while keeping other professional f
   expect(wrapper.get('input[name="empresa"]').attributes('required')).toBeUndefined();
   expect(wrapper.get('input[name="nombre"]').attributes('required')).toBeDefined();
   wrapper.unmount();
+});
+
+
+it('saves to the account without generating or locally storing a PDF and preserves the same retry payload', async () => {
+  const { saveProject } = await import('../src/services/projects');
+  saveProject.mockRejectedValueOnce(new Error('Sin conexión')).mockResolvedValueOnce({ id: 'project-demo', revision: 1 });
+  const wrapper = mount(Dashboard); await flushPromises();
+  await wrapper.get('#project-name').setValue('Mi obra');
+  await wrapper.get('#budget-client').setValue('Cliente');
+  await wrapper.get('select').setValue('losa_metal'); await button(wrapper, 'Agregar ítem').trigger('click');
+  await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toContain('Sin conexión');
+  const first = JSON.parse(JSON.stringify(saveProject.mock.calls.at(-1)[0]));
+  await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();
+  expect(saveProject.mock.calls.at(-1)[0]).toEqual(first);
+  expect(saveBudget).not.toHaveBeenCalled(); expect(buildBudgetPdf).not.toHaveBeenCalled();
+  expect(wrapper.text()).toContain('Versión 1');
+  saveBudget.mockImplementationOnce(async (_owner, budget) => structuredClone(budget));
+  await button(wrapper, 'Guardar presupuesto local').trigger('click'); await flushPromises();
+  expect(wrapper.text()).toContain('Presupuesto guardado en este navegador');
+  expect(saveBudget).toHaveBeenCalledOnce();
+  wrapper.unmount();
+});
+
+it('loads saved quantities and prices without replacing them from the current catalog', async () => {
+  const { loadProject, saveProject } = await import('../src/services/projects');
+  loadProject.mockResolvedValue({ revision: 4, name: 'Guardado', version: { budget: { cliente: 'Cliente anterior', tipoInmueble: 'Local', items: [{ codigo: 'OLD', descripcion: 'Trabajo original', cantidad: 3, unidad: 'm', precioUnitario: 100 }] }, profile: { nombre1: 'Profesional original', correo: 'demo@example.invalid' } } });
+  saveProject.mockResolvedValue({ id: 'saved', revision: 5 });
+  const wrapper = mount(Dashboard, { props: { projectId: 'saved' } }); await flushPromises();
+  expect(wrapper.get('[aria-label="Precio del ítem 1"]').element.value).toBe('100');
+  await wrapper.get('[aria-label="Cantidad del ítem 1"]').setValue(4);
+  await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();
+  expect(saveProject.mock.calls.at(-1)[0]).toMatchObject({ id: 'saved', expectedRevision: 4, profile: { nombre1: 'Profesional original' }, budget: { total: 400 } });
+  wrapper.unmount();
+});
+
+it('warns before leaving unsaved source data and respects cancellation', async () => {
+  const { createRouter, createMemoryHistory } = await import('vue-router');
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/dashboard', component: Dashboard }, { path: '/other', component: { template: '<p>Otra página</p>' } }] });
+  await router.push('/dashboard'); await router.isReady();
+  const wrapper = mount({ template: '<RouterView />' }, { global: { plugins: [router] } }); await flushPromises();
+  await wrapper.get('#budget-client').setValue('Sin guardar');
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  await router.push('/other'); expect(router.currentRoute.value.path).toBe('/dashboard');
+  confirm.mockReturnValue(true); await router.push('/other'); expect(router.currentRoute.value.path).toBe('/other');
+  confirm.mockRestore(); wrapper.unmount();
+});
+
+it('requires saving a reviewed new version before regenerating an imported PDF with current professional data', async () => {
+  const { loadProject, saveProject } = await import('../src/services/projects');
+  loadProject.mockResolvedValue({ revision: 1, name: 'Importado', version: { budget: { cliente: 'Cliente', createdAt: '2026-10-20T12:00:00Z', items: [{ descripcion: 'Trabajo', cantidad: 1, unidad: 'ud.', precioUnitario: 100 }] }, profile: null } });
+  saveProject.mockResolvedValue({ id: 'local-one', revision: 2 });
+  const wrapper = mount(Dashboard, { props: { projectId: 'local-one' } }); await flushPromises();
+  await button(wrapper, 'Descargar PDF').trigger('click'); await flushPromises();
+  expect(buildBudgetPdf).not.toHaveBeenCalled(); expect(wrapper.get('[role="alert"]').text()).toContain('guardá una nueva versión');
+  await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();
+  await button(wrapper, 'Descargar PDF').trigger('click'); await flushPromises();
+  expect(buildBudgetPdf).toHaveBeenCalledOnce(); wrapper.unmount();
 });

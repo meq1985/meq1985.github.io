@@ -25,7 +25,7 @@ describe('professional landing and access', () => {
     const { wrapper, router } = await page();
     expect(wrapper.findAll('h1')).toHaveLength(1);
     expect(wrapper.text()).toContain('Valores ilustrativos');
-    expect(wrapper.text()).toContain('borrar los datos del navegador');
+    expect(wrapper.text()).toContain('Los proyectos se guardan en tu cuenta');
     for (const link of wrapper.findAll('a[href^="#"]')) expect(wrapper.find(link.attributes('href')).exists()).toBe(true);
     await wrapper.find('a[href="/registrarse"]').trigger('click'); await flushPromises();
     expect(router.currentRoute.value.path).toBe('/registrarse');

@@ -1,19 +1,38 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { routerKey, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
+import { newProjectId, loadProject, saveProject } from '../services/projects';
+import { projectProfile } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import { PostStore } from '../stores/dbUsers';
-import { requireUser } from '../firebase/session';
+import { requireUser, assertCurrentUser } from '../firebase/session';
 import { validateBudget } from '../services/budgetValidation';
 import { saveBudget } from '../services/localBudgets';
 import { buildBudgetPdf } from '../services/budgetPdf';
 import { loadCatalog } from '../services/catalogPersistence';
 import { CATALOG_SOURCE, CATALOG_NOTES, CATALOG_GROUPS, currency } from '../data/laborCatalog';
 
+const props = defineProps({ projectId: String });
+const router = inject(routerKey, null);
 const profileStore = PostStore();
+const name = ref(''), revision = ref(0), cloudId = ref(props.projectId || newProjectId()), selectedProfile = ref(null);
+const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
+const savedForm = ref(null), savedBudget = ref(null), requiresProfileReview = ref(false);
+const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value]));
+const dirty = computed(() => savedForm.value !== null && formSignature.value !== savedForm.value);
+
+if (router) {
+  const leave = () => !dirty.value || window.confirm('Hay cambios sin guardar. ¿Salir del proyecto?');
+  onBeforeRouteLeave(leave);
+  onBeforeRouteUpdate((to, from) => to.params.projectId === from.params.projectId || leave());
+}
+const warnBeforeClose = event => { if (dirty.value) { event.preventDefault(); event.returnValue = ''; } };
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeClose));
 const tipoInmueble = ref('');
 const propertyTypes = ['Vivienda unifamiliar', 'Departamento', 'Local', 'Depósito', 'Oficina', 'Edificio', 'Taller', 'Galpón'];
 const cliente = ref(''), tabla = ref([]), entries = ref([]), search = ref(''), selected = ref('');
 const loading = ref(true), saving = ref(false), error = ref(''), message = ref('');
+watch(formSignature, () => { if (pendingSave.value && pendingSave.value.signature !== formSignature.value) pendingSave.value = null; });
 const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const groups = computed(() => [...CATALOG_GROUPS, { id: 'anteriores', label: 'Mis ítems anteriores' }].map(group => ({ ...group,
   items: entries.value.filter(item => item.category === group.id && normalize(item.description + ' ' + item.unit).includes(normalize(search.value))) })).filter(group => group.items.length));
@@ -33,32 +52,82 @@ async function outputBudget(save) {
   saving.value = true; error.value = ''; message.value = '';
   try {
     const user = await requireUser();
-    const budget = { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() };
-    const document = await buildBudgetPdf(budget, { ...profileStore, correo: user.email });
+    if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Recargá el proyecto.');
+    if (requiresProfileReview.value) throw new Error('Revisá los datos profesionales y guardá una nueva versión en tu cuenta antes de generar el PDF importado.');
+    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() };
+    const snapshot = { ...validateBudget(budget.cliente, budget.items, budget.tipoInmueble), createdAt: budget.createdAt };
+    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email));
+    assertCurrentUser(user);
     if (save) {
-      await saveBudget(user.uid, budget, document.output('blob'));
+      await saveBudget(user.uid, snapshot, document.output('blob'));
       message.value = 'Presupuesto guardado en este navegador. Descargá una copia para conservarlo.';
     } else { document.save('presupuesto.pdf'); message.value = 'PDF descargado.'; }
   } catch (cause) { error.value = cause.message; }
   finally { saving.value = false; }
 }
-onMounted(async () => {
-  try { const [, catalog] = await Promise.all([profileStore.obtenerDato(), loadCatalog()]); entries.value = catalog; }
-  catch (cause) { error.value = 'No se pudo cargar la configuración: ' + cause.message; }
-  finally { loading.value = false; }
-});
+async function saveToAccount() {
+  if (saving.value || !ready.value) return;
+  saving.value = true; error.value = ''; message.value = '';
+  try {
+    const user = await requireUser();
+    if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Recargá el proyecto.');
+    if (!pendingSave.value) pendingSave.value = {
+      signature: formSignature.value,
+      input: { id: cloudId.value, expectedRevision: revision.value, name: name.value || cliente.value,
+        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() },
+        profile: selectedProfile.value ?? projectProfile(profileStore, user.email) },
+    };
+    const result = await saveProject(pendingSave.value.input);
+    revision.value = result.revision; cloudSaved.value = true; requiresProfileReview.value = false; savedBudget.value = pendingSave.value.input.budget;
+    savedForm.value = formSignature.value; pendingSave.value = null;
+    message.value = `Proyecto guardado en tu cuenta. Versión ${result.revision}. Podés retomarlo desde Mis proyectos.`;
+  } catch (cause) { error.value = cause.message; }
+  finally { saving.value = false; }
+}
+async function useCurrentProfile() {
+  try {
+  const user = await requireUser();
+  if (user.uid !== ownerUid.value) { error.value = 'La sesión cambió. Recargá el proyecto.'; return; }
+  await profileStore.obtenerDato();
+  if ((await requireUser()).uid !== user.uid) throw new Error('La sesión cambió. Recargá el proyecto.');
+  selectedProfile.value = projectProfile(profileStore, user.email);
+  } catch (cause) { error.value = cause.message; }
+}
+let loadSequence = 0;
+async function initialize() {
+  const sequence = ++loadSequence;
+  loading.value = true; ready.value = false; error.value = ''; message.value = ''; pendingSave.value = null;
+  try {
+    const [user, , catalog, project] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), props.projectId ? loadProject(props.projectId) : null]);
+    if (sequence !== loadSequence) return;
+    entries.value = catalog; ownerUid.value = user.uid;
+    cloudId.value = props.projectId || newProjectId(); revision.value = project?.revision ?? 0;
+    name.value = project?.name ?? ''; cliente.value = project?.version.budget.cliente ?? '';
+    tipoInmueble.value = project?.version.budget.tipoInmueble ?? '';
+    tabla.value = (project?.version.budget.items ?? []).map(item => ({ ...item, key: ++counter, unidad: item.unidad ?? 'ud.' }));
+    selectedProfile.value = project?.version.profile ?? projectProfile(profileStore, user.email);
+    requiresProfileReview.value = Boolean(project && !project.version.profile);
+    cloudSaved.value = Boolean(project); savedBudget.value = project?.version.budget ?? null;
+    if (project && !project.version.profile) message.value = 'Este presupuesto local no incluía una copia de tus datos profesionales. Se usarán los datos actuales: revisalos y guardá una nueva versión antes de compartir el PDF.';
+    savedForm.value = formSignature.value; ready.value = true;
+  } catch (cause) { if (sequence === loadSequence) error.value = 'No se pudo cargar el proyecto: ' + cause.message; }
+  finally { if (sequence === loadSequence) loading.value = false; }
+}
+onMounted(() => { window.addEventListener('beforeunload', warnBeforeClose); initialize(); });
+watch(() => props.projectId, initialize);
 </script>
 <template>
   <div class="catalog-page">
     <CatalogHeader />
     <div class="catalog-main">
-      <h1>Nuevo presupuesto</h1>
+      <h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
       <p class="muted">{{ CATALOG_SOURCE }}. Se usan los precios guardados en tu cuenta.</p>
       <p v-if="error" class="catalog-notice error" role="alert">{{ error }}</p>
       <p v-if="message" class="catalog-notice" role="status">{{ message }}</p>
+      <fieldset :disabled="loading || saving || !ready">
       <section class="catalog-panel">
         <div class="catalog-fields">
-          <label for="budget-client">Cliente<input id="budget-client" v-model="cliente" maxlength="120" placeholder="Nombre del cliente" /></label>
+          <label for="project-name">Nombre del proyecto (opcional)<input id="project-name" v-model="name" maxlength="120" placeholder="Ej.: Reforma de cocina" /></label><label for="budget-client">Cliente<input id="budget-client" v-model="cliente" maxlength="120" placeholder="Nombre del cliente" /></label>
           <label for="budget-property-type">Tipo de inmueble (opcional)<input id="budget-property-type" v-model="tipoInmueble" list="property-types" maxlength="80" placeholder="Elegí una opción o escribí otra" /><datalist id="property-types"><option v-for="type in propertyTypes" :key="type" :value="type" /></datalist></label>
         </div>
         <p v-if="loading" role="status">Cargando tus precios…</p>
@@ -74,7 +143,7 @@ onMounted(async () => {
         <details style="margin-top: 20px"><summary>Alcance, mínimos y adicionales</summary><ul><li v-for="note in CATALOG_NOTES" :key="note">{{ note }}</li></ul></details>
       </section>
       <section class="catalog-panel">
-        <h2>Detalle del presupuesto</h2>
+        <h2>Detalle del presupuesto</h2><p class="muted">Los datos del profesional se guardan con cada versión. Las versiones anteriores conservan sus datos y precios.</p><details><summary>Ver datos profesionales que figurarán en el PDF</summary><p>{{ selectedProfile?.nombre1 }} {{ selectedProfile?.apellido1 }}<br v-if="selectedProfile?.empresa1" /><span v-if="selectedProfile?.empresa1">{{ selectedProfile.empresa1 }}</span><br />CUIT: {{ selectedProfile?.cuit1 }} · Matrícula: {{ selectedProfile?.matricula1 }}<br />Teléfono: {{ selectedProfile?.telefono1 }} · Correo: {{ selectedProfile?.correo }}</p></details><button type="button" @click="useCurrentProfile">Usar mis datos profesionales actuales</button>
         <p v-if="!tabla.length" class="muted">Agregá trabajos del catálogo o creá un ítem personalizado.</p>
         <div v-else class="catalog-scroll"><table class="catalog-table catalog-budget"><thead><tr><th>Trabajo</th><th class="unit">Unidad</th><th class="quantity">Cantidad</th><th class="money">Precio unitario (AR$)</th><th class="money">Subtotal</th><th></th></tr></thead><tbody>
           <tr v-for="(row, index) in tabla" :key="row.key">
@@ -86,9 +155,12 @@ onMounted(async () => {
           </tr>
         </tbody></table></div>
         <div class="catalog-total">Total: {{ currency(total) }}</div>
-        <div class="catalog-actions"><button class="primary" :disabled="saving || loading || !tabla.length" @click="outputBudget(true)">Guardar presupuesto</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget(false)">Descargar PDF</button></div>
-        <p class="muted">Los presupuestos se guardan en este navegador. Los cambios futuros de precios no modifican este detalle.</p>
+        <div class="catalog-actions"><button class="primary" :disabled="saving || loading || !tabla.length" @click="saveToAccount">Guardar proyecto en mi cuenta</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget(true)">Guardar presupuesto local</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget(false)">Descargar PDF</button></div>
+        <p class="muted">Guardar en mi cuenta conserva el proyecto y sus versiones para acceder desde otros dispositivos. El guardado local mantiene una copia en este navegador.</p>
       </section>
+      </fieldset>
+      <p v-if="dirty" role="status">Tenés cambios sin guardar en tu cuenta.</p>
+      <p v-if="cloudSaved"><RouterLink :to="'/proyectos/' + cloudId + '/editar'">Abrir este proyecto guardado</RouterLink> · <RouterLink to="/proyectos">Ver Mis proyectos</RouterLink></p>
     </div>
   </div>
 </template>

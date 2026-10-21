@@ -23,5 +23,58 @@ service cloud.firestore {
       allow create: if email != 'codigos' && owner(email);
       allow update: if email != 'codigos' && owner(email) && verified();
     }
+    match /cuentas/{uid}/proyectos/{projectId} {
+      function access() { return verified() && request.auth.uid == uid; }
+      function optionalId(value) { return value == null || (value is string && value.size() > 0 && value.size() <= 100); }
+      function validBudget(b) {
+        return b is map && b.keys().hasAll(['cliente', 'items', 'total', 'createdAt']) &&
+          b.keys().hasOnly(['cliente', 'items', 'total', 'createdAt', 'tipoInmueble']) &&
+          b.cliente is string && b.cliente.size() > 0 && b.cliente.size() <= 120 &&
+          b.items is list && b.items.size() > 0 && b.items.size() <= 200 &&
+          b.total is number && b.total >= 0 && b.total <= 90071992547409 &&
+          b.createdAt is string && b.createdAt.size() <= 40 &&
+          (!('tipoInmueble' in b) || (b.tipoInmueble is string && b.tipoInmueble.size() <= 80));
+      }
+      function validProfile(p) {
+        return p == null || (p is map && p.keys().hasAll(['nombre1', 'apellido1', 'cuit1', 'empresa1', 'matricula1', 'telefono1', 'direccion1', 'correo']) &&
+          p.keys().hasOnly(['nombre1', 'apellido1', 'cuit1', 'empresa1', 'matricula1', 'telefono1', 'direccion1', 'correo']) &&
+          p.nombre1 is string && p.nombre1.size() <= 160 && p.apellido1 is string && p.apellido1.size() <= 160 &&
+          p.cuit1 is string && p.cuit1.size() <= 160 && p.empresa1 is string && p.empresa1.size() <= 160 &&
+          p.matricula1 is string && p.matricula1.size() <= 160 && p.telefono1 is string && p.telefono1.size() <= 160 &&
+          p.direccion1 is string && p.direccion1.size() <= 160 && p.correo is string && p.correo.size() <= 254);
+      }
+      function validProject(d) {
+        return d.keys().hasAll(['schema', 'ownerUid', 'name', 'cliente', 'tipoInmueble', 'total', 'revision', 'createdAt', 'updatedAt', 'sourceLocalId']) &&
+          d.keys().hasOnly(['schema', 'ownerUid', 'name', 'cliente', 'tipoInmueble', 'total', 'revision', 'createdAt', 'updatedAt', 'sourceLocalId']) &&
+          d.schema == 1 && d.ownerUid == uid && d.name is string && d.name.size() > 0 && d.name.size() <= 120 &&
+          d.cliente is string && d.cliente.size() > 0 && d.cliente.size() <= 120 &&
+          d.tipoInmueble is string && d.tipoInmueble.size() <= 80 && d.total is number && d.total >= 0 && d.total <= 90071992547409 &&
+          d.revision is int && d.revision > 0 && d.revision <= 1000000 && optionalId(d.sourceLocalId) && d.createdAt is timestamp && d.updatedAt == request.time;
+      }
+      function linkedVersion(d) {
+        let v = getAfter(/databases/$(database)/documents/cuentas/$(uid)/proyectos/$(projectId)/versiones/$(string(d.revision))).data;
+        return v.revision == d.revision && v.name == d.name && v.budget.cliente == d.cliente &&
+          v.budget.get('tipoInmueble', '') == d.tipoInmueble && v.budget.total == d.total && v.createdAt == request.time;
+      }
+      allow get, list: if access();
+      allow create: if access() && validProject(request.resource.data) && request.resource.data.revision == 1 &&
+        request.resource.data.createdAt == request.time && linkedVersion(request.resource.data);
+      allow update: if access() && validProject(request.resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'cliente', 'tipoInmueble', 'total', 'revision', 'updatedAt']) &&
+        request.resource.data.revision == resource.data.revision + 1 && linkedVersion(request.resource.data);
+      match /versiones/{versionId} {
+        allow get, list: if access();
+        allow create: if access() && request.resource.data.keys().hasAll(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId']) &&
+          request.resource.data.keys().hasOnly(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId']) &&
+          request.resource.data.schema == 1 && request.resource.data.revision is int &&
+          versionId == string(request.resource.data.revision) && request.resource.data.revision > 0 && request.resource.data.revision <= 1000000 &&
+          request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120 &&
+          validBudget(request.resource.data.budget) && validProfile(request.resource.data.profile) &&
+          optionalId(request.resource.data.sourceLocalId) && request.resource.data.createdAt == request.time &&
+          (request.resource.data.profile != null || request.resource.data.sourceLocalId != null) &&
+          getAfter(/databases/$(database)/documents/cuentas/$(uid)/proyectos/$(projectId)).data.revision == request.resource.data.revision &&
+          getAfter(/databases/$(database)/documents/cuentas/$(uid)/proyectos/$(projectId)).data.name == request.resource.data.name;
+      }
+    }
   }
 }

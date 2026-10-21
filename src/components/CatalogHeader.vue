@@ -9,7 +9,7 @@ const userStore = useUserStore();
     <nav aria-label="Navegación principal">
       <router-link to="/dashboard">Presupuestar</router-link>
       <router-link to="/config">Configuración</router-link>
-      <router-link to="/mispresupuestos">Mis presupuestos</router-link>
+      <router-link to="/proyectos">Mis proyectos</router-link><router-link to="/mispresupuestos">Presupuestos locales</router-link>
       <button @click="userStore.logout()">Salir</button>
     </nav>
   </div>

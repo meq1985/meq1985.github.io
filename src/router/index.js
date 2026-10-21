@@ -7,6 +7,8 @@ import { ensureAccountReady } from '../services/accountProvisioning';
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    { path: "/proyectos", name: "proyectos", component: () => import("../views/ProjectsView.vue"), meta: { auth: true } },
+    { path: "/proyectos/:projectId/editar", name: "editar-proyecto", component: () => import("../views/DashboardView.vue"), props: true, meta: { auth: true } },
     ...[
       ["/ingresar", "login"], ["/registrarse", "register"], ["/recuperar", "recovery"],
     ].map(([path, authMode]) => ({ path, name: authMode, component: () => import("../views/AuthView.vue"), meta: { authMode } })),
