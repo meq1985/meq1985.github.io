@@ -61,6 +61,10 @@ Publicar primero las reglas y luego la interfaz, manteniendo enabled ausente o f
 
 ## Cambio de dominio
 
+### Particularidad comprobada del entorno de Mercado Pago
+
+La cuenta vendedora ficticia tiene una aplicación automática propia. Para recibir los eventos del checkout de suscripciones se configuró la URL en «Modo productivo» de ESA aplicación ficticia y se guardó su firma en Secret Manager; no se activaron credenciales ni cobros del vendedor real. La firma de la aplicación del titular es diferente. Una notificación enviada desde el simulador oficial para la suscripción ficticia recibió HTTP 200. Esto valida transporte y firma, pero no sustituye comprobar una notificación automática de pago/reembolso. El parámetro notification_url del POST no se toma como prueba de entrega.
+
 En modo test, cada registro privado billingTesters/{uid} necesita payerEmail del comprador ficticio de Mercado Pago (dominio testuser.com). Esta dirección se configura solo en el servidor: el correo de Firebase puede ser distinto y ningún correo enviado por el cliente sustituye esta configuración. La consulta del estado y la cancelación siguen disponibles aunque falte el comprador. En modo live se utiliza el correo verificado de Firebase sin este reemplazo.
 
 Actualizar APP_ORIGIN y redesplegar Functions modifica back_url para NUEVAS suscripciones; la URL de notificaciones permanece fija en cloudfunctions.net. Agregar el dominio al Hosting y a Authentication. Conservar electricistaxpress.web.app y las antiguas direcciones de retorno para checkouts ya creados o actualizar sus back_url en MP de forma controlada. No cambiar de vendedor ni proyecto Firebase. Cambiar el dominio del frontend no migra automáticamente la configuración de suscripciones existentes.
