@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { emptySketch } from '../services/sketch';
+import { emptySketch, encodeSketch } from '../services/sketch';
 import { BOARD_IDS, SERVICE_IDS, PAT_IDS, emptyQuoteSettings, validateQuoteSettings, includesPat } from '../services/sketchQuoteSettings';
 import { quoteFromSketch } from '../services/sketchQuote';
 import { currency } from '../data/laborCatalog';
@@ -18,7 +18,8 @@ function update(edit) {
   try {
     const quote = JSON.parse(JSON.stringify(settings.value)); edit(quote);
     const valid = validateQuoteSettings(quote);
-    emit('update:modelValue', { ...(props.modelValue ?? emptySketch()), quote: valid }); error.value = '';
+    const next = { ...(props.modelValue ?? emptySketch()), quote: valid }; encodeSketch(next);
+    emit('update:modelValue', next); error.value = '';
   } catch (cause) { error.value = cause.message; }
 }
 function setHeight(key, event) {
@@ -51,18 +52,20 @@ function apply() {
       <p class="muted">Proyecto eléctrico: superficie del croquis con un mínimo de 30 m², usando «Proyecto eléctrico por m²». No se suma otro cargo por plano ni por lista de materiales.</p>
       <label class="quote-check"><input type="checkbox" :checked="settings.includeProject" @change="update(s => { s.includeProject = $event.target.checked; })" />Incluir proyecto eléctrico por m²</label>
       <div class="catalog-fields quote-selectors">
-        <label>Tablero<select :value="settings.board" @change="update(s => { s.board = $event.target.value; })"><option value="">Sin tablero</option><option v-for="item in options(BOARD_IDS)" :key="item.id" :value="item.id">{{ item.description }} — {{ currency(item.price) }}</option></select></label>
-        <label>Tablero seccional adicional<select :value="settings.secondaryBoard" @change="update(s => { s.secondaryBoard = $event.target.value; })"><option value="">Sin tablero adicional</option><option v-for="item in options(BOARD_IDS.filter(id => id.startsWith('seccional')))" :key="item.id" :value="item.id">{{ item.description }} — {{ currency(item.price) }}</option></select></label>
-        <label>Acometida<select :value="settings.service" @change="update(s => { s.service = $event.target.value; })"><option value="">Sin acometida</option><option v-for="item in options(SERVICE_IDS)" :key="item.id" :value="item.id">{{ item.description }} — {{ currency(item.price) }}</option></select></label>
-        <label>Puesta a tierra (PAT) separada<select :value="settings.pat" @change="update(s => { s.pat = $event.target.value; })"><option value="">Sin PAT separada</option><option v-for="item in options(PAT_IDS)" :key="item.id" :value="item.id">{{ item.description }} — {{ currency(item.price) }}</option></select></label>
+        <label v-if="!modelValue?.equipment?.length">Tablero principal (pilar) o tablero general<select :value="settings.board" @change="update(s => { s.board = $event.target.value; })"><option value="">Sin tablero</option><option v-for="item in options(BOARD_IDS)" :key="item.id" :value="item.id">{{ item.description }} — {{ currency(item.price) }}</option></select></label>
+        <label v-if="!modelValue?.equipment?.length">Tablero seccional adicional<select :value="settings.secondaryBoard" @change="update(s => { s.secondaryBoard = $event.target.value; })"><option value="">Sin tablero adicional</option><option v-for="item in options(BOARD_IDS.filter(id => id.startsWith('seccional')))" :key="item.id" :value="item.id">{{ item.description }} — {{ currency(item.price) }}</option></select></label>
+        <label v-if="!modelValue?.equipment?.length">Acometida<select :value="settings.service" @change="update(s => { s.service = $event.target.value; })"><option value="">Sin acometida</option><option v-for="item in options(SERVICE_IDS)" :key="item.id" :value="item.id">{{ item.description }} — {{ currency(item.price) }}</option></select></label>
+        <label v-if="!modelValue?.equipment?.length">Puesta a tierra (PAT) separada<select :value="settings.pat" @change="update(s => { s.pat = $event.target.value; })"><option value="">Sin PAT separada</option><option v-for="item in options(PAT_IDS)" :key="item.id" :value="item.id">{{ item.description }} — {{ currency(item.price) }}</option></select></label>
         <label>Bocas adicionales por extensión<input :value="settings.extraBocas" type="number" min="0" max="300" step="1" @input="update(s => { s.extraBocas = $event.target.value.trim() ? Number($event.target.value) : NaN; })" @blur="$event.target.value = settings.extraBocas" /></label>
       </div>
-      <p v-if="includesPat(settings)" class="catalog-notice">El tablero o la acometida seleccionados ya incluyen PAT. Dejá «Sin PAT separada» para evitar cobrarla dos veces.</p>
+      <p v-if="!modelValue?.equipment?.length && includesPat(settings)" class="catalog-notice">El tablero o la acometida seleccionados ya incluyen PAT. La PAT separada se descontará del borrador para evitar cobrarla dos veces.</p>
+      <p v-if="modelValue?.equipment?.length" class="catalog-notice">Se cotizan los tableros, el medidor y las jabalinas ubicados en el croquis, con los trabajos que elegiste para cada uno. Las selecciones manuales anteriores no se suman.</p>
       <p class="muted">Los componentes adicionales de tablero o acometida se pueden agregar después en el detalle del presupuesto.</p>
       <p class="muted">La boca completa incluye canalización, amurado, cableado y conexión, hasta 5 m entre cajas. Revisá extensiones y agregá las bocas adicionales que correspondan. La colocación de artefactos se cotiza aparte. Las alturas no agregan cargos automáticamente.</p>
       <button type="button" :disabled="disabled" @click="review">Revisar presupuesto del croquis</button>
       <section v-if="preview" class="catalog-preview" aria-labelledby="quote-review-title">
-        <h3 id="quote-review-title">Revisá los trabajos antes de aplicarlos</h3><p>{{ preview.bocas }} bocas · {{ preview.summary.area }} m² dibujados<span v-if="settings.includeProject"> · {{ preview.area }} m² a cotizar por proyecto</span></p>
+        <h3 id="quote-review-title">Revisá los trabajos antes de aplicarlos</h3><p>{{ preview.bocas }} {{ preview.bocas === 1 ? 'boca' : 'bocas' }} · {{ preview.summary.area }} m² dibujados<span v-if="settings.includeProject"> · {{ preview.area }} m² a cotizar por proyecto</span></p>
+        <p v-for="warning in preview.warnings" :key="warning" class="catalog-notice">{{ warning }}</p><p v-for="route in preview.measurements" :key="route.id" class="muted">Recorrido principal → general: {{ route.meters }} m</p>
         <div class="catalog-scroll"><table class="catalog-table"><thead><tr><th>Trabajo</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead><tbody><tr v-for="(row, i) in preview.rows" :key="i"><td>{{ row.descripcion }}</td><td>{{ row.cantidad }} {{ row.unidad }}</td><td>{{ currency(row.precioUnitario) }}</td><td>{{ currency(Math.round(row.cantidad * row.precioUnitario * 100) / 100) }}</td></tr></tbody></table></div>
         <p class="catalog-total">Total mano de obra: {{ currency(preview.total) }}</p>
         <label v-if="existingCount" class="quote-check"><input v-model="replacementApproved" type="checkbox" />Reemplazar los {{ existingCount }} trabajos actuales por este borrador. Se quitarán también los trabajos agregados manualmente.</label>

@@ -23,11 +23,11 @@ it('adds selected boards, separate PAT and service exactly once, with additional
   expect(result.bocas).toBe(5); expect(result.rows).toHaveLength(5);
   expect(result.rows.every(row => row.precioUnitario === LABOR_CATALOG.find(item => item.code === row.codigo).price)).toBe(true);
 });
-it('blocks duplicate principal boards and PAT included in package prices', () => {
+it('blocks duplicate principal boards and discounts PAT included in package prices', () => {
   const s = drawing(); s.quote.board = 'tp_mono'; s.quote.pat = 'tp_pat';
-  expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('ya incluyen PAT');
+  expect(quoteFromSketch(s, LABOR_CATALOG).warnings.join()).toContain('no se cobra otra vez');
   s.quote.pat = ''; s.quote.service = 'pilar'; expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('ya incluye tablero');
-  s.quote.board = ''; s.quote.pat = 'pat_servicio'; expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('ya incluyen PAT');
+  s.quote.board = ''; s.quote.pat = 'pat_servicio'; expect(quoteFromSketch(s, LABOR_CATALOG).warnings.join()).toContain('no se cobra otra vez');
 });
 it('rejects missing account prices and overlapping rooms instead of guessing quantities or prices', () => {
   expect(() => quoteFromSketch(drawing(), [])).toThrow('Falta un precio');

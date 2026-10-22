@@ -129,6 +129,8 @@ it('gives only the verified designated administrator unlimited own projects', as
 it('versions drawings with budgets and does not confuse changed drawings with a successful retry', async () => {
   const data = { ...input('drawing'), sketch: { ...emptySketch(), rooms: [{ id: 'room', levelId: 'planta-baja', name: 'Cocina', x: 0, y: 0, width: 4, depth: 3, points: [{ id: 'p', type: 'toma', x: 0.3, y: 0.6 }] }] } };
   data.sketch.quote = { ...emptyQuoteSettings(), heights: { toma: 0.4, llave: 1.1, techo: 2.8 }, board: 'tp_mono' };
+  data.sketch.equipment = [{ id: 'meter', type: 'medidor_tp', name: 'Pilar', levelId: 'planta-baja', x: 0, y: 0, itemId: 'pilar' }, { id: 'tg', type: 'general', name: 'General', levelId: 'planta-baja', x: 6, y: 8, itemId: 'seccional_8' }];
+  data.sketch.feeders = [{ id: 'feed', fromId: 'meter', toId: 'tg', bends: [{ x: 0, y: 8 }], verticalMeters: 2, itemId: 'subterraneo_tierra' }];
   await saveProject(data); await saveProject(data);
   expect((await loadProject('drawing')).version.sketch).toEqual(data.sketch);
   const next = structuredClone(data); next.sketch.rooms[0].width = 6;

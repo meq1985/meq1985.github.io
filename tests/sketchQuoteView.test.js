@@ -29,6 +29,6 @@ it('invalidates a preview after changing the drawing configuration and explains 
   await w.get('select').setValue('tp_mono'); expect(w.find('.catalog-preview').exists()).toBe(false);
   await w.findAll('select')[3].setValue('tp_pat');
   await button(w, 'Revisar presupuesto').trigger('click');
-  expect(w.get('[role="alert"]').text()).toContain('ya incluyen PAT');
-  expect(w.find('.catalog-preview').exists()).toBe(false); w.unmount();
+  expect(w.text()).toContain('no se cobra otra vez');
+  expect(w.find('.catalog-preview').exists()).toBe(true); w.unmount();
 });

@@ -4,11 +4,34 @@ import { mount } from '@vue/test-utils';
 import { defineComponent, ref } from 'vue';
 import SketchEditor from '../src/components/SketchEditor.vue';
 import { emptyQuoteSettings } from '../src/services/sketchQuoteSettings';
+import { LABOR_CATALOG } from '../src/data/laborCatalog';
 const button = (w, text) => w.findAll('button').find(b => b.text() === text);
 const input = (w, text) => w.findAll('label').find(l => l.text() === text).get('input');
 function editor() {
-  return mount(defineComponent({ components: { SketchEditor }, setup: () => ({ sketch: ref(null), disabled: ref(false) }), template: '<SketchEditor v-model="sketch" :disabled="disabled" />' }));
+  return mount(defineComponent({ components: { SketchEditor }, setup: () => ({ sketch: ref(null), disabled: ref(false), entries: LABOR_CATALOG }), template: '<SketchEditor v-model="sketch" :disabled="disabled" :entries="entries" />' }));
 }
+it('places infrastructure outside rooms, measures routes and removes attached routes with their endpoint', async () => {
+  const w = editor(), controls = w.get('.infrastructure-controls');
+  await button(w, 'Agregar al centro del plano').trigger('click');
+  await input(w, 'Elemento: posición X (m)').setValue(0); await input(w, 'Elemento: posición Y (m)').setValue(0);
+  await controls.findAll('select')[0].setValue('general');
+  await button(w, 'Agregar al centro del plano').trigger('click');
+  await input(w, 'Elemento: posición X (m)').setValue(6); await input(w, 'Elemento: posición Y (m)').setValue(8);
+  const select = text => controls.findAll('label').find(l => l.text().startsWith(text)).get('select');
+  await select('Origen del recorrido').setValue(w.vm.sketch.equipment[0].id);
+  await select('Destino del recorrido').setValue(w.vm.sketch.equipment[1].id);
+  await button(w, 'Crear recorrido').trigger('click');
+  await input(w, 'Metros verticales adicionales').setValue(2);
+  expect(w.text()).toContain('Longitud del recorrido: 12 m');
+  const svg = w.get('.sketch-canvas'); vi.spyOn(svg.element, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 360, height: 300 });
+  await button(w, 'Agregar quiebres tocando el plano').trigger('click');
+  await svg.trigger('click', { clientX: 0, clientY: 240 });
+  expect(w.vm.sketch.feeders[0].bends).toEqual([{ x: 0, y: 8 }]);
+  expect(w.text()).toContain('Longitud del recorrido: 16 m');
+  await button(w, 'Quitar elemento y sus recorridos').trigger('click'); expect(w.vm.sketch.feeders).toHaveLength(0);
+  await button(w, 'Deshacer').trigger('click'); expect(w.vm.sketch.feeders).toHaveLength(1);
+  w.unmount();
+});
 it('does not discard independently edited heights when undoing geometry', async () => {
   const w = editor(); await button(w, '+ Ambiente').trigger('click');
   w.vm.sketch = { ...w.vm.sketch, quote: { ...emptyQuoteSettings(), heights: { toma: 0.4, llave: 1.1, techo: 2.8 } } }; await w.vm.$nextTick();

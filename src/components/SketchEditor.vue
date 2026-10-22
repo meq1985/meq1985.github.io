@@ -1,29 +1,39 @@
 <script setup>
 import { computed, ref, watch, useId } from 'vue';
-import { emptySketch, validateSketch, sketchSummary, overlapsRoom, POINT_TYPES, SKETCH_LIMITS } from '../services/sketch';
-const props = defineProps({ modelValue: { type: Object, default: null }, disabled: Boolean });
+import { emptySketch, validateSketch, encodeSketch, sketchSummary, overlapsRoom, POINT_TYPES, SKETCH_LIMITS } from '../services/sketch';
+import { EQUIPMENT_TYPES, feederPoints, feederLength } from '../services/sketchInfrastructure';
+import InfrastructureControls from './InfrastructureControls.vue';
+const props = defineProps({ modelValue: { type: Object, default: null }, disabled: Boolean, entries: { type: Array, default: () => [] } });
 const emit = defineEmits(['update:modelValue']);
 const sketch = computed(() => props.modelValue ?? emptySketch());
 const levelId = ref(sketch.value.levels[0].id), roomId = ref(sketch.value.rooms.find(room => room.levelId === levelId.value)?.id ?? ''), tool = ref('select'), error = ref('');
 const undo = ref([]), redo = ref([]);
 const gridId = useId();
+const canvas = ref(null);
+const equipmentId = ref(''), routeId = ref(''), infraTool = ref('');
+const equipment = computed(() => (sketch.value.equipment ?? []).filter(e => e.levelId === levelId.value));
+const feeders = computed(() => (sketch.value.feeders ?? []).filter(f => equipment.value.some(e => e.id === f.fromId)));
+const extents = computed(() => [...equipment.value, ...feeders.value.flatMap(f => f.bends)]);
 const rooms = computed(() => sketch.value.rooms.filter(room => room.levelId === levelId.value));
 const room = computed(() => rooms.value.find(item => item.id === roomId.value));
 const summary = computed(() => sketchSummary(sketch.value));
-const width = computed(() => Math.max(12, ...rooms.value.map(item => item.x + item.width + 1)));
-const depth = computed(() => Math.max(9, ...rooms.value.map(item => item.y + item.depth + 1)));
+const width = computed(() => Math.max(12, ...rooms.value.map(item => item.x + item.width + 1), ...extents.value.map(e => e.x + 2)));
+const depth = computed(() => Math.max(9, ...rooms.value.map(item => item.y + item.depth + 1), ...extents.value.map(e => e.y + 2)));
 const overlap = computed(() => rooms.value.some(a => rooms.value.some(b => overlapsRoom(a, b))));
 const clone = value => JSON.parse(JSON.stringify(value));
 const freshId = () => crypto.randomUUID();
 watch(() => props.modelValue, () => {
   if (!sketch.value.levels.some(level => level.id === levelId.value)) levelId.value = sketch.value.levels[0].id;
   if (!room.value) roomId.value = rooms.value[0]?.id ?? '';
+  if (!equipment.value.some(e => e.id === equipmentId.value)) equipmentId.value = '';
+  if (!feeders.value.some(f => f.id === routeId.value)) { routeId.value = ''; if (infraTool.value === 'route') infraTool.value = ''; }
 });
 function change(edit) {
   if (props.disabled) return;
   try {
     const next = clone(sketch.value); edit(next);
     const valid = validateSketch(next);
+    encodeSketch(valid);
     if (JSON.stringify(valid) === JSON.stringify(sketch.value)) { error.value = ''; return true; }
     undo.value.push(clone(props.modelValue)); undo.value = undo.value.slice(-40); redo.value = [];
     emit('update:modelValue', valid); error.value = ''; return true;
@@ -61,6 +71,7 @@ function addPoint(x = 0.5, y = 0.5, target = room.value) {
 }
 function place(event, target) {
   if (props.disabled) return;
+  if (infraTool.value) { placeInfrastructure(event); return; }
   roomId.value = target.id;
   if (tool.value === 'select') return;
   const bounds = event.currentTarget.ownerSVGElement.getBoundingClientRect();
@@ -71,7 +82,29 @@ function place(event, target) {
 }
 function removeRoom() { change(next => { next.rooms = next.rooms.filter(item => item.id !== roomId.value); }); }
 function removeLevel() {
-  change(next => { next.rooms = next.rooms.filter(item => item.levelId !== levelId.value); next.levels = next.levels.filter(item => item.id !== levelId.value); });
+  change(next => {
+    next.rooms = next.rooms.filter(item => item.levelId !== levelId.value); next.levels = next.levels.filter(item => item.id !== levelId.value);
+    if (next.equipment) { next.equipment = next.equipment.filter(e => e.levelId !== levelId.value); next.feeders = next.feeders.filter(f => next.equipment.some(e => e.id === f.fromId) && next.equipment.some(e => e.id === f.toId)); }
+  });
+}
+function addInfrastructure(type, x, y) {
+  const id = freshId();
+  if (change(next => { next.equipment ??= []; next.feeders ??= []; next.equipment.push({ id, type, levelId: levelId.value, name: EQUIPMENT_TYPES[type], x, y, itemId: '' }); })) equipmentId.value = id;
+  infraTool.value = '';
+}
+function placeInfrastructure(event) {
+  if (props.disabled || !infraTool.value) return;
+  const svg = event.currentTarget.ownerSVGElement ?? event.currentTarget, bounds = svg.getBoundingClientRect();
+  if (!bounds.width || !bounds.height) return;
+  const x = Math.round((event.clientX - bounds.left) / bounds.width * width.value * 10) / 10;
+  const y = Math.round((event.clientY - bounds.top) / bounds.height * depth.value * 10) / 10;
+  if (infraTool.value === 'route') change(next => next.feeders.find(f => f.id === routeId.value).bends.push({ x, y }));
+  else addInfrastructure(infraTool.value, x, y);
+}
+const equipmentCode = type => ({ medidor_tp: 'M+TP', principal: 'TP', general: 'TG', seccional: 'TS', jabalina: 'PAT' })[type];
+function beginInfrastructureTool(type) {
+  if (props.disabled) return;
+  infraTool.value = type; canvas.value?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
 }
 </script>
 <template>
@@ -95,17 +128,20 @@ function removeLevel() {
           </template>
         </div>
         <div class="sketch-workspace">
-          <div class="sketch-tools" role="group" aria-label="Herramientas del croquis"><button type="button" :aria-pressed="tool === 'select'" @click="tool = 'select'">Seleccionar</button><button v-for="(label, type) in POINT_TYPES" :key="type" type="button" :aria-pressed="tool === type" @click="tool = type">{{ label }}</button></div>
-          <p class="muted sketch-instruction" role="status">{{ tool === 'select' ? 'Seleccioná un ambiente para editar sus medidas.' : `Herramienta: ${POINT_TYPES[tool]}. Tocá el plano o usá «Agregar al centro».` }}</p>
-          <svg class="sketch-canvas" :viewBox="`0 0 ${width * 30} ${depth * 30}`" :style="{ aspectRatio: `${width} / ${depth}` }" role="img" aria-label="Plano del nivel seleccionado. Editá también desde los controles de ambientes.">
+          <div class="sketch-tools" role="group" aria-label="Herramientas del croquis"><button type="button" :aria-pressed="tool === 'select'" @click="tool = 'select'; infraTool = ''">Seleccionar</button><button v-for="(label, type) in POINT_TYPES" :key="type" type="button" :aria-pressed="tool === type" @click="tool = type; infraTool = ''">{{ label }}</button></div>
+          <p v-if="infraTool" class="catalog-notice" role="status">{{ infraTool === 'route' ? 'Tocá el plano para agregar quiebres al recorrido seleccionado.' : `Tocá el plano para ubicar: ${EQUIPMENT_TYPES[infraTool]}.` }} <button type="button" @click="infraTool = ''">Terminar ubicación</button></p>
+          <p v-else class="muted sketch-instruction" role="status">{{ tool === 'select' ? 'Seleccioná un ambiente para editar sus medidas.' : `Herramienta: ${POINT_TYPES[tool]}. Tocá el plano o usá «Agregar al centro».` }}</p>
+          <svg ref="canvas" class="sketch-canvas" :viewBox="`0 0 ${width * 30} ${depth * 30}`" :style="{ aspectRatio: `${width} / ${depth}` }" role="img" aria-label="Plano del nivel seleccionado. Editá también desde los controles de ambientes." @click="placeInfrastructure">
             <defs><pattern :id="gridId" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M 30 0 L 0 0 0 30" fill="none" stroke="#294158" stroke-width="0.6" /></pattern></defs>
             <rect width="100%" height="100%" :fill="`url(#${gridId})`" />
-            <g v-for="item in rooms" :key="item.id" class="sketch-room" :class="{ selected: item.id === roomId }" @click="place($event, item)">
+            <g v-for="item in rooms" :key="item.id" class="sketch-room" :class="{ selected: item.id === roomId }" @click.stop="place($event, item)">
               <rect :x="item.x * 30" :y="item.y * 30" :width="item.width * 30" :height="item.depth * 30" fill="#1a3044" stroke-width="2" />
               <text :x="item.x * 30 + 7" :y="item.y * 30 + 16" fill="#dcecff" font-size="11">{{ item.name }}</text>
               <text :x="item.x * 30 + 7" :y="item.y * 30 + 30" fill="#a9bfd3" font-size="9">{{ item.width }} × {{ item.depth }} m</text>
               <g v-for="point in item.points" :key="point.id" :transform="`translate(${(item.x + point.x * item.width) * 30}, ${(item.y + point.y * item.depth) * 30})`" class="sketch-symbol"><title>{{ POINT_TYPES[point.type] }} · {{ item.name }}</title><circle r="7" fill="#101e2c" stroke="#f8ce76" stroke-width="1.5" /><path v-if="point.type === 'luminaria'" d="M-4-4 4 4 M-4 4 4-4" stroke="#f8ce76" /><path v-else-if="point.type === 'toma'" d="M-2-3 V3 M2-3 V3" stroke="#f8ce76" /><path v-else d="M-3 3 3-3" stroke="#f8ce76" /></g>
             </g>
+            <g class="sketch-feeders"><g v-for="f in feeders" :key="f.id"><polyline :points="feederPoints(sketch, f).map(p => `${p.x * 30},${p.y * 30}`).join(' ')" fill="none" :stroke="f.id === routeId ? '#ffda8a' : '#76dbb5'" stroke-width="2" stroke-dasharray="5 3" /><text :x="feederPoints(sketch, f)[0].x * 30 + 14" :y="feederPoints(sketch, f)[0].y * 30 + 25" fill="#76dbb5" font-size="10">{{ feederLength(sketch, f) }} m</text></g></g>
+            <g v-for="e in equipment" :key="e.id" class="sketch-equipment" :transform="`translate(${e.x * 30},${e.y * 30})`" @click.stop="equipmentId = e.id; infraTool = ''"><title>{{ e.name }}</title><rect x="-13" y="-9" width="26" height="18" rx="3" fill="#142c40" :stroke="e.id === equipmentId ? '#fff' : '#79c9ff'" stroke-width="1.5"/><text text-anchor="middle" y="3" font-size="8" fill="#fff">{{ equipmentCode(e.type) }}</text></g>
           </svg>
           <p v-if="!rooms.length" class="catalog-notice">Agregá el primer ambiente de este nivel para empezar.</p>
           <p v-if="overlap" class="catalog-notice">Hay ambientes superpuestos en este nivel. Revisá sus posiciones; la superficie suma cada ambiente.</p>
@@ -114,11 +150,12 @@ function removeLevel() {
           <div v-if="room?.points.length" class="sketch-point-list"><h3>Puntos de {{ room.name }}</h3><ul><li v-for="(point, index) in room.points" :key="point.id">{{ POINT_TYPES[point.type] }} {{ index + 1 }}<button type="button" :aria-label="`Quitar ${POINT_TYPES[point.type]} ${index + 1}`" @click="change(next => { const target = next.rooms.find(item => item.id === room.id); target.points = target.points.filter(item => item.id !== point.id); })">Quitar</button></li></ul></div>
         </div>
       </div>
+      <InfrastructureControls :sketch="sketch" :level-id="levelId" :selected-id="equipmentId" :route-id="routeId" :entries="entries" @edit="change" @select="equipmentId = $event" @select-route="routeId = $event" @place="beginInfrastructureTool" @add="type => addInfrastructure(type, width / 2, depth / 2)" @trace="beginInfrastructureTool('route')" />
     </fieldset>
     <dl class="sketch-summary"><div><dt>Superficie total</dt><dd>{{ summary.area }} m²</dd></div><div v-for="(label, type) in POINT_TYPES" :key="type"><dt>{{ label }}s</dt><dd>{{ summary[type] }}</dd></div></dl>
     <p class="muted">El croquis se guarda al pulsar «Guardar proyecto en mi cuenta», junto con el cliente y al menos un trabajo. Para obra nueva, podés revisar un borrador de mano de obra en la sección siguiente. El dibujo todavía no se incluye en el PDF ni calcula materiales.</p>
   </section>
 </template>
 <style scoped>
-.sketch-heading,.sketch-history,.sketch-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.sketch-heading{justify-content:space-between}.sketch-eyebrow{color:#a8d4ff;font-size:11px;letter-spacing:2px}.sketch-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px}.sketch-controls{display:flex;flex-direction:column;gap:14px}.sketch-controls .catalog-actions{margin:0}.sketch-controls h3{margin:8px 0 0}.sketch-measures{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sketch-room-list{display:flex;flex-direction:column;gap:8px}.sketch-room-list button{text-align:left;overflow-wrap:anywhere}.sketch-room-list small{display:block}.sketch-editor button[aria-pressed=true]{border-color:#8ccaff;background:#294e70}.sketch-workspace{min-width:0}.sketch-canvas{display:block;width:100%;height:auto;background:#101e2c;border:1px solid #6487a8;border-radius:8px;touch-action:manipulation}.sketch-room{cursor:crosshair;stroke:#6684a1}.sketch-room.selected{stroke:#91ccff}.sketch-room text,.sketch-symbol{pointer-events:none;stroke:none}.sketch-symbol path{stroke-width:1.5}.sketch-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}.sketch-summary>div{border:1px solid #475366;border-radius:8px;padding:12px}.sketch-summary dt{font-size:13px;color:#bfccda}.sketch-summary dd{margin:6px 0 0;font-size:22px;font-weight:700}.sketch-point-list ul{padding:0;list-style:none;max-height:240px;overflow:auto}.sketch-point-list li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;gap:12px}.sketch-instruction{min-height:48px}@media(max-width:800px){.sketch-layout{grid-template-columns:1fr}.sketch-summary{grid-template-columns:1fr 1fr}.sketch-tools button{flex:1;padding:10px}.sketch-controls{max-width:100%}}
+.sketch-heading,.sketch-history,.sketch-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.sketch-heading{justify-content:space-between}.sketch-eyebrow{color:#a8d4ff;font-size:11px;letter-spacing:2px}.sketch-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px}.sketch-controls{display:flex;flex-direction:column;gap:14px}.sketch-controls .catalog-actions{margin:0}.sketch-controls h3{margin:8px 0 0}.sketch-measures{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sketch-room-list{display:flex;flex-direction:column;gap:8px}.sketch-room-list button{text-align:left;overflow-wrap:anywhere}.sketch-room-list small{display:block}.sketch-editor button[aria-pressed=true]{border-color:#8ccaff;background:#294e70}.sketch-workspace{min-width:0}.sketch-canvas{overflow:visible;display:block;width:100%;height:auto;background:#101e2c;border:1px solid #6487a8;border-radius:8px;touch-action:manipulation}.sketch-room{cursor:crosshair;stroke:#6684a1}.sketch-room.selected{stroke:#91ccff}.sketch-equipment{cursor:pointer}.sketch-equipment text,.sketch-feeders{pointer-events:none}.sketch-room text,.sketch-symbol{pointer-events:none;stroke:none}.sketch-symbol path{stroke-width:1.5}.sketch-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}.sketch-summary>div{border:1px solid #475366;border-radius:8px;padding:12px}.sketch-summary dt{font-size:13px;color:#bfccda}.sketch-summary dd{margin:6px 0 0;font-size:22px;font-weight:700}.sketch-point-list ul{padding:0;list-style:none;max-height:240px;overflow:auto}.sketch-point-list li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;gap:12px}.sketch-instruction{min-height:48px}@media(max-width:800px){.sketch-layout{grid-template-columns:1fr}.sketch-summary{grid-template-columns:1fr 1fr}.sketch-tools button{flex:1;padding:10px}.sketch-controls{max-width:100%}}
 </style>
