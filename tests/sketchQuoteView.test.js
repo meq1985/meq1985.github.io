@@ -12,6 +12,7 @@ function editor(existingCount = 0) {
 it('persists heights, reviews a quote and requires explicit replacement before overwriting manual work', async () => {
   const w = editor(2), quote = w.getComponent(SketchQuote);
   await w.findAll('input[type="number"]')[0].setValue('0.4');
+  expect(w.findAll('input[type="number"]')[0].attributes('step')).toBe('0.1');
   expect(w.vm.sketch.quote.heights.toma).toBe(0.4);
   await button(w, 'Revisar presupuesto').trigger('click');
   expect(w.text()).toContain('30 m² a cotizar');

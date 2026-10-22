@@ -10,6 +10,12 @@ const input = (w, text) => w.findAll('label').find(l => l.text() === text).get('
 function editor() {
   return mount(defineComponent({ components: { SketchEditor }, setup: () => ({ sketch: ref(null), disabled: ref(false), entries: LABOR_CATALOG }), template: '<SketchEditor v-model="sketch" :disabled="disabled" :entries="entries" />' }));
 }
+it('can erase the default room dimension and type a new one without selecting the old number', async () => {
+  const w = editor(); await button(w, '+ Ambiente').trigger('click');
+  const width = input(w, 'Ancho (m)'); await width.setValue('');
+  expect(width.element.value).toBe(''); expect(w.vm.sketch.rooms[0].width).toBe(4);
+  await width.setValue('6.3'); expect(w.vm.sketch.rooms[0].width).toBe(6.3); w.unmount();
+});
 it('places infrastructure outside rooms, measures routes and removes attached routes with their endpoint', async () => {
   const w = editor(), controls = w.get('.infrastructure-controls');
   await button(w, 'Agregar al centro del plano').trigger('click');
@@ -69,9 +75,10 @@ it('places touch/click points relative to the room and removes them accessibly',
 });
 it('rejects invalid measures visibly and prevents SVG changes while saving', async () => {
   const w = editor(); await button(w, '+ Ambiente').trigger('click');
-  await input(w, 'Ancho (m)').setValue('0');
-  expect(w.get('[role="alert"]').text()).toContain('último valor válido');
-  await input(w, 'Ancho (m)').trigger('blur');
+  const widthInput = input(w, 'Ancho (m)');
+  await widthInput.setValue('0');
+  expect(widthInput.attributes('aria-invalid')).toBe('true');
+  await widthInput.trigger('blur');
   expect(w.vm.sketch.rooms[0].width).toBe(4); expect(input(w, 'Ancho (m)').element.value).toBe('4');
   await button(w, 'Toma').trigger('click'); w.vm.disabled = true; await w.vm.$nextTick();
   await w.get('.sketch-room').trigger('click', { clientX: 1, clientY: 1 }); expect(w.vm.sketch.rooms[0].points).toHaveLength(0);
