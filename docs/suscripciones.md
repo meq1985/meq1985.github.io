@@ -71,6 +71,16 @@ Actualizar APP_ORIGIN y redesplegar Functions modifica back_url para NUEVAS susc
 
 ## Pruebas reproducibles
 
+### Resultado de la validación externa con identidades ficticias
+
+- Checkout de ARS 12.000 aprobado y activación automática por Webhook: Firestore cambió a active sin invocar refreshSubscription. El período confirmado es de un mes calendario.
+- Escenario oficial OTHE rechazado: la cuenta permaneció inactive. Mercado Pago canceló ese checkout; un nuevo intento de contratación necesita obtener un checkout nuevo desde la aplicación.
+- Cancelación: se detuvo la renovación y se conservó el período abonado.
+- Devolución anterior: la API de prueba devolvió 401 (cause 7); desde el panel ficticio se completó y su Webhook automático retiró el acceso sin consulta manual.
+- Al cerrar la prueba se deshabilitó la cuenta QA, se revocaron sus sesiones, se retiró su habilitación de checkout y se eliminó la contraseña temporal del archivo de trabajo. Ningún usuario real intervino en los pagos.
+
+La renovación futura del proveedor no se ejecutó: el checkout mostró el próximo débito mensual, pero las suscripciones ficticias se cancelaron al terminar. Los casos de renovación, devolución y eventos fuera de orden están cubiertos con Firestore Emulator y proveedor simulado. Antes de operar con cobros reales siguen pendientes credenciales del vendedor real, revisión de publicación y supervisión operativa; el modo de pruebas no se considera una autorización para activarlos.
+
 - npm test y npm run build en la raíz.
 - npm ci --prefix functions --ignore-scripts y npm test --prefix functions (Node 22).
 - Ejecutar tests/emulator con firebase.emulators.json y proyecto demo-presupuesto-electrico.
