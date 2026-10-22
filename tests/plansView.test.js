@@ -15,7 +15,13 @@ it('compares the free project and both plans without selling the unfinished sket
   const w = render(); await flushPromises();
   expect(w.findAll('.plan-card')).toHaveLength(3);
   expect(w.text()).toContain('$0'); expect(w.text()).toContain('12.000'); expect(w.text()).toContain('25.000');
-  expect(button(w, 'Croquis próximamente').element.disabled).toBe(true);
+  expect(button(w, 'Contratación Full en preparación').element.disabled).toBe(true);
+  expect(w.findAll('.plan-card')[1].text()).toContain('Básico · Presupuestos');
+  const full = w.findAll('.plan-card')[2];
+  expect(full.text()).toContain('Full · Presupuestos + croquis');
+  expect(full.text()).toContain('Medidor, tableros y jabalinas');
+  expect(full.text()).toContain('Croquis en pruebas');
+  expect(full.text()).not.toContain('calcular presupuestos y materiales');
   expect(w.get('a[href="/proyectos/free/editar"]').text()).toContain('gratuito'); w.unmount();
 });
 it('requires renewal consent and prevents blind repeated checkouts after failure', async () => {
