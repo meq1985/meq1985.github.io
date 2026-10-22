@@ -20,6 +20,16 @@ const entries = [
 beforeEach(async () => { vi.clearAllMocks(); const { loadBillingAccess } = await import('../src/services/billing'); loadBillingAccess.mockResolvedValue({ enabled: false }); loadCatalog.mockResolvedValue(structuredClone(entries)); saveCatalogPrices.mockResolvedValue(); });
 const button = (wrapper, text) => wrapper.findAll('button').find(item => item.text().startsWith(text));
 
+it('places individual work inside the detail and varies quantity steps by unit', async () => {
+  const wrapper = mount(Dashboard); await flushPromises();
+  const section = wrapper.get('#budget-catalog-item').element.closest('section');
+  expect(section.querySelector('h2').textContent).toBe('Detalle del presupuesto');
+  await button(wrapper, 'Agregar ítem personalizado').trigger('click');
+  const quantity = wrapper.get('[aria-label="Cantidad del ítem 1"]'); expect(quantity.attributes('step')).toBe('1');
+  await wrapper.get('[aria-label="Unidad del ítem 1"]').setValue('m²'); expect(quantity.attributes('step')).toBe('0.1');
+  wrapper.unmount();
+});
+
 it('turns drawing points into editable budget rows and saves account prices with the drawing', async () => {
   const { LABOR_CATALOG } = await import('../src/data/laborCatalog');
   const { saveProject } = await import('../src/services/projects');
@@ -92,7 +102,7 @@ it('uses account prices, allows repeating an item and saves unit and price snaps
   const wrapper = mount(Dashboard); await flushPromises();
   await wrapper.get('#budget-client').setValue('Cliente Demo');
   await wrapper.get('#budget-property-type').setValue('Vivienda unifamiliar');
-  await wrapper.get('select').setValue('losa_metal');
+  await wrapper.get('#budget-catalog-item').setValue('losa_metal');
   await button(wrapper, 'Agregar ítem').trigger('click');
   await button(wrapper, 'Agregar ítem').trigger('click');
   expect(wrapper.findAll('tbody tr')).toHaveLength(2);
@@ -152,7 +162,7 @@ it('saves to the account without generating a PDF and preserves the same retry p
   const wrapper = mount(Dashboard); await flushPromises();
   await wrapper.get('#project-name').setValue('Mi obra');
   await wrapper.get('#budget-client').setValue('Cliente');
-  await wrapper.get('select').setValue('losa_metal'); await button(wrapper, 'Agregar ítem').trigger('click');
+  await wrapper.get('#budget-catalog-item').setValue('losa_metal'); await button(wrapper, 'Agregar ítem').trigger('click');
   await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();
   expect(wrapper.get('[role="alert"]').text()).toContain('Sin conexión');
   const first = JSON.parse(JSON.stringify(saveProject.mock.calls.at(-1)[0]));
@@ -206,7 +216,7 @@ it('saves the free project before generating its PDF and blocks a second project
   saveProject.mockResolvedValue({ id: 'project-demo', revision: 1 });
   const wrapper = mount(Dashboard); await flushPromises();
   await wrapper.get('#budget-client').setValue('Primer cliente');
-  await wrapper.get('select').setValue('losa_metal'); await button(wrapper, 'Agregar ítem').trigger('click');
+  await wrapper.get('#budget-catalog-item').setValue('losa_metal'); await button(wrapper, 'Agregar ítem').trigger('click');
   await button(wrapper, 'Descargar PDF').trigger('click'); await flushPromises();
   expect(saveProject).toHaveBeenCalledOnce(); expect(buildBudgetPdf).toHaveBeenCalledOnce();
   expect(saveProject.mock.invocationCallOrder[0]).toBeLessThan(buildBudgetPdf.mock.invocationCallOrder[0]);

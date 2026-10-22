@@ -1,11 +1,14 @@
 <script setup>
-import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, inject, provide, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { routerKey, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { loadBillingAccess } from '../services/billing';
 import { projectAccess } from '../services/billingPolicy';
 import { newProjectId, loadProject, saveProject } from '../services/projects';
 import { projectProfile } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
+import NumberField from '../components/NumberField.vue';
+import BudgetHelp from '../components/BudgetHelp.vue';
+import { quantityStep } from '../services/quantityInput';
 import SketchEditor from '../components/SketchEditor.vue';
 import SketchQuote from '../components/SketchQuote.vue';
 import { PostStore } from '../stores/dbUsers';
@@ -13,11 +16,14 @@ import { requireUser, assertCurrentUser } from '../firebase/session';
 import { validateBudget } from '../services/budgetValidation';
 import { buildBudgetPdf } from '../services/budgetPdf';
 import { loadCatalog } from '../services/catalogPersistence';
-import { CATALOG_NOTES, CATALOG_GROUPS, currency } from '../data/laborCatalog';
+import { CATALOG_GROUPS, currency } from '../data/laborCatalog';
 
 const props = defineProps({ projectId: String });
 const router = inject(routerKey, null);
 const profileStore = PostStore();
+const help = ref(null);
+const showHelp = (topic, detail) => help.value?.show(topic, detail);
+provide('budgetHelp', showHelp);
 const name = ref(''), revision = ref(0), cloudId = ref(props.projectId || newProjectId()), selectedProfile = ref(null);
 const access = ref(null), subscriptionBlocked = ref(false);
 const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
@@ -139,7 +145,7 @@ watch(() => props.projectId, initialize);
   <div class="catalog-page">
     <CatalogHeader />
     <div class="catalog-main">
-      <h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
+      <div class="budget-heading"><h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><button type="button" @click="showHelp('inicio')">Ayuda para presupuestar</button></div><BudgetHelp ref="help" :ready="ready" /><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
       <p v-if="access?.admin" class="catalog-notice">Cuenta administradora: acceso completo sin suscripción.</p>
       <p v-else-if="access?.enabled" class="catalog-notice">Tu cuenta incluye un proyecto gratuito, sin vencimiento. <RouterLink to="/planes">Ver planes</RouterLink></p>
       <p v-if="subscriptionBlocked" class="catalog-notice" role="status">Para trabajar en otro proyecto necesitás una suscripción. <RouterLink to="/planes">Ver suscripción →</RouterLink><span v-if="access?.freeProjectId"> · <RouterLink :to="'/proyectos/' + access.freeProjectId + '/editar'">Abrir mi proyecto gratuito</RouterLink></span></p>
@@ -152,34 +158,36 @@ watch(() => props.projectId, initialize);
           <label for="budget-property-type">Tipo de inmueble (opcional)<input id="budget-property-type" v-model="tipoInmueble" list="property-types" maxlength="80" placeholder="Elegí una opción o escribí otra" /><datalist id="property-types"><option v-for="type in propertyTypes" :key="type" :value="type" /></datalist></label>
         </div>
         <p v-if="loading" role="status">Cargando tus precios…</p>
-        <fieldset :disabled="subscriptionBlocked || loading || saving">
-          <h2 style="margin-top: 24px">Agregar trabajos</h2>
-          <div class="catalog-fields">
-            <label>Buscar ítem<input v-model="search" type="search" placeholder="Ej.: boca, tablero, bandeja…" /></label>
-            <label>Seleccionar ítem<select v-model="selected"><option disabled value="">Elegí un trabajo</option><optgroup v-for="group in groups" :key="group.id" :label="group.label"><option v-for="item in group.items" :key="item.id" :value="item.id">{{ item.description }} / {{ item.unit }} — {{ currency(item.price) }}</option></optgroup></select></label>
-          </div>
-          <p v-if="selectedItem?.note" class="catalog-notice">Nota de la tabla: {{ selectedItem.note }}</p>
-          <div class="catalog-actions"><button class="primary" :disabled="!selectedItem" @click="addItem">Agregar ítem</button><button @click="addCustom">Agregar ítem personalizado</button></div>
-        </fieldset>
-        <details style="margin-top: 20px"><summary>Alcance, mínimos y adicionales</summary><ul><li v-for="note in CATALOG_NOTES" :key="note">{{ note }}</li></ul></details>
+
+
       </section>
       <SketchEditor :key="cloudId" v-model="sketch" :entries="entries" :disabled="subscriptionBlocked || loading || saving || !ready" />
       <SketchQuote :key="cloudId + '-quote'" v-model="sketch" :entries="entries" :existing-count="tabla.length" :disabled="subscriptionBlocked || loading || saving || !ready" @apply="applySketchQuote" />
       <section class="catalog-panel">
-        <h2>Detalle del presupuesto</h2><p class="muted">Los datos del profesional se guardan con cada versión. Las versiones anteriores conservan sus datos y precios.</p><details><summary>Ver datos profesionales que figurarán en el PDF</summary><p>{{ selectedProfile?.nombre1 }} {{ selectedProfile?.apellido1 }}<br v-if="selectedProfile?.empresa1" /><span v-if="selectedProfile?.empresa1">{{ selectedProfile.empresa1 }}</span><br />CUIT: {{ selectedProfile?.cuit1 }} · Matrícula: {{ selectedProfile?.matricula1 }}<br />Teléfono: {{ selectedProfile?.telefono1 }} · Correo: {{ selectedProfile?.correo }}</p></details><button type="button" @click="useCurrentProfile">Usar mis datos profesionales actuales</button>
+        <div class="budget-heading"><h2>Detalle del presupuesto</h2><button type="button" @click="showHelp('presupuesto')">Ayuda del presupuesto</button></div>
+        <fieldset :disabled="subscriptionBlocked || loading || saving">
+          <h3>Agregar trabajos</h3>
+          <div class="catalog-fields">
+            <label>Buscar ítem<input v-model="search" type="search" placeholder="Ej.: boca, tablero, bandeja…" /></label>
+            <label>Seleccionar ítem<select id="budget-catalog-item" v-model="selected" aria-label="Seleccionar ítem"><option disabled value="">Elegí un trabajo</option><optgroup v-for="group in groups" :key="group.id" :label="group.label"><option v-for="item in group.items" :key="item.id" :value="item.id">{{ item.description }} / {{ item.unit }} — {{ currency(item.price) }}</option></optgroup></select></label>
+          </div>
+          <button v-if="selectedItem?.note" type="button" @click="showHelp('trabajo', selectedItem.note)">Nota del trabajo</button>
+          <div class="catalog-actions"><button class="primary" :disabled="!selectedItem" @click="addItem">Agregar ítem</button><button @click="addCustom">Agregar ítem personalizado</button></div>
+        </fieldset>
+<details><summary>Ver datos profesionales que figurarán en el PDF</summary><p>{{ selectedProfile?.nombre1 }} {{ selectedProfile?.apellido1 }}<br v-if="selectedProfile?.empresa1" /><span v-if="selectedProfile?.empresa1">{{ selectedProfile.empresa1 }}</span><br />CUIT: {{ selectedProfile?.cuit1 }} · Matrícula: {{ selectedProfile?.matricula1 }}<br />Teléfono: {{ selectedProfile?.telefono1 }} · Correo: {{ selectedProfile?.correo }}</p><button type="button" @click="useCurrentProfile">Usar mis datos profesionales actuales</button></details>
         <p v-if="!tabla.length" class="muted">Agregá trabajos del catálogo o creá un ítem personalizado.</p>
         <div v-else class="catalog-scroll"><table class="catalog-table catalog-budget"><thead><tr><th>Trabajo</th><th class="unit">Unidad</th><th class="quantity">Cantidad</th><th class="money">Precio unitario (AR$)</th><th class="money">Subtotal</th><th></th></tr></thead><tbody>
           <tr v-for="(row, index) in tabla" :key="row.key">
             <td><textarea v-model="row.descripcion" :aria-label="'Descripción del ítem ' + (index + 1)" /><small>{{ row.codigo }}</small></td>
             <td><input v-model="row.unidad" :aria-label="'Unidad del ítem ' + (index + 1)" maxlength="30" /></td>
-            <td><input v-model.number="row.cantidad" type="number" min="0.01" step="0.01" :aria-label="'Cantidad del ítem ' + (index + 1)" /></td>
+            <td><NumberField v-model="row.cantidad" :min="quantityStep(row.unidad)" :step="quantityStep(row.unidad)" :integer="quantityStep(row.unidad) === 1" :aria-label="'Cantidad del ítem ' + (index + 1)" /></td>
             <td><input v-model.number="row.precioUnitario" type="number" min="0" step="0.01" :aria-label="'Precio del ítem ' + (index + 1)" /></td>
             <td>{{ currency(subtotal(row)) }}</td><td><button @click="tabla.splice(index, 1)" :aria-label="'Eliminar ítem ' + (index + 1)">Quitar</button></td>
           </tr>
         </tbody></table></div>
         <div class="catalog-total">Total: {{ currency(total) }}</div>
         <div class="catalog-actions"><button class="primary" :disabled="saving || loading || !tabla.length" @click="saveToAccount">Guardar proyecto en mi cuenta</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget()">Descargar PDF</button></div>
-        <p class="muted">Guardar en mi cuenta conserva el proyecto y sus versiones para acceder desde otros dispositivos.</p>
+
       </section>
       </fieldset>
       <p v-if="dirty" role="status">Tenés cambios sin guardar en tu cuenta.</p>
@@ -188,3 +196,5 @@ watch(() => props.projectId, initialize);
   </div>
 </template>
 <style src="../assets/catalog.css"></style>
+
+<style scoped>.budget-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}.budget-heading h1,.budget-heading h2{margin:0}</style>

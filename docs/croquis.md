@@ -29,3 +29,10 @@ Cada elemento elige su trabajo del catálogo. Medidor + TP ofrece pilar completo
 Hasta 50 recorridos conectan TP o medidor + TP con TG del mismo nivel. Se dibujan como una polilínea con hasta 50 quiebres; al mover un extremo se actualiza su longitud. La medida suma segmentos en planta y los metros verticales ingresados explícitamente. No se deducen bajadas de las alturas de tomas o techo. Se rechazan referencias rotas, recorridos duplicados entre los mismos extremos y conexiones entre niveles distintos. Quitar un equipo o un nivel quita también los recorridos asociados; deshacer puede recuperarlos.
 
 Antes de generar el borrador, cada recorrido debe indicar un trabajo por metro, por tramo de 5 m, o «Solo medir». Los tramos se redondean hacia arriba; los trabajos por metro usan la longitud con dos decimales. «Solo medir» se advierte expresamente como excluido del importe. La distancia no define sección, número de conductores, método de instalación ni materiales. El dibujo todavía no forma parte del PDF.
+
+
+## Pantalla compacta y edición numérica
+
+Los datos del proyecto siguen al principio; agregar trabajos individuales queda junto al detalle del presupuesto. Equipos y recorridos se muestran en dos columnas en escritorio y se apilan en móvil. Las explicaciones y notas del catálogo se consultan en una ayuda modal por temas, con botones para volver a abrirla. La ayuda inicial aparece al cargar por primera vez en este navegador; solo guarda una preferencia de lectura (`electricistaxpress:presupuestar-ayuda:v1`), nunca presupuestos ni datos de cuenta. Si el almacenamiento de preferencias no está disponible, la ayuda sigue funcionando. El diálogo conserva el foco, admite Escape y devuelve el foco al botón de origen.
+
+Los campos numéricos mantienen un borrador visual mientras se escribe: permiten borrar la medida sin guardar NaN ni una geometría inválida. Al salir de un campo obligatorio vacío se restaura el último valor válido. Las alturas opcionales pueden quedar vacías. Alturas y cantidades medidas avanzan de 0,1; bocas, unidades y tramos avanzan de 1. Los valores históricos no se redondean al abrir un proyecto.
