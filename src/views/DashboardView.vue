@@ -6,12 +6,14 @@ import { projectAccess } from '../services/billingPolicy';
 import { newProjectId, loadProject, saveProject } from '../services/projects';
 import { projectProfile } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
+import SketchEditor from '../components/SketchEditor.vue';
+import SketchQuote from '../components/SketchQuote.vue';
 import { PostStore } from '../stores/dbUsers';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { validateBudget } from '../services/budgetValidation';
 import { buildBudgetPdf } from '../services/budgetPdf';
 import { loadCatalog } from '../services/catalogPersistence';
-import { CATALOG_SOURCE, CATALOG_NOTES, CATALOG_GROUPS, currency } from '../data/laborCatalog';
+import { CATALOG_NOTES, CATALOG_GROUPS, currency } from '../data/laborCatalog';
 
 const props = defineProps({ projectId: String });
 const router = inject(routerKey, null);
@@ -20,7 +22,8 @@ const name = ref(''), revision = ref(0), cloudId = ref(props.projectId || newPro
 const access = ref(null), subscriptionBlocked = ref(false);
 const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
 const savedForm = ref(null), savedBudget = ref(null), requiresProfileReview = ref(false);
-const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value]));
+const sketch = ref(null);
+const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value]));
 const dirty = computed(() => savedForm.value !== null && formSignature.value !== savedForm.value);
 
 if (router) {
@@ -49,6 +52,11 @@ function addItem() {
     cantidad: ['proyecto_m2', 'plano_m2'].includes(item.id) ? 30 : 1, precioUnitario: item.price });
 }
 function addCustom() { tabla.value.push({ key: ++counter, codigo: `P-${counter}`, descripcion: '', unidad: 'ud.', cantidad: 1, precioUnitario: 0 }); }
+function applySketchQuote(rows) {
+  if (!ready.value || loading.value || saving.value || subscriptionBlocked.value) return;
+  tabla.value = rows.map(row => ({ ...row, key: ++counter }));
+  message.value = 'Borrador del croquis aplicado. Revisá el detalle y guardá el proyecto en tu cuenta.';
+}
 async function outputBudget() {
   if (saving.value) return;
   saving.value = true; error.value = ''; message.value = '';
@@ -82,7 +90,7 @@ async function saveToAccount() {
       signature: formSignature.value,
       input: { id: cloudId.value, expectedRevision: revision.value, name: name.value || cliente.value,
         budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() },
-        profile: selectedProfile.value ?? projectProfile(profileStore, user.email) },
+        profile: selectedProfile.value ?? projectProfile(profileStore, user.email), sketch: sketch.value },
     };
     const result = await saveProject(pendingSave.value.input);
     revision.value = result.revision; cloudSaved.value = true; requiresProfileReview.value = false; savedBudget.value = pendingSave.value.input.budget;
@@ -114,6 +122,7 @@ async function initialize() {
     cloudId.value = props.projectId || newProjectId(); revision.value = project?.revision ?? 0;
     name.value = project?.name ?? ''; cliente.value = project?.version.budget.cliente ?? '';
     tipoInmueble.value = project?.version.budget.tipoInmueble ?? '';
+    sketch.value = project?.version.sketch ?? null;
     tabla.value = (project?.version.budget.items ?? []).map(item => ({ ...item, key: ++counter, unidad: item.unidad ?? 'ud.' }));
     selectedProfile.value = project?.version.profile ?? projectProfile(profileStore, user.email);
     requiresProfileReview.value = Boolean(project && !project.version.profile);
@@ -131,7 +140,6 @@ watch(() => props.projectId, initialize);
     <CatalogHeader />
     <div class="catalog-main">
       <h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
-      <p class="muted">{{ CATALOG_SOURCE }}. Se usan los precios guardados en tu cuenta.</p>
       <p v-if="access?.admin" class="catalog-notice">Cuenta administradora: acceso completo sin suscripción.</p>
       <p v-else-if="access?.enabled" class="catalog-notice">Tu cuenta incluye un proyecto gratuito, sin vencimiento. <RouterLink to="/planes">Ver planes</RouterLink></p>
       <p v-if="subscriptionBlocked" class="catalog-notice" role="status">Para trabajar en otro proyecto necesitás una suscripción. <RouterLink to="/planes">Ver suscripción →</RouterLink><span v-if="access?.freeProjectId"> · <RouterLink :to="'/proyectos/' + access.freeProjectId + '/editar'">Abrir mi proyecto gratuito</RouterLink></span></p>
@@ -155,6 +163,8 @@ watch(() => props.projectId, initialize);
         </fieldset>
         <details style="margin-top: 20px"><summary>Alcance, mínimos y adicionales</summary><ul><li v-for="note in CATALOG_NOTES" :key="note">{{ note }}</li></ul></details>
       </section>
+      <SketchEditor :key="cloudId" v-model="sketch" :entries="entries" :disabled="subscriptionBlocked || loading || saving || !ready" />
+      <SketchQuote :key="cloudId + '-quote'" v-model="sketch" :entries="entries" :existing-count="tabla.length" :disabled="subscriptionBlocked || loading || saving || !ready" @apply="applySketchQuote" />
       <section class="catalog-panel">
         <h2>Detalle del presupuesto</h2><p class="muted">Los datos del profesional se guardan con cada versión. Las versiones anteriores conservan sus datos y precios.</p><details><summary>Ver datos profesionales que figurarán en el PDF</summary><p>{{ selectedProfile?.nombre1 }} {{ selectedProfile?.apellido1 }}<br v-if="selectedProfile?.empresa1" /><span v-if="selectedProfile?.empresa1">{{ selectedProfile.empresa1 }}</span><br />CUIT: {{ selectedProfile?.cuit1 }} · Matrícula: {{ selectedProfile?.matricula1 }}<br />Teléfono: {{ selectedProfile?.telefono1 }} · Correo: {{ selectedProfile?.correo }}</p></details><button type="button" @click="useCurrentProfile">Usar mis datos profesionales actuales</button>
         <p v-if="!tabla.length" class="muted">Agregá trabajos del catálogo o creá un ítem personalizado.</p>

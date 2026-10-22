@@ -95,7 +95,9 @@ service cloud.firestore {
       match /versiones/{versionId} {
         allow get, list: if access();
         allow create: if access() && projectAllowed(uid, projectId) && request.resource.data.keys().hasAll(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId']) &&
-          request.resource.data.keys().hasOnly(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId']) &&
+          request.resource.data.keys().hasOnly(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId', 'sketch']) &&
+          // Opaque drawing data: bounded here and parsed/validated by the editor.
+          (!('sketch' in request.resource.data) || (request.resource.data.sketch is string && request.resource.data.sketch.size() <= 80000)) &&
           request.resource.data.schema == 1 && request.resource.data.revision is int &&
           versionId == string(request.resource.data.revision) && request.resource.data.revision > 0 && request.resource.data.revision <= 1000000 &&
           request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120 &&
