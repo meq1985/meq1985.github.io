@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import { PLANS } from '../services/billingPolicy';
+import { PLAN_PRESENTATION } from '../data/planPresentation';
 import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription } from '../services/billing';
 import { currency } from '../data/laborCatalog';
 
@@ -58,9 +59,9 @@ onMounted(async () => {
     <CatalogHeader />
     <main class="catalog-main">
       <header class="plans-heading">
-        <div><p class="eyebrow">PLANES DE ELECTRICISTA XPRESS</p><h1>Más proyectos.<br><span>El mismo orden.</span></h1>
-          <p class="intro">Probá con un proyecto completo. Cuando necesites trabajar en más, elegí el plan que acompañe tu negocio.</p></div>
-        <div class="payment-note"><span aria-hidden="true">↗</span><div><strong>Pagás en Mercado Pago</strong><small>En pesos argentinos · Renovación mensual</small></div></div>
+        <div><p class="eyebrow">PLANES DE ELECTRICISTA XPRESS</p><h1>Tu forma de cotizar.<br><span>El plan que te acompaña.</span></h1>
+          <p class="intro">Básico para presupuestar desde el catálogo. Full para sumar el croquis de obra nueva y preparar un borrador de mano de obra.</p></div>
+        <div class="payment-note"><span aria-hidden="true">↗</span><div><strong>Mensualidad con Mercado Pago</strong><small>En pesos argentinos · Renovación mensual</small></div></div>
       </header>
 
       <p v-if="loading" class="account-banner" role="status">Consultando tu cuenta…</p>
@@ -89,18 +90,18 @@ onMounted(async () => {
           <small>Sin tarjeta. No se transforma en un plan pago.</small>
         </article>
         <article v-for="plan in PLANS" :key="plan.id" class="plan-card" :class="{ featured: plan.available, upcoming: !plan.available }">
-          <p class="plan-tag">{{ plan.available ? 'PARA TU TRABAJO DIARIO' : 'PRÓXIMAMENTE' }}</p><h2>{{ plan.name }}</h2>
-          <p class="plan-description">{{ plan.available ? 'Todos tus trabajos, organizados en un solo lugar.' : 'Del plano a los números, en menos pasos.' }}</p>
+          <p class="plan-tag">{{ PLAN_PRESENTATION[plan.id].tag }}</p><h2>{{ PLAN_PRESENTATION[plan.id].title }}</h2>
+          <p class="plan-description">{{ PLAN_PRESENTATION[plan.id].description }}</p>
           <p class="price">{{ currency(plan.amount) }} <small>ARS / mes</small></p>
-          <ul><li>Más de un proyecto en tu cuenta</li><li>Precios personalizados y ajustes porcentuales</li><li>Versiones y PDF profesional</li><li v-if="!plan.available">Croquis para calcular presupuestos y materiales</li><li v-else>Acceso desde distintos dispositivos</li></ul>
+          <ul><li>Más de un proyecto en tu cuenta</li><li v-for="feature in PLAN_PRESENTATION[plan.id].features" :key="feature">{{ feature }}</li></ul>
           <template v-if="plan.available && canSubscribe">
             <label class="check-label"><input v-model="consent" type="checkbox" :disabled="!!busy" data-testid="renewal-consent"><span>Acepto $12.000 ARS por mes, con renovación automática hasta cancelarla.</span></label>
             <button class="primary subscribe-button" :disabled="!!busy || !consent" @click="act('subscribe')">{{ busy === 'subscribe' ? 'Abriendo Mercado Pago…' : pending ? 'Retomar en Mercado Pago' : 'Elegir Presupuestos' }} <span aria-hidden="true">↗</span></button>
             <small>Completás el pago de forma segura en Mercado Pago.</small>
           </template>
           <template v-else>
-            <button disabled class="subscribe-button">{{ !plan.available ? 'Croquis próximamente' : access?.admin ? 'Incluido en tu acceso' : paid ? 'Tu plan actual' : loading ? 'Consultando cuenta…' : subscription?.manageable && !cancelled ? 'Suscripción registrada' : 'Contratación en preparación' }}</button>
-            <small>{{ !plan.available ? 'Precio previsto. Todavía no se puede contratar.' : paid ? 'Podés gestionar tu renovación más abajo.' : 'Sin cobros hasta que confirmes la contratación.' }}</small>
+            <button disabled class="subscribe-button">{{ !plan.available ? 'Contratación Full en preparación' : access?.admin ? 'Incluido en tu acceso' : paid ? 'Tu plan actual' : loading ? 'Consultando cuenta…' : subscription?.manageable && !cancelled ? 'Suscripción registrada' : 'Contratación en preparación' }}</button>
+            <small>{{ !plan.available ? 'Croquis en pruebas. Precio previsto; contratación no habilitada.' : paid ? 'Podés gestionar tu renovación más abajo.' : 'Sin cobros hasta que confirmes la contratación.' }}</small>
           </template>
         </article>
       </section>
@@ -121,7 +122,7 @@ onMounted(async () => {
         <details><summary>¿Cómo funciona el proyecto gratuito?</summary><p>Tenés un proyecto sin vencimiento. Podés editarlo, guardar versiones y descargar su PDF. Para trabajar en otros proyectos, necesitás el plan Presupuestos.</p></details>
         <details><summary>¿Cuándo empieza mi acceso pago?</summary><p>Cuando nuestro servidor confirma un pago aprobado. Si volvés de Mercado Pago y todavía está pendiente, podés actualizar el estado desde esta página.</p></details>
         <details><summary>¿Qué pasa cuando cancelo?</summary><p>Se detienen las próximas renovaciones. Conservás el período ya abonado y tu proyecto gratuito continúa disponible. Una devolución puede retirar el acceso correspondiente al pago devuelto.</p></details>
-        <details><summary>¿Ya puedo contratar el plan con croquis?</summary><p>Todavía no. Estará disponible cuando terminemos la herramienta de dibujo y el cálculo a partir del croquis.</p></details>
+        <details><summary>¿Qué incluye el Full con croquis?</summary><p>Suma ambientes, niveles y puntos eléctricos, medidor, tableros, jabalinas y recorridos medidos. Prepara un borrador de mano de obra que revisás antes de aplicar. El croquis está en pruebas y su contratación todavía no está habilitada.</p></details><details><summary>¿Calcula materiales y secciones de cables?</summary><p>Todavía no. La medición de recorridos y el presupuesto de mano de obra no generan cantidades de materiales ni dimensionan conductores.</p></details>
       </section>
       <footer class="plans-footer"><RouterLink to="/proyectos">← Volver a Mis proyectos</RouterLink><a href="mailto:emanuelquiroga.bgh@gmail.com">¿Necesitás ayuda? Contactanos</a></footer>
     </main>
