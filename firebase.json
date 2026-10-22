@@ -1,4 +1,5 @@
 {
+  "functions": [{ "source": "functions", "codebase": "billing", "runtime": "nodejs22", "ignore": ["node_modules", ".env*", ".secret*", "test", "emulator-test"] }],
   "firestore": {
     "rules": "firestore.rules"
   },

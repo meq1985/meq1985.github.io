@@ -1,1 +1,2 @@
-process.exitCode = [process.env.BRANCH, process.env.HEAD].includes('mejoras-v2') ? 0 : 1;
+// Netlify: exit 0 cancels the build. Hosting is now exclusively Firebase.
+process.exitCode = 0;

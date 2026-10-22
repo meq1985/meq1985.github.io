@@ -8,6 +8,36 @@ service cloud.firestore {
     function verified() {
       return request.auth != null && request.auth.token.email_verified == true;
     }
+    function administrator() {
+      return verified() && exists(/databases/$(database)/documents/administradores/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/administradores/$(request.auth.uid)).data.enabled == true;
+    }
+    function billingEnabled() {
+      return exists(/databases/$(database)/documents/configuracion/facturacion) &&
+        get(/databases/$(database)/documents/configuracion/facturacion).data.enabled == true;
+    }
+    function paid(uid) {
+      return exists(/databases/$(database)/documents/suscripciones/$(uid)) &&
+        get(/databases/$(database)/documents/suscripciones/$(uid)).data.planId == 'presupuestos' &&
+        get(/databases/$(database)/documents/suscripciones/$(uid)).data.status == 'active' &&
+        get(/databases/$(database)/documents/suscripciones/$(uid)).data.paidThrough > request.time;
+    }
+    function projectAllowed(uid, id) {
+      return !billingEnabled() || administrator() || paid(uid) ||
+        getAfter(/databases/$(database)/documents/accesos/$(uid)).data.freeProjectId == id;
+    }
+    match /administradores/{uid} { allow get: if verified() && request.auth.uid == uid; }
+    match /configuracion/facturacion { allow get: if verified(); }
+    match /suscripciones/{uid} { allow get: if verified() && request.auth.uid == uid; }
+    match /accesos/{uid} {
+      allow get: if verified() && request.auth.uid == uid;
+      allow create: if verified() && request.auth.uid == uid && billingEnabled() &&
+        request.resource.data.keys().hasAll(['freeProjectId', 'claimedAt']) &&
+        request.resource.data.keys().hasOnly(['freeProjectId', 'claimedAt']) &&
+        request.resource.data.freeProjectId is string && request.resource.data.freeProjectId.matches('^[A-Za-z0-9_-]{1,100}$') &&
+        request.resource.data.claimedAt == request.time &&
+        getAfter(/databases/$(database)/documents/cuentas/$(uid)/proyectos/$(request.resource.data.freeProjectId)).data.ownerUid == uid;
+    }
     match /usuarios/{email} {
       // During signup, permit checking that the document is absent.
       // Existing personal data requires a verified email, including on reused emails.
@@ -57,14 +87,14 @@ service cloud.firestore {
           v.budget.get('tipoInmueble', '') == d.tipoInmueble && v.budget.total == d.total && v.createdAt == request.time;
       }
       allow get, list: if access();
-      allow create: if access() && validProject(request.resource.data) && request.resource.data.revision == 1 &&
+      allow create: if access() && projectAllowed(uid, projectId) && validProject(request.resource.data) && request.resource.data.revision == 1 &&
         request.resource.data.createdAt == request.time && linkedVersion(request.resource.data);
-      allow update: if access() && validProject(request.resource.data) &&
+      allow update: if access() && projectAllowed(uid, projectId) && validProject(request.resource.data) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'cliente', 'tipoInmueble', 'total', 'revision', 'updatedAt']) &&
         request.resource.data.revision == resource.data.revision + 1 && linkedVersion(request.resource.data);
       match /versiones/{versionId} {
         allow get, list: if access();
-        allow create: if access() && request.resource.data.keys().hasAll(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId']) &&
+        allow create: if access() && projectAllowed(uid, projectId) && request.resource.data.keys().hasAll(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId']) &&
           request.resource.data.keys().hasOnly(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId']) &&
           request.resource.data.schema == 1 && request.resource.data.revision is int &&
           versionId == string(request.resource.data.revision) && request.resource.data.revision > 0 && request.resource.data.revision <= 1000000 &&
