@@ -7,6 +7,7 @@ import { deleteApp } from 'firebase/app';
 import { auth, db } from '../../src/firebase';
 import { saveProject, loadProject, listProjects, loadProjectVersion, listProjectVersions } from '../../src/services/projects';
 import { emptySketch, encodeSketch } from '../../src/services/sketch';
+import { emptyQuoteSettings } from '../../src/services/sketchQuoteSettings';
 const project = 'demo-presupuesto-electrico';
 let env, uid;
 const email = 'cloud-projects@example.invalid', password = 'Demo-only-Password42';
@@ -127,6 +128,7 @@ it('gives only the verified designated administrator unlimited own projects', as
 });
 it('versions drawings with budgets and does not confuse changed drawings with a successful retry', async () => {
   const data = { ...input('drawing'), sketch: { ...emptySketch(), rooms: [{ id: 'room', levelId: 'planta-baja', name: 'Cocina', x: 0, y: 0, width: 4, depth: 3, points: [{ id: 'p', type: 'toma', x: 0.3, y: 0.6 }] }] } };
+  data.sketch.quote = { ...emptyQuoteSettings(), heights: { toma: 0.4, llave: 1.1, techo: 2.8 }, board: 'tp_mono' };
   await saveProject(data); await saveProject(data);
   expect((await loadProject('drawing')).version.sketch).toEqual(data.sketch);
   const next = structuredClone(data); next.sketch.rooms[0].width = 6;

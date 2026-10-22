@@ -1,4 +1,5 @@
 // Metres for rooms; points use relative coordinates so resizing preserves their layout.
+import { validateQuoteSettings } from './sketchQuoteSettings';
 export const POINT_TYPES = { luminaria: 'Luminaria', toma: 'Toma', llave: 'Llave' };
 export const SKETCH_LIMITS = { levels: 5, rooms: 20, points: 300, bytes: 80000 };
 export const emptySketch = () => ({ schema: 1, levels: [{ id: 'planta-baja', name: 'Planta baja' }], rooms: [] });
@@ -23,7 +24,7 @@ export function validateSketch(input) {
       }) };
     return result;
   });
-  return { schema: 1, levels, rooms };
+  return { schema: 1, levels, rooms, ...(input.quote === undefined ? {} : { quote: validateQuoteSettings(input.quote) }) };
 }
 export function encodeSketch(input) {
   if (input == null) return null;

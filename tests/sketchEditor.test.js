@@ -3,11 +3,20 @@ import { it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, ref } from 'vue';
 import SketchEditor from '../src/components/SketchEditor.vue';
+import { emptyQuoteSettings } from '../src/services/sketchQuoteSettings';
 const button = (w, text) => w.findAll('button').find(b => b.text() === text);
 const input = (w, text) => w.findAll('label').find(l => l.text() === text).get('input');
 function editor() {
   return mount(defineComponent({ components: { SketchEditor }, setup: () => ({ sketch: ref(null), disabled: ref(false) }), template: '<SketchEditor v-model="sketch" :disabled="disabled" />' }));
 }
+it('does not discard independently edited heights when undoing geometry', async () => {
+  const w = editor(); await button(w, '+ Ambiente').trigger('click');
+  w.vm.sketch = { ...w.vm.sketch, quote: { ...emptyQuoteSettings(), heights: { toma: 0.4, llave: 1.1, techo: 2.8 } } }; await w.vm.$nextTick();
+  await button(w, 'Deshacer').trigger('click');
+  expect(w.vm.sketch.rooms).toHaveLength(0); expect(w.vm.sketch.quote.heights.techo).toBe(2.8);
+  await button(w, 'Rehacer').trigger('click'); expect(w.vm.sketch.rooms).toHaveLength(1); expect(w.vm.sketch.quote.heights.toma).toBe(0.4);
+  w.unmount();
+});
 it('adds rooms, sizes and levels, preserves points on resize, and undoes level removal', async () => {
   const w = editor(); await button(w, '+ Ambiente').trigger('click');
   await input(w, 'Nombre del ambiente').setValue('Cocina');

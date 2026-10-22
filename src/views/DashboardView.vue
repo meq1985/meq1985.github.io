@@ -7,6 +7,7 @@ import { newProjectId, loadProject, saveProject } from '../services/projects';
 import { projectProfile } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import SketchEditor from '../components/SketchEditor.vue';
+import SketchQuote from '../components/SketchQuote.vue';
 import { PostStore } from '../stores/dbUsers';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { validateBudget } from '../services/budgetValidation';
@@ -51,6 +52,11 @@ function addItem() {
     cantidad: ['proyecto_m2', 'plano_m2'].includes(item.id) ? 30 : 1, precioUnitario: item.price });
 }
 function addCustom() { tabla.value.push({ key: ++counter, codigo: `P-${counter}`, descripcion: '', unidad: 'ud.', cantidad: 1, precioUnitario: 0 }); }
+function applySketchQuote(rows) {
+  if (!ready.value || loading.value || saving.value || subscriptionBlocked.value) return;
+  tabla.value = rows.map(row => ({ ...row, key: ++counter }));
+  message.value = 'Borrador del croquis aplicado. Revisá el detalle y guardá el proyecto en tu cuenta.';
+}
 async function outputBudget() {
   if (saving.value) return;
   saving.value = true; error.value = ''; message.value = '';
@@ -158,6 +164,7 @@ watch(() => props.projectId, initialize);
         <details style="margin-top: 20px"><summary>Alcance, mínimos y adicionales</summary><ul><li v-for="note in CATALOG_NOTES" :key="note">{{ note }}</li></ul></details>
       </section>
       <SketchEditor :key="cloudId" v-model="sketch" :disabled="subscriptionBlocked || loading || saving || !ready" />
+      <SketchQuote :key="cloudId + '-quote'" v-model="sketch" :entries="entries" :existing-count="tabla.length" :disabled="subscriptionBlocked || loading || saving || !ready" @apply="applySketchQuote" />
       <section class="catalog-panel">
         <h2>Detalle del presupuesto</h2><p class="muted">Los datos del profesional se guardan con cada versión. Las versiones anteriores conservan sus datos y precios.</p><details><summary>Ver datos profesionales que figurarán en el PDF</summary><p>{{ selectedProfile?.nombre1 }} {{ selectedProfile?.apellido1 }}<br v-if="selectedProfile?.empresa1" /><span v-if="selectedProfile?.empresa1">{{ selectedProfile.empresa1 }}</span><br />CUIT: {{ selectedProfile?.cuit1 }} · Matrícula: {{ selectedProfile?.matricula1 }}<br />Teléfono: {{ selectedProfile?.telefono1 }} · Correo: {{ selectedProfile?.correo }}</p></details><button type="button" @click="useCurrentProfile">Usar mis datos profesionales actuales</button>
         <p v-if="!tabla.length" class="muted">Agregá trabajos del catálogo o creá un ítem personalizado.</p>

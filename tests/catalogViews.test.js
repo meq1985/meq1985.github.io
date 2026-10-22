@@ -20,6 +20,26 @@ const entries = [
 beforeEach(async () => { vi.clearAllMocks(); const { loadBillingAccess } = await import('../src/services/billing'); loadBillingAccess.mockResolvedValue({ enabled: false }); loadCatalog.mockResolvedValue(structuredClone(entries)); saveCatalogPrices.mockResolvedValue(); });
 const button = (wrapper, text) => wrapper.findAll('button').find(item => item.text().startsWith(text));
 
+it('turns drawing points into editable budget rows and saves account prices with the drawing', async () => {
+  const { LABOR_CATALOG } = await import('../src/data/laborCatalog');
+  const { saveProject } = await import('../src/services/projects');
+  loadCatalog.mockResolvedValueOnce(LABOR_CATALOG.map(item => ({ ...item, price: item.id === 'boca_completa' ? 100 : item.id === 'proyecto_m2' ? 10 : item.price })));
+  saveProject.mockResolvedValueOnce({ id: 'project-demo', revision: 1 });
+  const wrapper = mount(Dashboard); await flushPromises();
+  await wrapper.get('#budget-client').setValue('Cliente de obra nueva');
+  await button(wrapper, '+ Ambiente').trigger('click');
+  await button(wrapper, 'Luminaria').trigger('click'); await button(wrapper, 'Agregar al centro').trigger('click');
+  await button(wrapper, 'Llave').trigger('click'); await button(wrapper, 'Agregar al centro').trigger('click');
+  await button(wrapper, 'Revisar presupuesto del croquis').trigger('click');
+  await button(wrapper, 'Usar este borrador').trigger('click');
+  expect(wrapper.findAll('.catalog-budget tbody tr')).toHaveLength(2);
+  await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();
+  const saved = saveProject.mock.calls.at(-1)[0];
+  expect(saved.budget.items).toMatchObject([{ cantidad: 1, precioUnitario: 100 }, { cantidad: 30, precioUnitario: 10 }]);
+  expect(saved.budget.total).toBe(400); expect(saved.sketch.rooms[0].points).toHaveLength(2);
+  wrapper.unmount();
+});
+
 it('restores and saves the account drawing as part of the same project version', async () => {
   const { loadProject, saveProject } = await import('../src/services/projects');
   const { emptySketch } = await import('../src/services/sketch');

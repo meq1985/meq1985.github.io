@@ -31,7 +31,12 @@ function change(edit) {
 }
 function history(from, to) {
   if (props.disabled || !from.length) return;
-  to.push(clone(props.modelValue)); emit('update:modelValue', from.pop()); error.value = '';
+  to.push(clone(props.modelValue));
+  const quote = props.modelValue?.quote;
+  const restored = from.pop() ?? (quote ? emptySketch() : null);
+  // Geometry history must not undo heights or pricing choices edited in the next section.
+  if (restored) { delete restored.quote; if (quote) restored.quote = clone(quote); }
+  emit('update:modelValue', restored); error.value = '';
 }
 function addLevel() {
   const id = freshId();
@@ -111,7 +116,7 @@ function removeLevel() {
       </div>
     </fieldset>
     <dl class="sketch-summary"><div><dt>Superficie total</dt><dd>{{ summary.area }} m²</dd></div><div v-for="(label, type) in POINT_TYPES" :key="type"><dt>{{ label }}s</dt><dd>{{ summary[type] }}</dd></div></dl>
-    <p class="muted">El croquis se guarda al pulsar «Guardar proyecto en mi cuenta», junto con el cliente y al menos un trabajo. Esta versión permite organizar puntos; todavía no calcula costos ni materiales y no se incluye en el PDF del presupuesto.</p>
+    <p class="muted">El croquis se guarda al pulsar «Guardar proyecto en mi cuenta», junto con el cliente y al menos un trabajo. Para obra nueva, podés revisar un borrador de mano de obra en la sección siguiente. El dibujo todavía no se incluye en el PDF ni calcula materiales.</p>
   </section>
 </template>
 <style scoped>
