@@ -4,6 +4,7 @@ import { billingConfigRef, allowanceRef, subscriptionRef } from './billing';
 import { isAdministrator, projectAccess, subscriptionRequired } from './billingPolicy';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { projectBudget, projectProfile, projectName, validProjectId, validRevision } from './projectValidation';
+import { encodeSketch, decodeSketch } from './sketch';
 
 export const newProjectId = () => crypto.randomUUID();
 const projects = user => collection(db, 'cuentas', user.uid, 'proyectos');
@@ -16,7 +17,7 @@ const offlineError = error => {
 function versionData(snapshot) {
   if (!snapshot.exists()) throw new Error('No se encontró esa versión del proyecto.');
   const data = snapshot.data();
-  return { ...data, budget: projectBudget(data.budget), profile: data.profile === null ? null : projectProfile(data.profile, data.profile?.correo) };
+  return { ...data, sketch: decodeSketch(data.sketch), budget: projectBudget(data.budget), profile: data.profile === null ? null : projectProfile(data.profile, data.profile?.correo) };
 }
 export async function listProjects(cursor = null) {
   const user = await requireUser();
@@ -50,6 +51,7 @@ async function writeProject(user, input) {
   const budget = projectBudget(input.budget);
   const name = projectName(input.name, budget.cliente);
   const profile = input.profile === null ? null : projectProfile(input.profile, user.email);
+  const sketch = encodeSketch(input.sketch);
   // Keep the existing Firestore schema compatible with previously saved projects.
   const sourceLocalId = null;
   const expected = input.expectedRevision;
@@ -57,7 +59,7 @@ async function writeProject(user, input) {
   const revision = validRevision(expected + 1);
   const reference = projectRef(user, input.id);
   const target = versionRef(reference, revision);
-  const payload = { schema: 1, revision, name, budget, profile, sourceLocalId };
+  const payload = { schema: 1, revision, name, budget, profile, sourceLocalId, ...(sketch === null ? {} : { sketch }) };
   try {
     await runTransaction(db, async transaction => {
       const [existing, previous] = await Promise.all([transaction.get(reference), transaction.get(target)]);
@@ -70,10 +72,10 @@ async function writeProject(user, input) {
       // A retry after a lost response recognizes the exact same committed version.
       if (current?.revision === revision && previous.exists()) {
         const saved = previous.data();
-        if (JSON.stringify({ ...payload, budget: projectBudget(saved.budget), profile: saved.profile === null ? null : projectProfile(saved.profile, saved.profile?.correo), name: saved.name, sourceLocalId: saved.sourceLocalId }) === JSON.stringify(payload)) return;
+        if ((saved.sketch ?? null) === sketch && JSON.stringify({ ...payload, budget: projectBudget(saved.budget), profile: saved.profile === null ? null : projectProfile(saved.profile, saved.profile?.correo), name: saved.name, sourceLocalId: saved.sourceLocalId }) === JSON.stringify(payload)) return;
       }
       if ((current?.revision ?? 0) !== expected || previous.exists() || (expected && !existing.exists())) {
-        throw new Error('El proyecto cambió en otra pestaña o dispositivo. Descargá un PDF con tus cambios antes de volver a abrir el proyecto desde Mis proyectos.');
+        throw new Error('El proyecto cambió en otra pestaña o dispositivo. Conservá esta pestaña abierta para revisar tus cambios y abrí la versión actual desde Mis proyectos en otra pestaña.');
       }
       if (current && current.ownerUid !== user.uid) throw new Error('El proyecto no corresponde a tu cuenta.');
       const state = { enabled: metered, freeProjectId: allowance?.data()?.freeProjectId ?? null,

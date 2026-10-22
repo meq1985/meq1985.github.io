@@ -6,6 +6,7 @@ import { createUserWithEmailAndPassword, sendEmailVerification, applyActionCode,
 import { deleteApp } from 'firebase/app';
 import { auth, db } from '../../src/firebase';
 import { saveProject, loadProject, listProjects, loadProjectVersion, listProjectVersions } from '../../src/services/projects';
+import { emptySketch, encodeSketch } from '../../src/services/sketch';
 const project = 'demo-presupuesto-electrico';
 let env, uid;
 const email = 'cloud-projects@example.invalid', password = 'Demo-only-Password42';
@@ -123,6 +124,27 @@ it('gives only the verified designated administrator unlimited own projects', as
       await assertFails(getDoc(doc(database, 'cuentas', uid, 'proyectos', 'first')));
     }
   } finally { await env.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'configuracion', 'facturacion')); }); }
+});
+it('versions drawings with budgets and does not confuse changed drawings with a successful retry', async () => {
+  const data = { ...input('drawing'), sketch: { ...emptySketch(), rooms: [{ id: 'room', levelId: 'planta-baja', name: 'Cocina', x: 0, y: 0, width: 4, depth: 3, points: [{ id: 'p', type: 'toma', x: 0.3, y: 0.6 }] }] } };
+  await saveProject(data); await saveProject(data);
+  expect((await loadProject('drawing')).version.sketch).toEqual(data.sketch);
+  const next = structuredClone(data); next.sketch.rooms[0].width = 6;
+  await expect(saveProject(next)).rejects.toThrow('otra pestaña');
+  next.expectedRevision = 1; await saveProject(next);
+  expect((await loadProjectVersion('drawing', 1)).sketch.rooms[0].width).toBe(4);
+  expect((await loadProject('drawing')).version.sketch.rooms[0].width).toBe(6);
+  expect((await loadProjectVersion('first', 1)).sketch).toBeNull();
+  const other = env.authenticatedContext('drawing-intruder', { email: 'other@example.invalid', email_verified: true }).firestore();
+  await assertFails(getDoc(doc(other, 'cuentas', uid, 'proyectos', 'drawing', 'versiones', '1')));
+  const old = (await getDoc(ref('drawing'))).data(), version = (await getDoc(doc(ref('drawing'), 'versiones', '2'))).data();
+  for (const sketch of [{ schema: 1 }, 'x'.repeat(80001)]) {
+    const target = ref('bad-drawing'), batch = writeBatch(db);
+    batch.set(target, { ...old, revision: 1, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    batch.set(doc(target, 'versiones', '1'), { ...version, revision: 1, sketch, createdAt: serverTimestamp() });
+    await assertFails(batch.commit());
+  }
+  expect(encodeSketch(next.sketch)).toBeTypeOf('string');
 });
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');

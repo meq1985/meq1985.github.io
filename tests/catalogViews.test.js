@@ -20,6 +20,23 @@ const entries = [
 beforeEach(async () => { vi.clearAllMocks(); const { loadBillingAccess } = await import('../src/services/billing'); loadBillingAccess.mockResolvedValue({ enabled: false }); loadCatalog.mockResolvedValue(structuredClone(entries)); saveCatalogPrices.mockResolvedValue(); });
 const button = (wrapper, text) => wrapper.findAll('button').find(item => item.text().startsWith(text));
 
+it('restores and saves the account drawing as part of the same project version', async () => {
+  const { loadProject, saveProject } = await import('../src/services/projects');
+  const { emptySketch } = await import('../src/services/sketch');
+  const drawing = emptySketch();
+  loadProject.mockResolvedValueOnce({ id: 'existing', revision: 2, name: 'Proyecto', version: { sketch: drawing, profile: { nombre1: 'Demo' }, budget: { cliente: 'Cliente', items: [{ codigo: '1', descripcion: 'Trabajo', cantidad: 1, precioUnitario: 10 }] } } });
+  saveProject.mockResolvedValueOnce({ id: 'existing', revision: 3 });
+  const wrapper = mount(Dashboard, { props: { projectId: 'existing' } }); await flushPromises();
+  expect(wrapper.text()).not.toContain('Se usan los precios guardados en tu cuenta');
+  await button(wrapper, '+ Ambiente').trigger('click');
+  expect(wrapper.text()).toContain('Tenés cambios sin guardar');
+  await button(wrapper, 'Guardar proyecto en mi cuenta').trigger('click'); await flushPromises();
+  expect(saveProject.mock.calls.at(-1)[0]).toMatchObject({ id: 'existing', expectedRevision: 2, sketch: { rooms: [{ name: 'Ambiente 1' }] } });
+  expect(wrapper.text()).toContain('Versión 3');
+  expect(wrapper.text()).not.toContain('Tenés cambios sin guardar');
+  wrapper.unmount();
+});
+
 it('reviews a 20% increase before saving exactly once and displays persistence failures', async () => {
   const wrapper = mount(Config); await flushPromises();
   await button(wrapper, 'Revisar ajuste').trigger('click');
