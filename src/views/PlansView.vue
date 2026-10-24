@@ -19,7 +19,7 @@ const statusTitle = computed(() => {
   if (access.value?.admin) return 'Acceso administrador';
   if (paid.value) return cancelled.value ? 'Plan activo · renovación cancelada' : 'Plan Presupuestos activo';
   if (pending.value) return 'Suscripción pendiente de pago';
-  if (!access.value?.enabled) return 'Los planes están en preparación';
+  if (!access.value?.enabled) return 'Tu cuenta de Electricista Xpress';
   return access.value?.freeProjectId ? 'Tu proyecto gratuito está disponible' : 'Empezá con un proyecto gratuito';
 });
 const date = value => new Date(value).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'long', year: 'numeric' });
@@ -75,7 +75,7 @@ onMounted(async () => {
         <div><p class="eyebrow">TU CUENTA</p><h2 id="account-title">{{ statusTitle }}</h2>
           <p v-if="access.admin">Acceso completo, sin mensualidad ni límite de proyectos.</p>
           <p v-else-if="paid">Tu acceso está disponible hasta el {{ date(subscription.paidThrough) }}.</p>
-          <p v-else-if="!access.enabled">Tu acceso actual continúa disponible. La contratación todavía no está habilitada.</p>
+          <p v-else-if="!access.enabled">Consultá tus proyectos y elegí cómo querés presupuestar.</p>
           <p v-else>Un proyecto sin tarjeta ni vencimiento. Seguirá disponible aunque no contrates un plan.</p>
         </div>
         <RouterLink class="secondary-link" :to="access.freeProjectId ? '/proyectos/' + access.freeProjectId + '/editar' : '/proyectos'">{{ access.freeProjectId ? 'Abrir mi proyecto gratuito' : 'Ver mis proyectos' }} →</RouterLink>
@@ -100,8 +100,8 @@ onMounted(async () => {
             <small>Completás el pago de forma segura en Mercado Pago.</small>
           </template>
           <template v-else>
-            <button disabled class="subscribe-button">{{ !plan.available ? 'Contratación Full en preparación' : access?.admin ? 'Incluido en tu acceso' : paid ? 'Tu plan actual' : loading ? 'Consultando cuenta…' : subscription?.manageable && !cancelled ? 'Suscripción registrada' : 'Contratación en preparación' }}</button>
-            <small>{{ !plan.available ? 'Croquis en pruebas. Precio previsto; contratación no habilitada.' : paid ? 'Podés gestionar tu renovación más abajo.' : 'Sin cobros hasta que confirmes la contratación.' }}</small>
+            <button disabled class="subscribe-button">{{ !plan.available ? 'Elegir Full' : access?.admin ? 'Incluido en tu acceso' : paid ? 'Tu plan actual' : loading ? 'Consultando cuenta…' : subscription?.manageable && !cancelled ? 'Suscripción registrada' : 'Elegir Básico' }}</button>
+            <small>{{ !plan.available ? 'Ambientes, puntos eléctricos y presupuesto de mano de obra.' : paid ? 'Podés gestionar tu renovación más abajo.' : 'Sin cobros hasta que confirmes la contratación.' }}</small>
           </template>
         </article>
       </section>
@@ -121,10 +121,10 @@ onMounted(async () => {
       <section class="plans-faq" aria-labelledby="plans-faq-title"><p class="eyebrow">ANTES DE ELEGIR</p><h2 id="plans-faq-title">Sin sorpresas.</h2>
         <details><summary>¿Cómo funciona el proyecto gratuito?</summary><p>Tenés un proyecto sin vencimiento. Podés editarlo, guardar versiones y descargar su PDF. Para trabajar en otros proyectos, necesitás el plan Presupuestos.</p></details>
         <details><summary>¿Cuándo empieza mi acceso pago?</summary><p>Cuando nuestro servidor confirma un pago aprobado. Si volvés de Mercado Pago y todavía está pendiente, podés actualizar el estado desde esta página.</p></details>
-        <details><summary>¿Qué pasa cuando cancelo?</summary><p>Se detienen las próximas renovaciones. Conservás el período ya abonado y tu proyecto gratuito continúa disponible. Una devolución puede retirar el acceso correspondiente al pago devuelto.</p></details>
-        <details><summary>¿Qué incluye el Full con croquis?</summary><p>Suma ambientes, niveles y puntos eléctricos, medidor, tableros, jabalinas y recorridos medidos. Prepara un borrador de mano de obra que revisás antes de aplicar. El croquis está en pruebas y su contratación todavía no está habilitada.</p></details><details><summary>¿Calcula materiales y secciones de cables?</summary><p>Todavía no. La medición de recorridos y el presupuesto de mano de obra no generan cantidades de materiales ni dimensionan conductores.</p></details>
+        <details><summary>¿Qué pasa cuando cancelo?</summary><p>Se detienen las próximas renovaciones. Conservás el período ya abonado y tu proyecto gratuito continúa disponible. Los demás proyectos guardados se pueden consultar y descargar; guardar cambios o crear otros requiere una suscripción activa. Una devolución puede retirar el acceso correspondiente al pago devuelto.</p></details>
+        <details><summary>¿Qué incluye el Full con croquis?</summary><p>Suma ambientes, niveles y puntos eléctricos, medidor, tableros, jabalinas y recorridos medidos. Prepara un borrador de mano de obra que revisás antes de aplicar.</p></details><details><summary>¿Calcula materiales y secciones de cables?</summary><p>El alcance del croquis es la representación de la obra y el presupuesto de mano de obra. El cálculo de materiales y el dimensionamiento de conductores requieren el criterio del profesional.</p></details>
       </section>
-      <footer class="plans-footer"><RouterLink to="/proyectos">← Volver a Mis proyectos</RouterLink><a href="mailto:emanuelquiroga.bgh@gmail.com">¿Necesitás ayuda? Contactanos</a></footer>
+      <footer class="plans-footer"><RouterLink to="/proyectos">← Volver a Mis proyectos</RouterLink><RouterLink to="/condiciones">Condiciones</RouterLink><RouterLink to="/privacidad">Privacidad</RouterLink><a href="mailto:emanuelquiroga.bgh@gmail.com">¿Necesitás ayuda? Contactanos</a></footer>
     </main>
   </div>
 </template>
