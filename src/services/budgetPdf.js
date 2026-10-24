@@ -6,7 +6,7 @@ const NAVY = [32, 48, 68];
 const BLUE = [36, 117, 185];
 const MUTED = [85, 101, 120];
 
-export async function buildBudgetPdf(budget, profile) {
+export async function buildBudgetPdf(budget, profile, { example = false } = {}) {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF();
   const left = 16, right = 194, width = right - left;
@@ -101,7 +101,7 @@ export async function buildBudgetPdf(budget, profile) {
   const pages = doc.getNumberOfPages();
   for (let page = 1; page <= pages; page++) {
     doc.setPage(page); doc.setDrawColor(218, 225, 233); doc.setLineWidth(.2); doc.line(left, 280, right, 280);
-    text('PRESUPUESTO | MANO DE OBRA', left, 286, 7, MUTED);
+    text(example ? 'EJEMPLO | DATOS FICTICIOS | VALORES ILUSTRATIVOS' : 'PRESUPUESTO | MANO DE OBRA', left, 286, 7, MUTED);
     text(`Página ${page} de ${pages}`, right, 286, 8, MUTED, 'normal', { align: 'right' });
   }
   return doc;

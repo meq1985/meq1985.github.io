@@ -11,16 +11,16 @@ const render = () => mount(Plans, { global: { stubs: { RouterLink: { props: ['to
 const button = (wrapper, text) => wrapper.findAll('button').find(b => b.text().includes(text));
 beforeEach(() => { vi.resetAllMocks(); window.history.replaceState({}, '', '/planes'); loadBillingAccess.mockResolvedValue({ ...base }); refreshSubscription.mockResolvedValue({ status: 'inactive' }); cancelSubscription.mockResolvedValue({}); });
 
-it('compares the free project and both plans without selling the unfinished sketch plan', async () => {
+it('compares the free project and both plans with finished-product copy while retaining checkout gates', async () => {
   const w = render(); await flushPromises();
   expect(w.findAll('.plan-card')).toHaveLength(3);
   expect(w.text()).toContain('$0'); expect(w.text()).toContain('12.000'); expect(w.text()).toContain('25.000');
-  expect(button(w, 'Contratación Full en preparación').element.disabled).toBe(true);
+  expect(button(w, 'Elegir Full').element.disabled).toBe(true);
   expect(w.findAll('.plan-card')[1].text()).toContain('Básico · Presupuestos');
   const full = w.findAll('.plan-card')[2];
   expect(full.text()).toContain('Full · Presupuestos + croquis');
   expect(full.text()).toContain('Medidor, tableros y jabalinas');
-  expect(full.text()).toContain('Croquis en pruebas');
+  expect(w.text()).not.toMatch(/próximamente|en pruebas|en desarrollo|en preparación/i);
   expect(full.text()).not.toContain('calcular presupuestos y materiales');
   expect(w.get('a[href="/proyectos/free/editar"]').text()).toContain('gratuito'); w.unmount();
 });
@@ -37,7 +37,7 @@ it('requires renewal consent and prevents blind repeated checkouts after failure
 });
 it('does not expose checkout when commercial activation is disabled or account loading fails', async () => {
   loadBillingAccess.mockResolvedValue({ ...base, enabled: false, checkoutAvailable: false });
-  const w = render(); await flushPromises(); expect(w.text()).toContain('preparación'); expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false); w.unmount();
+  const w = render(); await flushPromises(); expect(w.text()).toContain('Tu cuenta de Electricista Xpress'); expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false); w.unmount();
   loadBillingAccess.mockRejectedValue(new Error('private failure'));
   const failed = render(); await flushPromises(); expect(failed.get('[role="alert"]').text()).toContain('conexión');
   expect(failed.find('[data-testid="renewal-consent"]').exists()).toBe(false); expect(startSubscription).not.toHaveBeenCalled(); failed.unmount();

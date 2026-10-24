@@ -1,12 +1,15 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "../firebase";
 import { waitForAuth } from "../firebase/session";
+import { updateSeo } from '../services/seo';
 import { createAuthGuard } from "./guard";
 import { ensureAccountReady } from '../services/accountProvisioning';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    { path: "/condiciones", component: () => import("../views/LegalView.vue"), props: { kind: "conditions" } },
+    { path: "/privacidad", component: () => import("../views/LegalView.vue"), props: { kind: "privacy" } },
     { path: "/planes", name: "planes", component: () => import("../views/PlansView.vue"), meta: { auth: true } },
     { path: "/proyectos", name: "proyectos", component: () => import("../views/ProjectsView.vue"), meta: { auth: true } },
     { path: "/proyectos/:projectId/editar", name: "editar-proyecto", component: () => import("../views/DashboardView.vue"), props: true, meta: { auth: true } },
@@ -39,5 +42,7 @@ const router = createRouter({
 });
 
 router.beforeEach(createAuthGuard(auth, waitForAuth, ensureAccountReady));
+
+router.afterEach(to => updateSeo(to));
 
 export default router;

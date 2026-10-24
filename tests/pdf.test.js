@@ -1,10 +1,18 @@
 import { it, expect } from 'vitest';
 import { buildBudgetPdf } from '../src/services/budgetPdf';
 import { validateBudget } from '../src/services/budgetValidation';
+import { sampleBudget, sampleProfile } from '../src/data/sampleBudget';
 const profile = { nombre1: 'Martin', apellido1: 'Quiroga', cuit1: '20-12345678-9',
   empresa1: 'Instalaciones Demo', matricula1: 'MAT-123', telefono1: '2964 555123',
   correo: 'electricista@example.com', direccion1: 'Direccion de ejemplo 123' };
 const budget = () => ({ ...validateBudget('Cliente Demo', [{ codigo: 'A26-008', descripcion: 'Cableado', unidad: 'tramo de 5 m', cantidad: 2, precioUnitario: 125.25 }]), createdAt: '2026-10-20T01:00:00Z' });
+it('creates the public sample from the same generator with fictitious identity and consistent totals', async () => {
+  expect(sampleBudget.items.reduce((sum, item) => sum + item.cantidad * item.precioUnitario, 0)).toBe(sampleBudget.total);
+  const doc = await buildBudgetPdf(sampleBudget, sampleProfile, { example: true });
+  expect(doc.getNumberOfPages()).toBe(1);
+  const pdf = doc.output();
+  for (const text of ['DATOS FICTICIOS', 'VALORES ILUSTRATIVOS', 'Alex Ejemplo', 'electricista@example.com', '3.916.000,00', 'Cliente de ejemplo']) expect(pdf).toContain(text);
+});
 it('generates a professional PDF with all contact, tax, client and price data', async () => {
   const document = await buildBudgetPdf(budget(), profile);
   const blob = document.output('blob');

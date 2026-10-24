@@ -1,0 +1,68 @@
+// @vitest-environment jsdom
+import { afterEach, expect, it, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import BudgetDemo from '../src/components/BudgetDemo.vue';
+import LegalView from '../src/views/LegalView.vue';
+import { HOME_TITLE, SITE_URL, updateSeo } from '../src/services/seo';
+afterEach(() => { vi.useRealTimers(); document.head.innerHTML = ''; });
+it('runs a user-started 50 second demo, pauses, ends and cleans up its timer', async () => {
+  vi.useFakeTimers();
+  const w = mount(BudgetDemo);
+  expect(vi.getTimerCount()).toBe(0);
+  await w.get('button').trigger('click');
+  await vi.advanceTimersByTimeAsync(15000);
+  expect(w.get('h3').text()).toBe('Ajustá las cantidades');
+  await w.get('[aria-label="Agregar una boca"]').trigger('click');
+  expect(w.text()).toContain('3.966.000');
+  await w.get('button').trigger('click');
+  await vi.advanceTimersByTimeAsync(10000);
+  expect(w.get('progress').attributes('value')).toBe('15');
+  await w.get('button').trigger('click');
+  await vi.advanceTimersByTimeAsync(35000);
+  expect(w.get('progress').attributes('value')).toBe('50');
+  expect(vi.getTimerCount()).toBe(0);
+  expect(w.get('a[download]').attributes('href')).toBe('/ejemplo-presupuesto-electrico.pdf');
+  await w.get('button').trigger('click'); w.unmount();
+  expect(vi.getTimerCount()).toBe(0);
+});
+it('allows direct demo navigation without motion or a timer', async () => {
+  const w = mount(BudgetDemo);
+  await w.findAll('.demo-steps button')[2].trigger('click');
+  expect(w.find('a[download]').exists()).toBe(true);
+  expect(w.text()).toContain('No cambia al explorar esta demostración');
+  w.unmount();
+});
+it('uses clean canonical URLs for public pages and noindex for account routes', () => {
+  updateSeo({ path: '/', query: { utm_source: 'demo' } });
+  expect(document.title).toBe(HOME_TITLE);
+  expect(document.querySelector('link[rel="canonical"]').href).toBe(SITE_URL + '/');
+  updateSeo({ path: '/privacidad' });
+  expect(document.title).toContain('Privacidad');
+  expect(document.querySelector('meta[property="og:url"]').content).toBe(SITE_URL + '/privacidad');
+  updateSeo({ path: '/proyectos/private-id/editar' });
+  expect(document.querySelector('meta[name="robots"]').content).toBe('noindex,follow');
+  expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+  expect(document.head.innerHTML).not.toContain('private-id');
+  updateSeo({ path: '/' });
+  expect(document.querySelector('meta[name="robots"]').content).toBe('index,follow');
+  expect(document.querySelectorAll('meta[name="description"]')).toHaveLength(1);
+});
+it('ships static social metadata, valid structured data and a public-only sitemap', () => {
+  const html = readFileSync(resolve('index.html'), 'utf8');
+  const data = JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/s)[1]);
+  expect(data['@type']).toBe('SoftwareApplication');
+  expect(data).not.toHaveProperty('aggregateRating');
+  expect(html).toContain('og:description');
+  const sitemap = readFileSync(resolve('public/sitemap.xml'), 'utf8');
+  expect(sitemap.match(/<loc>/g)).toHaveLength(3);
+  expect(sitemap).not.toMatch(/dashboard|proyectos|planes|registrarse/);
+});
+it.each(['conditions', 'privacy'])('offers a public %s page without requiring account data', kind => {
+  const w = mount(LegalView, { props: { kind }, global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } });
+  expect(w.findAll('h1')).toHaveLength(1);
+  expect(w.text()).toContain('emanuelquiroga.bgh@gmail.com');
+  if (kind === 'conditions') expect(w.text()).toContain('Cancelar la renovación no elimina tus proyectos');
+  w.unmount();
+});

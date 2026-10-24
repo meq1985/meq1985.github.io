@@ -21,14 +21,17 @@ async function page(path = '/') {
   return { wrapper, router };
 }
 describe('professional landing and access', () => {
-  it('presents the new sketch and planned pricing without offering live charges or automatic materials', async () => {
+  it('presents finished-product copy with manual budgets first and the sketch second', async () => {
     const { wrapper } = await page();
-    expect(wrapper.get('h1').text()).toContain('Del croquis al presupuesto');
+    expect(wrapper.get('h1').text()).toContain('Presupuestos eléctricos');
     expect(wrapper.findAll('.home-plan')).toHaveLength(3);
     expect(wrapper.get('#planes').text()).toContain('12.000');
     expect(wrapper.get('#planes').text()).toContain('25.000');
-    expect(wrapper.get('#planes').text()).toContain('La contratación todavía no está habilitada');
-    expect(wrapper.get('#croquis').text()).toContain('El cálculo de materiales está en desarrollo');
+    expect(wrapper.text()).not.toMatch(/próximamente|en pruebas|en desarrollo|precio previsto|en preparación/i);
+    expect(wrapper.get('.actions a').text()).toContain('Crear mi primer proyecto gratis');
+    expect(wrapper.get('.lead').text()).toContain('desde el celular o la computadora');
+    expect(wrapper.find('a[download]').attributes('href')).toBe('/ejemplo-presupuesto-electrico.pdf');
+    expect(wrapper.get('#croquis').text()).toContain('borrador de mano de obra');
     expect(wrapper.get('#croquis svg').attributes('aria-label')).toContain('tablero general');
     expect(wrapper.get('.home-plan-full').text()).toContain('Recorridos medidos');
     expect(wrapper.find('.home-plan-full a').attributes('href')).toBe('/ingresar');
