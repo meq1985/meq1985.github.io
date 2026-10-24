@@ -8,6 +8,7 @@ import { auth, db } from '../../src/firebase';
 import { saveProject, loadProject, listProjects, loadProjectVersion, listProjectVersions } from '../../src/services/projects';
 import { emptySketch, encodeSketch } from '../../src/services/sketch';
 import { emptyQuoteSettings } from '../../src/services/sketchQuoteSettings';
+import { emptyMaterialNetwork } from '../../src/services/materialNetwork';
 const project = 'demo-presupuesto-electrico';
 let env, uid;
 const email = 'cloud-projects@example.invalid', password = 'Demo-only-Password42';
@@ -149,6 +150,22 @@ it('versions drawings with budgets and does not confuse changed drawings with a 
     await assertFails(batch.commit());
   }
   expect(encodeSketch(next.sketch)).toBeTypeOf('string');
+});
+it('saves material networks with immutable budget versions using the existing owner-scoped rules', async () => {
+  const data = { ...input('material-network'), sketch: { ...emptySketch(), schema: 2,
+    rooms: [{ id: 'room', levelId: 'planta-baja', name: 'Estar', x: 0, y: 0, width: 4, depth: 3,
+      points: [{ id: 'p1', type: 'luminaria', x: 0, y: 0 }, { id: 'p2', type: 'toma', x: 1, y: 1 }] }],
+    materials: { ...emptyMaterialNetwork(), circuits: [{ id: 'c1', name: 'Luces', type: 'IUG' }], routes: [
+      { id: 'r1', fromId: 'p1', toId: 'p2', feederId: null, bends: [], verticalMeters: 2, conduit: 'Caño elegido',
+        assignments: [{ circuitId: 'c1', wires: [{ role: 'phase', section: 2.5, count: 1 }] }] },
+    ] } } };
+  await saveProject(data);
+  expect((await loadProject('material-network')).version.sketch).toEqual(data.sketch);
+  const next = structuredClone(data); next.expectedRevision = 1; next.sketch.materials.reservePercent = 20;
+  await saveProject(next);
+  expect((await loadProjectVersion('material-network', 1)).sketch.materials.reservePercent).toBe(0);
+  expect((await loadProject('material-network')).version.sketch.materials.reservePercent).toBe(20);
+  await assertFails(updateDoc(doc(ref('material-network'), 'versiones', '1'), { sketch: encodeSketch(next.sketch) }));
 });
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');
