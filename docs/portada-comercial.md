@@ -6,7 +6,7 @@ La portada prioriza presupuestos con precios propios y PDF profesional para elec
 
 El ejemplo utiliza cantidades, importes y estructura de un proyecto proporcionado por el titular. Todas las identidades, CUIT, matrícula, contactos y dirección son ficticios. El archivo original no se incorpora al repositorio. El PDF público se genera con el mismo generador de la aplicación y lleva una leyenda de ejemplo.
 
-Para regenerarlo: `node scripts/generate-sample-pdf.mjs`. Revisar visualmente el resultado antes de publicarlo. El resumen de la portada y la demostración deben coincidir con ese PDF: 43 bocas, 120 m², tableros y alimentación, total ARS 3.916.000. Las cantidades de la demostración son temporales; el archivo descargado conserva el caso de muestra.
+Para regenerarlo: `node scripts/generate-sample-pdf.mjs`. Revisar visualmente el resultado antes de publicarlo. El resumen de la portada debe coincidir con ese PDF: 43 bocas, 120 m², tableros y alimentación, total ARS 3.916.000. La descarga se identifica como PDF de ejemplo con datos ficticios y valores ilustrativos. La portada no incluye una demostración interactiva; el bloque del croquis aparece antes de las seis tarjetas de herramientas.
 
 ## SEO y páginas públicas
 
