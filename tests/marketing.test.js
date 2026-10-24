@@ -52,11 +52,17 @@ it('uses clean canonical URLs for public pages and noindex for account routes', 
 it('ships static social metadata, valid structured data and a public-only sitemap', () => {
   const html = readFileSync(resolve('index.html'), 'utf8');
   const data = JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/s)[1]);
+  expect(SITE_URL).toBe('https://electricistaxpress.com.ar');
+  expect(data.url).toBe(SITE_URL + '/');
+  expect(html).toContain(`<link rel="canonical" href="${SITE_URL}/"`);
+  expect(html).toContain(`<meta property="og:url" content="${SITE_URL}/"`);
   expect(data['@type']).toBe('SoftwareApplication');
   expect(data).not.toHaveProperty('aggregateRating');
   expect(html).toContain('og:description');
   const sitemap = readFileSync(resolve('public/sitemap.xml'), 'utf8');
   expect(sitemap.match(/<loc>/g)).toHaveLength(3);
+  expect(sitemap.match(/<loc>(.*?)<\/loc>/g).every(url => url.startsWith('<loc>' + SITE_URL + '/'))).toBe(true);
+  expect(readFileSync(resolve('public/robots.txt'), 'utf8')).toContain(`Sitemap: ${SITE_URL}/sitemap.xml`);
   expect(sitemap).not.toMatch(/dashboard|proyectos|planes|registrarse/);
 });
 it.each(['conditions', 'privacy'])('offers a public %s page without requiring account data', kind => {

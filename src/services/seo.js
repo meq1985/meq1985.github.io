@@ -1,4 +1,4 @@
-export const SITE_URL = 'https://electricistaxpress.web.app';
+export const SITE_URL = 'https://electricistaxpress.com.ar';
 export const HOME_TITLE = 'Presupuestos eléctricos con tus precios | Electricista Xpress';
 export const HOME_DESCRIPTION = 'Organizá tus trabajos, actualizá la mano de obra y prepará presupuestos eléctricos en PDF desde el celular o la computadora. Creá tu primer proyecto gratis.';
 const pages = {
