@@ -12,7 +12,7 @@ Para regenerarlo: `node scripts/generate-sample-pdf.mjs`. Revisar visualmente el
 
 Se incluyen metadatos iniciales, Open Graph, Twitter, JSON-LD sin reseñas ni ofertas inventadas, URLs canónicas y un sitemap limitado a inicio, condiciones y privacidad. Las rutas de cuenta llevan `noindex` en el navegador y en los encabezados de Firebase Hosting. Las reglas de autorización siguen protegiendo los datos; `noindex` no sustituye esa protección.
 
-La URL canónica actual es `https://electricistaxpress.web.app`. Al conectar un dominio propio, actualizar de forma coordinada metadatos iniciales, servicio de SEO, sitemap y robots. Search Console y el prerenderizado de contenido público no forman parte de este cambio.
+La URL canónica es `https://electricistaxpress.com.ar`. El dominio propio y `www` están conectados a Firebase Hosting; `www` redirige al dominio principal. Metadatos iniciales, servicio de SEO, sitemap y robots usan el dominio propio. Se conserva el acceso por `electricistaxpress.web.app` para mantener enlaces anteriores. Search Console y el prerenderizado de contenido público no forman parte de este cambio.
 
 ## Antes de publicar o vender
 
