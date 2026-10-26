@@ -46,7 +46,14 @@ export function validateMaterialNetwork(input, sketch, unique) {
   const extras = list(input.extras, 100).map(e => ({ id: unique(e.id), description: text(e.description, 120),
     unit: ['ud.', 'm'].includes(e.unit) ? e.unit : fail(), quantity: number(e.quantity, 0.01, 100000),
     ...(e.unit === 'ud.' && !Number.isInteger(e.quantity) ? fail() : {}) }));
-  return { schema: 1, circuits, junctions, routes, extras, reservePercent: number(input.reservePercent, 0, 50) };
+  let calculation;
+  if (input.calculation !== undefined) {
+    const c = input.calculation;
+    if (!c || c.profile !== 'cu-pvc-b1-v1') fail();
+    calculation = { profile: c.profile, voltage: number(c.voltage, 200, 240), limitPercent: number(c.limitPercent, 0.1, 5),
+      upstreamPercent: number(c.upstreamPercent, 0, 5), correctionFactor: number(c.correctionFactor, 0.1, 1), boardHeight: number(c.boardHeight ?? 1.5, 0.1, 5) };
+  }
+  return { schema: 1, circuits, junctions, routes, extras, reservePercent: number(input.reservePercent, 0, 50), ...(calculation ? { calculation } : {}) };
 }
 export function materialRoutePoints(sketch, route) {
   if (route.feederId) {
@@ -81,7 +88,7 @@ export function materialsFromSketch(sketch) {
     add(`device-${point.type}`, { luminaria: 'Luminaria · artefacto a definir', toma: 'Tomacorriente · mecanismo a definir', llave: 'Llave · mecanismo a definir' }[point.type], 'ud.', 1, point.id, true);
   }
   for (const j of network.junctions) add('junction', 'Caja de paso · modelo a definir', 'ud.', 1, j.id, true);
-  for (const e of sketch.equipment ?? []) add(`equipment-${e.type}`, ({ general: 'Gabinete TG', seccional: 'Gabinete TS', principal: 'Conjunto TP', medidor_tp: 'Conjunto medidor + TP', jabalina: 'Jabalina' }[e.type]) + ' · componentes a definir', 'ud.', 1, e.id, true);
+  for (const e of sketch.equipment ?? []) add(`equipment-${e.type}-${e.specification ?? ''}`, ({ general: 'Gabinete TG', seccional: 'Gabinete TS', principal: 'Conjunto TP', medidor_tp: 'Conjunto medidor + TP', jabalina: 'Jabalina' }[e.type]) + ' · ' + (e.specification || 'componentes a definir'), 'ud.', 1, e.id, true);
   const linked = new Set(network.routes.map(r => r.feederId).filter(Boolean));
   for (const f of sketch.feeders ?? []) if (!linked.has(f.id)) warnings.push('Un recorrido TP → TG no está incorporado a materiales.');
   for (const r of network.routes) {

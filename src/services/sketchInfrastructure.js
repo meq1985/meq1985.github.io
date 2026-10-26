@@ -10,7 +10,8 @@ export function validateInfrastructure(input, levels, unique) {
   if (!Array.isArray(input.equipment) || !Array.isArray(input.feeders) || input.equipment.length > 50 || input.feeders.length > 50) fail();
   const equipment = input.equipment.map(e => {
     if (!Object.hasOwn(EQUIPMENT_TYPES, e.type) || !levels.some(l => l.id === e.levelId) || typeof e.name !== 'string' || !e.name.trim() || e.name.length > 60 || !['', ...EQUIPMENT_ITEMS[e.type]].includes(e.itemId)) fail();
-    return { id: unique(e.id), type: e.type, name: e.name.trim(), levelId: e.levelId, ...coords(e), itemId: e.itemId };
+    if (e.specification !== undefined && (typeof e.specification !== 'string' || e.specification.length > 120)) fail();
+    return { id: unique(e.id), type: e.type, name: e.name.trim(), levelId: e.levelId, ...coords(e), itemId: e.itemId, ...(e.specification === undefined ? {} : { specification: e.specification.trim() }) };
   });
   const pairs = new Set();
   const feeders = input.feeders.map(f => {

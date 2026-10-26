@@ -1,46 +1,45 @@
-# Materiales desde el croquis: primera entrega
+# Croquis, materiales y propuesta de circuitos
 
-Esta entrega permite definir circuitos y conductores individuales manualmente, dibujar tramos interiores y obtener una lista parcial sin precios. No implementa el dimensionamiento automático del plan completo. No activa pagos ni permisos nuevos y no debe publicarse hasta revisar el alcance con el titular.
+## Interacción
 
-## Interacción en el plano
+La rama incluye la portada del PR #15. Tablero, Medidor + TP, Jabalina y Caja de paso se ubican desde botones del plano. Conectar une dos símbolos; Trazar conexión admite quiebres antes de tocar el destino. Escape y cambiar de nivel descartan un trazado sin guardar. No hay formularios inferiores para elegir Desde/Hasta. Tocar equipos abre materiales; allí se eligen función, capacidad/montaje y trabajo del catálogo. Especificación del gabinete es texto editable, no una selección automática de módulos.
 
-«Conectar» permite tocar un elemento de origen y luego el destino. «Trazar conexión» permite marcar quiebres en el plano entre ambos. Escape o Cancelar descarta el trazado sin guardarlo; cambiar de nivel también lo descarta. Una conexión existente se selecciona en lugar de duplicarse. Tocar una línea abre sus propiedades; «Ver materiales» abre la lista y «Opciones de materiales» agrupa los ajustes. No hay selectores Desde/Hasta ni bloques permanentes de recorridos debajo del dibujo.
+«Opciones de materiales» se reemplaza por «Calcular instalación». Los adicionales y reserva están plegados dentro de Ver materiales. La comprobación monofásica manual sigue disponible en Herramientas manuales adicionales.
 
-Las conexiones entre llave y luminaria se guardan como vínculos de control. No asignan por sí solas el circuito ni la cantidad de retornos o conductores. Sus longitudes representan el trazado elegido y requieren completar los conductores en las propiedades.
+## Propuesta automática, perfil cu-pvc-b1-v1
 
-## Geometría y medición
+Primer caso autorizado por el titular: vivienda monofásica, cobre unipolar PVC en cañería embutida. No constituye validación reglamentaria completa. No cubre locales, industria, TUE, consumos específicos ni diseño trifásico.
 
-Los extremos pueden ser puntos existentes, equipos o nuevas cajas de paso. Los tramos se editan con quiebres en el plano, en un mismo nivel. La longitud suma segmentos y los metros verticales explícitos; no infiere bajadas con las alturas generales. Los cruces gráficos no crean conexiones. Una caja de paso intermedia requiere dividir los tramos deliberadamente.
+Se usa un árbol radial propuesto sobre caminos dibujados, seleccionando el camino más corto hasta un TG/TS, sin inventar segmentos. Las conexiones de control llave–luminaria no son caminos de alimentación. Se dibuja la alimentación hasta la luminaria y una derivación de control hacia su llave. Las curvas se suman por segmentos, nunca por distancia recta entre extremos. Cruces gráficos sin nodo no conectan. Entre niveles todavía no se trazan conexiones.
 
-Cada tramo físico admite varios circuitos y cuenta una sola canalización. Los conductores se agregan explícitamente por circuito, función, cantidad y sección; no se suponen neutros, PE ni retornos. La familia de conductor sigue pendiente de confirmar. No se admiten cables multipolares ni se asignan secciones o protecciones automáticamente.
+IUG y TUG se separan, con máximo de 15 puntos por circuito. Las variantes mínimas de cantidad por superficie son las aportadas para el proyecto: hasta 60 m² 1 IUG + 1 TUG; hasta 130 m² 2 + 1; hasta 200 m² 2 + 3; superior 2 + 4 (el circuito libre se propone TUG). Se reserva la cantidad mínima aunque falten puntos. Con varios tableros no se inventa el reparto de esos mínimos: se indica revisión. Estas reglas de planificación no acreditan conformidad con una edición vigente de AEA; las tablas originales aportadas son del borrador 2016.
 
-Los recorridos TP → TG se pueden incorporar por referencia: conservan la geometría y verticales del original, incluso cuando se edita. No se vuelven a sumar como otro tramo. Borrar puntos, cajas o equipos elimina los tramos vinculados; Deshacer recupera el conjunto. Se impiden duplicados entre dos extremos, referencias rotas y conductores duplicados por función dentro del mismo circuito/tramo.
+Demanda IUG: 60 VA × 2/3 por luminaria, TUG: 2200 VA por circuito. Protecciones de partida 10 A y 16 A respectivamente. Los consumos reales, especiales y simultaneidad requieren revisión; no hay edición individual de cargas en esta entrega.
 
-## Lista y exportación
+Se selecciona entre 1,5 / 2,5 / 4 / 6 / 10 / 16 mm², por mínimo del circuito, IB ≤ In ≤ Iz corregida y caída. Iz de referencia B1, cobre PVC, tres conductores cargados a 30 °C: 15,5 / 21 / 28 / 36 / 50 / 68 A. Es una referencia conservadora térmica para el caso monofásico. El agrupamiento por circuitos que comparten cañería se calcula según la tabla IEC B.52.17; un factor adicional editable permite corregir temperatura/condiciones. No se verifica ocupación de caños ni selección de diámetro.
 
-Se suman canalizaciones, conductores, una caja y un mecanismo por símbolo, cajas de paso y equipos dibujados. Los componentes sin especificación se identifican como pendientes. Las cajas compartidas y conjuntos de pilar/tablero requieren revisión manual: no se genera una receta de componentes ni se verifica el diseño eléctrico. Las jabalinas dibujadas se mantienen en materiales aunque su mano de obra esté incluida en un paquete.
+Caída: 2 × L(km) × I × 23,7/S, con cos φ = 1 y reactancia despreciada en las secciones disponibles. Modelo conservador resistivo de cobre caliente; no se toma el dato 7,98 Ω/km como resistencia de todas las secciones. Se usa toda la demanda simultánea en el camino al punto más alejado, incluyendo una derivación de mando: simplificación conservadora frente a un cálculo de carga repartida. El límite inicial es 2%, editable; no se presenta como límite normativo validado.
 
-Los adicionales se suman expresamente a lo dibujado; no reemplazan filas. La reserva elegida es cero por defecto y afecta solo longitudes. Cantidad calculada y cantidad con reserva se muestran separadas. El CSV incluye el estado parcial y las observaciones y neutraliza fórmulas de hojas de cálculo. El PDF existente continúa siendo de mano de obra; esta entrega no crea un PDF de materiales.
+El alimentador TP → TG dibujado se crea también en la estructura de mano de obra existente, con referencia única desde materiales. Se calcula con la demanda de sus circuitos y protección propuesta entre 16 y 63 A, sección mínima 4 mm². Se reserva la mitad del margen disponible para él; su caída real calculada se suma a los circuitos terminales. La caída anterior al TP se ingresa expresamente. Sin alimentador dibujado, ese campo representa toda la caída previa al TG. No se verifican acometida de distribuidora, cortocircuito, curvas, selectividad ni desconexión. Si un dato no permite seleccionar sección o hay más de un alimentador activo posible, queda pendiente.
 
-## Persistencia y compatibilidad
+## Alturas y metros
 
-Un dibujo sin materiales conserva schema 1. La primera edición de materiales crea schema 2 con un bloque `materials` versionado que contiene circuitos, cajas, tramos, adicionales y reserva. Se conserva el límite total de 80.000 bytes del JSON, validado al guardar. Se guarda dentro de la versión del proyecto mediante la transacción existente. Las reglas de Firestore ya admiten este string acotado y no se modifican. Los clientes anteriores rechazan schema 2 y no pueden abrirlo y sobrescribirlo descartando los materiales.
+Modelo de canalización por techo. Luminaria y cajas de paso se consideran a altura de techo; tomas y llaves usan las alturas generales del proyecto; los tableros usan altura editable (inicial 1,5 m). A cada tramo se agregan ambas diferencias con el techo. Ejemplo: techo 3 m, tablero 1,5 m, toma 0,3 m: 1,5 + 2,7 = 4,2 m verticales además de la planta.
 
-El resultado se deriva de los datos guardados; no se persiste una aprobación ni una lista obsoleta. Una exportación refleja el estado actual y siempre es parcial. Los límites de esta entrega son 50 circuitos, 50 cajas de paso, 150 tramos, 50 quiebres por tramo y 100 adicionales, sujetos también al límite de bytes.
+Verticales manuales mayores que cero reemplazan las inferidas de ese tramo, para evitar doble conteo. Las alturas desconocidas o mayores al techo dejan el tramo pendiente y lo excluyen del cómputo automático, en vez de asumir cero. Los resultados y el CSV suman metros de caños y cada conductor con esas verticales. La geometría original permanece sin modificar. El recorrido de mano de obra TP → TG conserva sus mediciones manuales; estas nuevas verticales automáticas se aplican al cálculo eléctrico y materiales, no a otra cantidad de mano de obra oculta.
 
-## Chequeo monofásico
+## Materiales y persistencia
 
-La comprobación independiente de un tramo recibe demanda aparente, tensión, longitud de ida, resistencia, factor de potencia y reactancia, o una decisión explícita de omitirla. Calcula corriente, caída y porcentaje sin redondeos intermedios. El límite es ingresado por el usuario; no se atribuye a una norma validada. Comprueba parcialmente IB ≤ In ≤ Iz con la corriente admisible corregida ingresada y compara poder de corte con cortocircuito previsto únicamente cuando ambos datos están presentes.
+En automático se derivan fase, neutro y PE por tramo/circuito; en mandos simples se deriva fase, retorno y PE. PE se propone con al menos 2,5 mm² y no menor que fase en este rango. No se resuelven combinaciones de llaves, viajeros ni mecanismos múltiples. Las asignaciones manuales se conservan al activar automático, pero se sustituyen en la vista y exportación por la propuesta derivada; desactivar automático vuelve a mostrarlas. No se guarda una lista obsoleta.
 
-El caso aportado por el titular usa 440 VA, 220 V, 24 m, R = 7,98 Ω/km, cos φ = 0,95 y omite X. Reproduce 2 A, 0,727776 V y 0,3308072727 %. Los 10 A de protección y 21 A admisibles son entradas, no selecciones del motor. Los 3 kA no quedan confirmados sin cortocircuito previsto. No verifica curva, desconexión, coordinación completa ni caída acumulada.
+Una canalización compartida se cuenta una vez. Se suman cajas, mecanismos y equipos dibujados. La reserva explícita solo afecta longitudes y vale cero por defecto. El CSV contiene observaciones y neutraliza fórmulas de hoja de cálculo. Lista siempre parcial para revisar; no se generan recetas completas de tableros/PAT ni PDF de materiales.
 
-Las tablas aportadas de AEA 770 de 2016 provienen de un documento para discusión pública. No se incorporan como reglamento vigente ni se eligen automáticamente calibre, sección o electrificación. La automatización requiere contrastar edición publicada, correcciones, alcance y casos revisados por el titular.
+El dibujo conserva schema 1 sin materiales y schema 2 con materials. Las opciones del cálculo se guardan en materials.calculation y las especificaciones de equipo junto al equipo, dentro de la versión existente del proyecto. Límite total 80.000 bytes. Borrar elementos elimina referencias huérfanas y Deshacer restaura el conjunto. No cambia reglas de Firestore ni crea colecciones adicionales. No activa cobros ni modifica permisos de planes.
 
-Referencias de la fórmula y comprobaciones parciales:
-- https://www.electrical-installation.org/enwiki/Calculation_of_voltage_drop_in_steady_load_conditions
-- https://www.se.com/ph/en/faqs/FAQ000283711/
-- https://www.electrical-installation.org/enwiki/Selection_of_a_circuit-breaker
+## Fuentes técnicas contrastadas
 
-## Trabajo posterior
+- Schneider Electric, metodología, tabla G20/IEC B.52.4 y agrupamiento G16/IEC B.52.17: https://www.electrical-installation.org/enwiki/General_method_for_cable_sizing
+- Schneider Electric, fórmula de caída y modelo R = 23,7/S: https://www.electrical-installation.org/enwiki/Calculation_of_voltage_drop_in_steady_load_conditions
+- AEA, extracto de la edición 2017: alcance de viviendas unifamiliares hasta 63 A, que no se debe extrapolar a todos los destinos: https://aea.org.ar/wp-content/uploads/2017/10/90364-7-770-1.pdf
 
-Faltan mecanismos múltiples en una caja, circuitos propuestos según usos/cargas, recorridos entre niveles, familias y presentaciones comerciales, perfiles de tableros/pilar/PAT, dimensionamiento técnico completo, revisión persistente, PDF de materiales y permisos Full en cliente/servidor. No anunciar esas funciones como implementadas.
+Pendiente antes de considerar el diseño completo: perfiles reglamentarios publicados y revisados, cargas individuales/TUE, otros destinos, múltiples tableros y niveles, térmica de cortocircuito/desconexión, protecciones completas, diámetro de caños, módulos reales, PAT y PDF de materiales. No publicar esta rama sin revisión del titular.

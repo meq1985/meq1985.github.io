@@ -2,10 +2,10 @@
 import { computed, ref, watch, useId, inject } from 'vue';
 import { emptySketch, validateSketch, encodeSketch, sketchSummary, overlapsRoom, POINT_TYPES, SKETCH_LIMITS } from '../services/sketch';
 import { EQUIPMENT_TYPES, feederPoints, feederLength } from '../services/sketchInfrastructure';
-import InfrastructureControls from './InfrastructureControls.vue';
 import NumberField from './NumberField.vue';
 import MaterialControls from './MaterialControls.vue';
 import { emptyMaterialNetwork, materialAnchors, materialRoutePoints, materialRouteLength, pruneMaterialNetwork } from '../services/materialNetwork';
+import { calculatedRouteLength } from '../services/automaticDesign';
 const showHelp = inject('budgetHelp', () => {});
 const props = defineProps({ modelValue: { type: Object, default: null }, disabled: Boolean, entries: { type: Array, default: () => [] } });
 const emit = defineEmits(['update:modelValue']);
@@ -22,7 +22,7 @@ function cancelConnection() { connectionMode.value = ''; connectionStart.value =
 function beginConnection(mode) { if (props.disabled) return; cancelConnection(); connectionMode.value = mode; tool.value = 'select'; infraTool.value = ''; materialView.value = ''; }
 function selectAnchor(id) {
   if (props.disabled) return;
-  if (!connectionMode.value) { equipmentId.value = id; return; }
+  if (!connectionMode.value) { equipmentId.value = id; if (sketch.value.equipment?.some(e => e.id === id)) materialView.value = 'list'; return; }
   if (!connectionStart.value) { connectionStart.value = id; return; }
   if (connectionStart.value === id) return;
   const anchors = materialAnchors(sketch.value), from = anchors.find(a => a.id === connectionStart.value), to = anchors.find(a => a.id === id);
@@ -31,7 +31,15 @@ function selectAnchor(id) {
   const newId = existing?.id ?? freshId();
   if (existing || change(next => {
     next.schema = 2; next.materials ??= emptyMaterialNetwork();
-    next.materials.routes.push({ id: newId, fromId: from.id, toId: to.id, kind: [from.type, to.type].includes('llave') && [from.type, to.type].includes('luminaria') ? 'control' : 'physical', feederId: null, bends: clone(draftBends.value), verticalMeters: 0, conduit: '', assignments: [] });
+    const principal = [from, to].find(a => ['principal', 'medidor_tp'].includes(a.type)), general = [from, to].find(a => a.type === 'general');
+    let feederId = null, bends = clone(draftBends.value), fromId = from.id, toId = to.id;
+    if (principal && general) {
+      next.feeders ??= [];
+      let feeder = next.feeders.find(f => f.fromId === principal.id && f.toId === general.id);
+      if (!feeder) { feeder = { id: freshId(), fromId: principal.id, toId: general.id, bends: from.id === principal.id ? bends : bends.slice().reverse(), verticalMeters: 0, itemId: '' }; next.feeders.push(feeder); }
+      feederId = feeder.id; fromId = feeder.fromId; toId = feeder.toId; bends = [];
+    }
+    next.materials.routes.push({ id: newId, fromId, toId, kind: [from.type, to.type].includes('llave') && [from.type, to.type].includes('luminaria') ? 'control' : 'physical', feederId, bends, verticalMeters: 0, conduit: '', assignments: [] });
   })) { cancelConnection(); materialRouteId.value = newId; materialView.value = 'route'; }
 }
 function selectMaterialRoute(id) { if (props.disabled) return; cancelConnection(); materialRouteId.value = id; materialView.value = 'route'; }
@@ -130,7 +138,10 @@ function placeInfrastructure(event) {
   const y = Math.round((event.clientY - bounds.top) / bounds.height * depth.value * 10) / 10;
   if (connectionMode.value) { if (connectionMode.value === 'trace' && startAnchor.value) draftBends.value.push({ x, y }); return; }
   if (infraTool.value === 'material-junction') { change(next => { next.schema = 2; next.materials ??= emptyMaterialNetwork(); next.materials.junctions.push({ id: freshId(), name: 'Caja de paso', levelId: levelId.value, x, y }); }); infraTool.value = ''; }
-  else if (infraTool.value === 'material-route') change(next => next.materials.routes.find(r => r.id === materialRouteId.value).bends.push({ x, y }));
+  else if (infraTool.value === 'material-route') change(next => {
+    const route = next.materials.routes.find(r => r.id === materialRouteId.value);
+    if (route.feederId) next.feeders.find(f => f.id === route.feederId).bends.push({ x, y }); else route.bends.push({ x, y });
+  });
   else if (infraTool.value === 'route') change(next => next.feeders.find(f => f.id === routeId.value).bends.push({ x, y }));
   else addInfrastructure(infraTool.value, x, y);
 }
@@ -162,7 +173,7 @@ function beginInfrastructureTool(type) {
           </template>
         </div>
         <div class="sketch-workspace">
-          <div class="sketch-tools" role="group" aria-label="Herramientas del croquis"><button type="button" :aria-pressed="tool === 'select'" @click="tool = 'select'; infraTool = ''; cancelConnection()">Seleccionar</button><button v-for="(label, type) in POINT_TYPES" :key="type" type="button" :aria-pressed="tool === type" @click="tool = type; infraTool = ''; cancelConnection()">{{ label }}</button><button type="button" :aria-pressed="connectionMode === 'direct'" @click="beginConnection('direct')">Conectar</button><button type="button" :aria-pressed="connectionMode === 'trace'" @click="beginConnection('trace')">Trazar conexión</button><button type="button" @click="beginInfrastructureTool('material-junction')">Caja de paso</button><button type="button" @click="materialView = materialView === 'list' ? '' : 'list'">Ver materiales</button><button type="button" @click="materialView = materialView === 'settings' ? '' : 'settings'">Opciones de materiales</button></div>
+          <div class="sketch-tools" role="group" aria-label="Herramientas del croquis"><button type="button" :aria-pressed="tool === 'select'" @click="tool = 'select'; infraTool = ''; cancelConnection()">Seleccionar</button><button v-for="(label, type) in POINT_TYPES" :key="type" type="button" :aria-pressed="tool === type" @click="tool = type; infraTool = ''; cancelConnection()">{{ label }}</button><button type="button" :aria-pressed="connectionMode === 'direct'" @click="beginConnection('direct')">Conectar</button><button type="button" :aria-pressed="connectionMode === 'trace'" @click="beginConnection('trace')">Trazar conexión</button><button type="button" @click="beginInfrastructureTool('material-junction')">Caja de paso</button><button type="button" @click="beginInfrastructureTool('general')">Tablero</button><button type="button" @click="beginInfrastructureTool('medidor_tp')">Medidor + TP</button><button type="button" @click="beginInfrastructureTool('jabalina')">Jabalina</button><button type="button" @click="materialView = materialView === 'list' ? '' : 'list'">Ver materiales</button><button type="button" @click="materialView = materialView === 'settings' ? '' : 'settings'">Calcular instalación</button></div>
           <p v-if="connectionMode" role="status" class="catalog-notice">{{ !connectionStart ? 'Tocá el elemento de origen.' : connectionMode === 'trace' ? 'Marcá los quiebres en el plano y tocá el elemento de destino.' : 'Tocá el elemento de destino.' }} <button type="button" @click="cancelConnection">Cancelar conexión</button></p>
           <p v-else-if="infraTool" class="catalog-notice" role="status">{{ ['route', 'material-route'].includes(infraTool) ? 'Tocá el plano para agregar quiebres al recorrido seleccionado.' : `Tocá el plano para ubicar: ${(infraTool === 'material-junction' ? 'Caja de paso' : EQUIPMENT_TYPES[infraTool])}.` }} <button type="button" @click="infraTool = ''">Terminar ubicación</button></p>
           <p v-else-if="tool !== 'select'" class="muted" role="status">{{ POINT_TYPES[tool] }}: tocá un ambiente.</p>
@@ -175,13 +186,13 @@ function beginInfrastructureTool(type) {
               <text :x="item.x * 30 + 7" :y="item.y * 30 + 30" fill="#a9bfd3" font-size="9">{{ item.width }} × {{ item.depth }} m</text>
               <g v-for="point in item.points" :key="point.id" :transform="`translate(${(item.x + point.x * item.width) * 30}, ${(item.y + point.y * item.depth) * 30})`" class="sketch-symbol" ><circle r="14" fill="transparent" /><title>{{ POINT_TYPES[point.type] }} · {{ item.name }}</title><circle r="7" fill="#101e2c" stroke="#f8ce76" stroke-width="1.5" /><path v-if="point.type === 'luminaria'" d="M-4-4 4 4 M-4 4 4-4" stroke="#f8ce76" /><path v-else-if="point.type === 'toma'" d="M-2-3 V3 M2-3 V3" stroke="#f8ce76" /><path v-else d="M-3 3 3-3" stroke="#f8ce76" /></g>
             </g>
-            <g class="material-route-lines"><g v-for="r in materialRoutes" :key="r.id" :data-material-route="r.id" role="button" tabindex="0" :aria-label="`Seleccionar conexión ${r.id}`" @click.stop="selectMaterialRoute(r.id)" @keydown.enter.stop.prevent="selectMaterialRoute(r.id)" @keydown.space.stop.prevent="selectMaterialRoute(r.id)"><polyline :points="materialRoutePoints(sketch, r).map(p => `${p.x * 30},${p.y * 30}`).join(' ')" fill="none" stroke="transparent" stroke-width="14" /><polyline :points="materialRoutePoints(sketch, r).map(p => `${p.x * 30},${p.y * 30}`).join(' ')" fill="none" :stroke="r.id === materialRouteId ? '#ffda8a' : '#cbacff'" stroke-width="2.5" /><text :x="materialRoutePoints(sketch, r)[0].x * 30 + 10" :y="materialRoutePoints(sketch, r)[0].y * 30 - 14" fill="#cbacff" font-size="9">{{ materialRouteLength(sketch, r).toFixed(2) }} m</text></g><g v-for="j in junctions" :key="j.id" ><circle :cx="j.x * 30" :cy="j.y * 30" r="14" fill="transparent" /><rect :x="j.x * 30 - 5" :y="j.y * 30 - 5" width="10" height="10" fill="#cbacff" /><title>{{ j.name }}</title></g></g>
+            <g class="material-route-lines"><g v-for="r in materialRoutes" :key="r.id" :data-material-route="r.id" role="button" tabindex="0" :aria-label="`Seleccionar conexión ${r.id}`" @click.stop="selectMaterialRoute(r.id)" @keydown.enter.stop.prevent="selectMaterialRoute(r.id)" @keydown.space.stop.prevent="selectMaterialRoute(r.id)"><polyline :points="materialRoutePoints(sketch, r).map(p => `${p.x * 30},${p.y * 30}`).join(' ')" fill="none" stroke="transparent" stroke-width="14" /><polyline :points="materialRoutePoints(sketch, r).map(p => `${p.x * 30},${p.y * 30}`).join(' ')" fill="none" :stroke="r.id === materialRouteId ? '#ffda8a' : '#cbacff'" stroke-width="2.5" /><text :x="materialRoutePoints(sketch, r)[0].x * 30 + 10" :y="materialRoutePoints(sketch, r)[0].y * 30 - 14" fill="#cbacff" font-size="9">{{ (sketch.materials?.calculation ? calculatedRouteLength(sketch, r)?.toFixed(2) ?? '?' : materialRouteLength(sketch, r).toFixed(2)) }} m</text></g><g v-for="j in junctions" :key="j.id" ><circle :cx="j.x * 30" :cy="j.y * 30" r="14" fill="transparent" /><rect :x="j.x * 30 - 5" :y="j.y * 30 - 5" width="10" height="10" fill="#cbacff" /><title>{{ j.name }}</title></g></g>
             <polyline v-if="draftPoints" :points="draftPoints" fill="none" stroke="#ffda8a" stroke-width="3" stroke-dasharray="4 3" pointer-events="none" /><circle v-if="startAnchor" :cx="startAnchor.x * 30" :cy="startAnchor.y * 30" r="11" fill="none" stroke="#ffda8a" pointer-events="none" />
             <g class="sketch-feeders"><g v-for="f in feeders" :key="f.id"><polyline :points="feederPoints(sketch, f).map(p => `${p.x * 30},${p.y * 30}`).join(' ')" fill="none" :stroke="f.id === routeId ? '#ffda8a' : '#76dbb5'" stroke-width="2" stroke-dasharray="5 3" /><text :x="feederPoints(sketch, f)[0].x * 30 + 14" :y="feederPoints(sketch, f)[0].y * 30 + 25" fill="#76dbb5" font-size="10">{{ feederLength(sketch, f) }} m</text></g></g>
             <g v-for="e in equipment" :key="e.id" class="sketch-equipment" :transform="`translate(${e.x * 30},${e.y * 30})`" ><title>{{ e.name }}</title><rect x="-13" y="-9" width="26" height="18" rx="3" fill="#142c40" :stroke="e.id === equipmentId ? '#fff' : '#79c9ff'" stroke-width="1.5"/><text text-anchor="middle" y="3" font-size="8" fill="#fff">{{ equipmentCode(e.type) }}</text></g>
             <g v-for="a in materialAnchors(sketch).filter(a => a.levelId === levelId)" :key="`hit-${a.id}`" class="anchor-hit" role="button" tabindex="0" :aria-label="a.name" :data-anchor="a.id" :aria-pressed="connectionStart === a.id" @click.stop="selectAnchor(a.id)" @keydown.enter.stop.prevent="selectAnchor(a.id)" @keydown.space.stop.prevent="selectAnchor(a.id)"><circle :cx="a.x * 30" :cy="a.y * 30" r="13" fill="transparent" /></g>
           </svg>
-      <MaterialControls :view="materialView" :sketch="sketch" :level-id="levelId" :disabled="disabled" :selected-route-id="materialRouteId" @close="materialView = ''" @edit="change" @select="materialRouteId = $event; infraTool = ''" @trace="materialRouteId = $event; beginInfrastructureTool('material-route')" />
+      <MaterialControls :entries="entries" :view="materialView" :sketch="sketch" :level-id="levelId" :disabled="disabled" :selected-route-id="materialRouteId" @close="materialView = ''" @edit="change" @select="materialRouteId = $event; infraTool = ''" @trace="materialRouteId = $event; beginInfrastructureTool('material-route')" />
           <p v-if="!rooms.length" class="catalog-notice">Agregá un ambiente.</p>
           <p v-if="overlap" class="catalog-notice">Hay ambientes superpuestos en este nivel. Revisá sus posiciones; la superficie suma cada ambiente.</p>
           <small>Cuadrícula: 1 × 1 m</small>
@@ -189,7 +200,7 @@ function beginInfrastructureTool(type) {
           <div v-if="room?.points.length" class="sketch-point-list"><h3>Puntos de {{ room.name }}</h3><ul><li v-for="(point, index) in room.points" :key="point.id">{{ POINT_TYPES[point.type] }} {{ index + 1 }}<button type="button" :aria-label="`Quitar ${POINT_TYPES[point.type]} ${index + 1}`" @click="change(next => { const target = next.rooms.find(item => item.id === room.id); target.points = target.points.filter(item => item.id !== point.id); })">Quitar</button></li></ul></div>
         </div>
       </div>
-      <InfrastructureControls :sketch="sketch" :level-id="levelId" :selected-id="equipmentId" :route-id="routeId" :entries="entries" @edit="change" @select="equipmentId = $event" @select-route="routeId = $event" @place="beginInfrastructureTool" @add="type => addInfrastructure(type, width / 2, depth / 2)" @trace="beginInfrastructureTool('route')" />
+
 
     </fieldset>
     <dl class="sketch-summary"><div><dt>Superficie total</dt><dd>{{ summary.area }} m²</dd></div><div v-for="(label, type) in POINT_TYPES" :key="type"><dt>{{ label }}s</dt><dd>{{ summary[type] }}</dd></div></dl>
