@@ -1,4 +1,5 @@
 import { materialAnchors, materialRouteLength, emptyMaterialNetwork } from './materialNetwork';
+import { sketchHeights } from './sketchQuoteSettings';
 // Conservative reference: IEC B1, copper PVC, THREE loaded conductors at 30 °C.
 // Schneider Electrical Installation Guide, table G20 / IEC B.52.4.
 // The correction factor remains an explicit installation input, never inferred from geometry.
@@ -9,10 +10,10 @@ const groupFactor = n => n <= 9 ? grouping[Math.max(0, n - 1)] : n <= 12 ? 0.45 
 export function verticalForRoute(sketch, route) {
   const manual = route.feederId ? sketch.feeders.find(f => f.id === route.feederId).verticalMeters : route.verticalMeters;
   if (manual > 0) return manual;
-  const ceiling = sketch.quote?.heights?.techo;
+  const heights = sketchHeights(sketch), ceiling = heights.techo;
   if (!(ceiling > 0)) return null;
   const anchors = materialAnchors(sketch);
-  const height = a => ['luminaria', undefined].includes(a.type) ? ceiling : ['toma', 'llave'].includes(a.type) ? sketch.quote?.heights?.[a.type] :
+  const height = a => ['luminaria', undefined].includes(a.type) ? ceiling : ['toma', 'llave'].includes(a.type) ? heights[a.type] :
     ['general', 'seccional', 'principal', 'medidor_tp'].includes(a.type) ? sketch.materials.calculation.boardHeight : null;
   const ends = [route.fromId, route.toId].map(id => height(anchors.find(a => a.id === id) ?? {}));
   return ends.every(h => Number.isFinite(h) && h > 0 && h <= ceiling) ? ends.reduce((sum, h) => sum + ceiling - h, 0) : null;
@@ -45,29 +46,34 @@ export function proposeElectrical(sketch) {
   const warnings = [], circuits = [], pending = [], assignments = new Map(routes.map(r => [r.id, []]));
   const graph = new Map(anchors.map(a => [a.id, []]));
   for (const r of routes) {
-    if (r.kind === 'control' || r.feederId) continue;
+    if (r.feederId) continue;
     const from = anchors.find(a => a.id === r.fromId), to = anchors.find(a => a.id === r.toId);
-    // Feeders, PAT and switch legs are not terminal supply paths.
-    if ([from, to].some(a => !a || ['llave', 'jabalina', 'principal', 'medidor_tp'].includes(a.type))) continue;
+    // Switch boxes may carry the lighting supply and neutral towards luminaires.
+    if ([from, to].some(a => !a || ['jabalina', 'principal', 'medidor_tp'].includes(a.type))) continue;
     const meters = calculatedRouteLength(sketch, r);
     if (!(meters > 0)) continue;
     graph.get(from.id).push({ to: to.id, routeId: r.id, meters }); graph.get(to.id).push({ to: from.id, routeId: r.id, meters });
   }
   // A proposed radial tree follows the shortest DRAWN path; it never invents segments.
+  function pathsFor(type) {
   const paths = new Map(boards.map(b => [b.id, { distance: 0, boardId: b.id, routeIds: [] }])), done = new Set();
   while (true) {
     const next = [...paths].filter(([id]) => !done.has(id)).sort((a, b) => a[1].distance - b[1].distance || a[0].localeCompare(b[0]))[0];
     if (!next) break;
     const [id, path] = next; done.add(id);
     for (const edge of graph.get(id) ?? []) {
+      if (type === 'TUG' && [id, edge.to].some(key => anchors.find(a => a.id === key)?.type === 'llave')) continue;
       if (boards.some(b => b.id === edge.to)) continue;
       const distance = path.distance + edge.meters;
       if (!paths.has(edge.to) || distance < paths.get(edge.to).distance) paths.set(edge.to, { distance, boardId: path.boardId, routeIds: [...path.routeIds, edge.routeId] });
     }
   }
+  return paths;
+  }
+  const iugPaths = pathsFor('IUG'), tugPaths = pathsFor('TUG');
   const groups = new Map();
   for (const a of anchors.filter(a => ['luminaria', 'toma'].includes(a.type))) {
-    const path = paths.get(a.id);
+    const path = (a.type === 'luminaria' ? iugPaths : tugPaths).get(a.id);
     if (!path) { pending.push(a.id); continue; }
     const type = a.type === 'luminaria' ? 'IUG' : 'TUG', key = `${path.boardId}/${type}`;
     if (!groups.has(key)) groups.set(key, []);
@@ -88,15 +94,28 @@ export function proposeElectrical(sketch) {
       const current = demandVA / settings.voltage, breaker = type === 'IUG' ? 10 : 16;
       const controlRoutes = type === 'IUG' ? routes.filter(r => r.kind === 'control' && bucket.some(p => [r.fromId, r.toId].includes(p.anchor.id))) : [];
       const missingControlHeight = controlRoutes.some(r => calculatedRouteLength(sketch, r) === null);
-      const length = bucket.length ? Math.max(...bucket.map(p => p.distance + controlRoutes.filter(r => [r.fromId, r.toId].includes(p.anchor.id)).reduce((max, r) => Math.max(max, calculatedRouteLength(sketch, r) ?? 0), 0))) : 0;
+      const length = bucket.length ? Math.max(...bucket.map(p => p.distance + controlRoutes.filter(r => !p.routeIds.includes(r.id)).reduce((max, r) => Math.max(max, calculatedRouteLength(sketch, r) ?? 0), 0))) : 0;
       const choice = bucket.length && !missingControlHeight ? selectCable({ current, meters: length, minimum: type === 'IUG' ? 1.5 : 2.5, breaker, settings }) : null;
       const routeIds = [...new Set(bucket.flatMap(p => p.routeIds))];
       const circuit = { id, name, type, boardId: board.id, pointIds: bucket.map(p => p.anchor.id), routeIds, controlRouteIds: controlRoutes.map(r => r.id), missingControlHeight, demandVA, current, breaker, meters: length, ...choice,
         status: !bucket.length ? 'reserved' : choice ? 'proposal' : 'unresolved' };
       circuits.push(circuit);
-      if (!choice) continue;
-      for (const routeId of routeIds) assignments.get(routeId).push({ circuitId: id, wires: ['phase', 'neutral', 'pe'].map(role => ({ role, count: 1, section: role === 'pe' ? Math.max(2.5, choice.section) : choice.section })) });
-      for (const r of controlRoutes) assignments.get(r.id).push({ circuitId: id, wires: ['phase', 'return', 'pe'].map(role => ({ role, count: 1, section: role === 'pe' ? Math.max(2.5, choice.section) : choice.section })) });
+      const initialSection = choice?.section ?? (type === 'IUG' ? 1.5 : 2.5);
+      const rolesByRoute = new Map();
+      const addRoles = (routeId, roles) => { if (!rolesByRoute.has(routeId)) rolesByRoute.set(routeId, new Set()); for (const role of roles) rolesByRoute.get(routeId).add(role); };
+      for (const p of bucket) {
+        let switched = false, nodeId = board.id;
+        for (const routeId of p.routeIds) {
+          const edge = routes.find(r => r.id === routeId);
+          if (type === 'IUG' && (edge.kind === 'control' || anchors.find(a => a.id === nodeId)?.type === 'llave')) switched = true;
+          addRoles(routeId, [switched ? 'return' : 'phase', 'neutral', 'pe']);
+          nodeId = edge.fromId === nodeId ? edge.toId : edge.fromId;
+        }
+      }
+      // A switch leg fed from the luminaire box needs phase + return, without neutral.
+      // When supply enters through the switch box, the same route instead carries return + neutral.
+      for (const r of controlRoutes) if (!routeIds.includes(r.id)) addRoles(r.id, ['phase', 'return', 'pe']);
+      for (const [routeId, roles] of rolesByRoute) assignments.get(routeId).push({ circuitId: id, wires: [...roles].map(role => ({ role, count: 1, section: role === 'pe' ? Math.max(2.5, initialSection) : initialSection })) });
     }
   }
   const feederCircuits = [];

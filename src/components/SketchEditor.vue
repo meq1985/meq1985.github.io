@@ -6,10 +6,15 @@ import NumberField from './NumberField.vue';
 import MaterialControls from './MaterialControls.vue';
 import { emptyMaterialNetwork, materialAnchors, materialRoutePoints, materialRouteLength, pruneMaterialNetwork } from '../services/materialNetwork';
 import { calculatedRouteLength } from '../services/automaticDesign';
+import { emptyQuoteSettings, sketchHeights } from '../services/sketchQuoteSettings';
 const showHelp = inject('budgetHelp', () => {});
 const props = defineProps({ modelValue: { type: Object, default: null }, disabled: Boolean, entries: { type: Array, default: () => [] } });
 const emit = defineEmits(['update:modelValue']);
 const sketch = computed(() => props.modelValue ?? emptySketch());
+const heights = computed(() => sketchHeights(sketch.value));
+function editHeight(key, value) {
+  change(next => { next.quote = { ...emptyQuoteSettings(), ...next.quote, heights: { ...heights.value, [key]: value } }; }, false);
+}
 const levelId = ref(sketch.value.levels[0].id), roomId = ref(sketch.value.rooms.find(room => room.levelId === levelId.value)?.id ?? ''), tool = ref('select'), error = ref('');
 const undo = ref([]), redo = ref([]);
 const gridId = useId();
@@ -66,14 +71,14 @@ watch(() => props.modelValue, () => {
   if (!materialRoutes.value.some(r => r.id === materialRouteId.value)) { materialRouteId.value = ''; if (infraTool.value === 'material-route') infraTool.value = ''; }
   if (!feeders.value.some(f => f.id === routeId.value)) { routeId.value = ''; if (infraTool.value === 'route') infraTool.value = ''; }
 });
-function change(edit) {
+function change(edit, recordHistory = true) {
   if (props.disabled) return;
   try {
     const next = clone(sketch.value); edit(next); pruneMaterialNetwork(next);
     const valid = validateSketch(next);
     encodeSketch(valid);
     if (JSON.stringify(valid) === JSON.stringify(sketch.value)) { error.value = ''; return true; }
-    undo.value.push(clone(props.modelValue)); undo.value = undo.value.slice(-40); redo.value = [];
+    if (recordHistory) { undo.value.push(clone(props.modelValue)); undo.value = undo.value.slice(-40); redo.value = []; }
     emit('update:modelValue', valid); error.value = ''; return true;
   } catch (cause) { error.value = cause.message; return false; }
 }
@@ -163,6 +168,7 @@ function beginInfrastructureTool(type) {
           <label>Nivel<select v-model="levelId" @change="roomId = rooms[0]?.id ?? ''"><option v-for="level in sketch.levels" :key="level.id" :value="level.id">{{ level.name }}</option></select></label>
           <label>Nombre del nivel<input :value="sketch.levels.find(level => level.id === levelId)?.name" maxlength="60" @input="editLevel" @blur="$event.target.value = sketch.levels.find(level => level.id === levelId).name" /></label>
           <div class="catalog-actions"><button type="button" :disabled="sketch.levels.length >= SKETCH_LIMITS.levels" @click="addLevel">+ Nivel</button><button type="button" :disabled="sketch.levels.length === 1" @click="removeLevel">Quitar nivel</button></div>
+          <div class="sketch-heights"><h3>Alturas generales</h3><label v-for="(label,key) in { toma: 'Altura de tomacorrientes (m)', llave: 'Altura de llaves (m)', techo: 'Altura de techo (m)' }" :key="key">{{ label }}<NumberField :model-value="heights[key]" :min="0.1" :max="20" :step="0.1" @update:model-value="value => editHeight(key,value)" /></label></div>
           <h3>Ambientes</h3>
           <div class="sketch-room-list"><button v-for="item in rooms" :key="item.id" type="button" :aria-pressed="roomId === item.id" @click="roomId = item.id">{{ item.name }} <small>{{ Math.round(item.width * item.depth * 100) / 100 }} m²</small></button></div>
           <button type="button" :disabled="sketch.rooms.length >= SKETCH_LIMITS.rooms" @click="addRoom">+ Ambiente</button>
@@ -207,5 +213,5 @@ function beginInfrastructureTool(type) {
   </section>
 </template>
 <style scoped>
-.sketch-heading,.sketch-history,.sketch-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.sketch-heading{justify-content:space-between}.sketch-eyebrow{color:#a8d4ff;font-size:11px;letter-spacing:2px}.sketch-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px}.sketch-controls{display:flex;flex-direction:column;gap:14px}.sketch-controls .catalog-actions{margin:0}.sketch-controls h3{margin:8px 0 0}.sketch-measures{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sketch-room-list{display:flex;flex-direction:column;gap:8px}.sketch-room-list button{text-align:left;overflow-wrap:anywhere}.sketch-room-list small{display:block}.sketch-editor button[aria-pressed=true]{border-color:#8ccaff;background:#294e70}.sketch-workspace{min-width:0}.sketch-canvas{overflow:visible;display:block;width:100%;height:auto;background:#101e2c;border:1px solid #6487a8;border-radius:8px;touch-action:manipulation}.sketch-room{cursor:crosshair;stroke:#6684a1}.sketch-room.selected{stroke:#91ccff}.sketch-equipment{cursor:pointer}.sketch-equipment text,.sketch-feeders,.material-route-lines text{pointer-events:none}.sketch-room text{pointer-events:none;stroke:none}.anchor-hit{cursor:pointer}.anchor-hit:focus circle{stroke:#fff;stroke-width:2}.sketch-symbol,.material-route-lines g{pointer-events:all;cursor:pointer}.sketch-symbol:focus circle,.sketch-equipment:focus rect{stroke:#fff;stroke-width:3}.sketch-symbol path{stroke-width:1.5}.sketch-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}.sketch-summary>div{border:1px solid #475366;border-radius:8px;padding:12px}.sketch-summary dt{font-size:13px;color:#bfccda}.sketch-summary dd{margin:6px 0 0;font-size:22px;font-weight:700}.sketch-point-list ul{padding:0;list-style:none;max-height:240px;overflow:auto}.sketch-point-list li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;gap:12px}.sketch-instruction{min-height:48px}@media(max-width:800px){.sketch-layout{grid-template-columns:1fr}.sketch-summary{grid-template-columns:1fr 1fr}.sketch-tools button{flex:1;padding:10px}.sketch-controls{max-width:100%}}
+.sketch-heading,.sketch-history,.sketch-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.sketch-heading{justify-content:space-between}.sketch-eyebrow{color:#a8d4ff;font-size:11px;letter-spacing:2px}.sketch-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px}.sketch-controls{display:flex;flex-direction:column;gap:14px}.sketch-controls .catalog-actions{margin:0}.sketch-controls h3{margin:8px 0 0}.sketch-heights{display:grid;gap:12px;padding:12px;border:1px solid #475366;border-radius:8px}.sketch-heights h3{margin:0}.sketch-measures{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sketch-room-list{display:flex;flex-direction:column;gap:8px}.sketch-room-list button{text-align:left;overflow-wrap:anywhere}.sketch-room-list small{display:block}.sketch-editor button[aria-pressed=true]{border-color:#8ccaff;background:#294e70}.sketch-workspace{min-width:0}.sketch-canvas{overflow:visible;display:block;width:100%;height:auto;background:#101e2c;border:1px solid #6487a8;border-radius:8px;touch-action:manipulation}.sketch-room{cursor:crosshair;stroke:#6684a1}.sketch-room.selected{stroke:#91ccff}.sketch-equipment{cursor:pointer}.sketch-equipment text,.sketch-feeders,.material-route-lines text{pointer-events:none}.sketch-room text{pointer-events:none;stroke:none}.anchor-hit{cursor:pointer}.anchor-hit:focus circle{stroke:#fff;stroke-width:2}.sketch-symbol,.material-route-lines g{pointer-events:all;cursor:pointer}.sketch-symbol:focus circle,.sketch-equipment:focus rect{stroke:#fff;stroke-width:3}.sketch-symbol path{stroke-width:1.5}.sketch-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}.sketch-summary>div{border:1px solid #475366;border-radius:8px;padding:12px}.sketch-summary dt{font-size:13px;color:#bfccda}.sketch-summary dd{margin:6px 0 0;font-size:22px;font-weight:700}.sketch-point-list ul{padding:0;list-style:none;max-height:240px;overflow:auto}.sketch-point-list li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;gap:12px}.sketch-instruction{min-height:48px}@media(max-width:800px){.sketch-layout{grid-template-columns:1fr}.sketch-summary{grid-template-columns:1fr 1fr}.sketch-tools button{flex:1;padding:10px}.sketch-controls{max-width:100%}}
 </style>

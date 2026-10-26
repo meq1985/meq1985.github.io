@@ -3,14 +3,15 @@ import { it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, ref } from 'vue';
 import SketchQuote from '../src/components/SketchQuote.vue';
+import SketchEditor from '../src/components/SketchEditor.vue';
 import { emptySketch } from '../src/services/sketch';
 import { LABOR_CATALOG } from '../src/data/laborCatalog';
 const button = (w, text) => w.findAll('button').find(b => b.text().includes(text));
-function editor(existingCount = 0) {
-  return mount(defineComponent({ components: { SketchQuote }, setup: () => ({ entries: LABOR_CATALOG, existingCount, sketch: ref({ ...emptySketch(), rooms: [{ id: 'r', levelId: 'planta-baja', name: 'Living', x: 0, y: 0, width: 4, depth: 3, points: [{ id: 'p', type: 'luminaria', x: 0.5, y: 0.5 }] }] }) }), template: '<SketchQuote v-model="sketch" :entries="entries" :existing-count="existingCount"/>' }));
+function editor(existingCount = 0, withSketch = false) {
+  return mount(defineComponent({ components: { SketchQuote, SketchEditor }, setup: () => ({ entries: LABOR_CATALOG, existingCount, sketch: ref({ ...emptySketch(), rooms: [{ id: 'r', levelId: 'planta-baja', name: 'Living', x: 0, y: 0, width: 4, depth: 3, points: [{ id: 'p', type: 'luminaria', x: 0.5, y: 0.5 }] }] }) }), template: (withSketch ? '<SketchEditor v-model="sketch" />' : '') + '<SketchQuote v-model="sketch" :entries="entries" :existing-count="existingCount"/>' }));
 }
 it('persists heights, reviews a quote and requires explicit replacement before overwriting manual work', async () => {
-  const w = editor(2), quote = w.getComponent(SketchQuote);
+  const w = editor(2, true), quote = w.getComponent(SketchQuote);
   await w.findAll('input[type="number"]')[0].setValue('0.4');
   expect(w.findAll('input[type="number"]')[0].attributes('step')).toBe('0.1');
   expect(w.vm.sketch.quote.heights.toma).toBe(0.4);

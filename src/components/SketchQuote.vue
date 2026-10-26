@@ -44,8 +44,6 @@ function apply() {
     <p class="quote-eyebrow">OBRA NUEVA</p><div class="quote-heading"><h2 id="sketch-quote-title">Del croquis al presupuesto</h2><button type="button" @click="showHelp('presupuesto')">Ayuda del cálculo</button></div>
     <p v-if="error" class="catalog-notice error" role="alert">{{ error }}</p>
     <fieldset :disabled="disabled">
-      <h3>Alturas generales</h3>
-      <div class="catalog-fields"><label v-for="(label, key) in { toma: 'Altura de tomacorrientes (m)', llave: 'Altura de llaves (m)', techo: 'Altura de techo (m)' }" :key="key">{{ label }}<NumberField :model-value="settings.heights[key]" :min="0.1" :max="20" :step="0.1" nullable placeholder="Sin definir" @update:model-value="value => update(s => { s.heights[key] = value; })" /></label></div>
       <h3>Trabajos a incluir</h3>
       <label class="quote-check"><input type="checkbox" :checked="settings.includeProject" @change="update(s => { s.includeProject = $event.target.checked; })" />Incluir proyecto eléctrico por m²</label>
       <div class="catalog-fields quote-selectors">

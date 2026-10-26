@@ -10,7 +10,7 @@ const fixture = (count = 1, width = 20) => ({ ...emptySketch(), schema: 2, quote
 it('adds rises and drops at both ends, with a manual override that is not counted twice', () => {
   const s = fixture(); expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(24.2);
   s.materials.routes[0].verticalMeters = 6; expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(26);
-  s.quote.heights.toma = null; s.materials.routes[0].verticalMeters = 0; expect(calculatedRouteLength(s, s.materials.routes[0])).toBe(null);
+  s.quote.heights.toma = null; s.materials.routes[0].verticalMeters = 0; expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(24.2);
 });
 it('increases cable section with distance and never rounds before selecting', () => {
   const short = proposeElectrical(fixture(1, 10)).circuits.find(c => c.type === 'TUG');
@@ -39,11 +39,38 @@ it('uses drawn graph routes, applies grouping to common conduits and counts cond
   expect(list.rows.filter(r => r.description.startsWith('Canalización'))).toHaveLength(1);
   expect(s.materials.routes[0].assignments).toEqual([]);
 });
-it('does not invent paths or zero verticals when points are disconnected or heights are missing', () => {
-  const s = fixture(); s.quote.heights.toma = null;
+it('does not invent paths or zero verticals when points are disconnected or heights are inconsistent', () => {
+  const s = fixture(); s.materials.calculation.boardHeight = 4;
   expect(proposeElectrical(s).pending).toEqual(['p0']);
   expect(withAutomaticConductors(s).materials.routes).toHaveLength(0);
-  s.quote.heights.toma = 0.3; s.materials.routes = [];
+  s.materials.calculation.boardHeight = 1.5; s.materials.routes = [];
+  expect(proposeElectrical(s).pending).toEqual(['p0']);
+});
+it('uses requested default heights for old drawings without discarding custom heights', () => {
+  const s = fixture(); delete s.quote;
+  expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(23);
+  s.quote = { ...emptyQuoteSettings(), heights: { toma: null, llave: null, techo: null } };
+  expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(23);
+  s.quote.heights = { toma: 0.6, llave: 1.2, techo: 3 };
+  expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(23.9);
+});
+it.each([false, true])('supplies lighting through a switch box, including chained lights and correct wire roles (reversed=%s)', reversed => {
+  const s = fixture(2); s.rooms[0].points.forEach(p => { p.type = 'luminaria'; });
+  s.rooms[0].points.push({ id: 'sw', type: 'llave', x: 0.25, y: 0.5 });
+  const edge = (id, fromId, toId, kind = 'physical') => ({ id, fromId, toId, kind, feederId: null, bends: [], verticalMeters: 0, conduit: '', assignments: [] });
+  s.materials.routes = [edge('supply', 'tg', 'sw'), edge('control', reversed ? 'p0' : 'sw', reversed ? 'sw' : 'p0', 'control'), edge('chain', 'p0', 'p1')];
+  const result = proposeElectrical(s), c = result.circuits.find(c => c.type === 'IUG');
+  expect(result.pending).toEqual([]); expect(c.pointIds).toHaveLength(2); expect(c.demandVA).toBe(80);
+  expect(c.meters).toBeCloseTo(s.materials.routes.reduce((sum, r) => sum + calculatedRouteLength(s, r), 0));
+  expect(result.assignments.get('supply')[0].wires.map(w => w.role)).toEqual(['phase', 'neutral', 'pe']);
+  expect(result.assignments.get('control')).toHaveLength(1);
+  expect(result.assignments.get('control')[0].wires.map(w => w.role)).toEqual(['return', 'neutral', 'pe']);
+  expect(result.assignments.get('chain')[0].wires.map(w => w.role)).toEqual(['return', 'neutral', 'pe']);
+});
+it('does not route a TUG circuit through a switch', () => {
+  const s = fixture(); s.rooms[0].points.push({ id: 'sw', type: 'llave', x: 0.5, y: 0 });
+  const r = s.materials.routes[0]; r.fromId = 'sw';
+  s.materials.routes.push({ ...r, id: 'supply', fromId: 'tg', toId: 'sw' });
   expect(proposeElectrical(s).pending).toEqual(['p0']);
 });
 it('counts automatic vertical metres in the exported takeoff and leaves stored geometry unchanged', () => {

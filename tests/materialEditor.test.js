@@ -96,3 +96,16 @@ it('calculates circuits from drawn board connections and exposes equipment speci
   expect(w.text()).toContain('Conductor Fase'); expect(w.text()).not.toContain('Opciones de materiales');
   w.unmount();
 });
+it('shows editable default heights beside the drawing and preserves custom heights through undo', async () => {
+  const w = editor();
+  expect(field(w, 'Altura de tomacorrientes', 'input').element.value).toBe('0.3');
+  expect(field(w, 'Altura de llaves', 'input').element.value).toBe('1.1');
+  expect(field(w, 'Altura de techo', 'input').element.value).toBe('2.4');
+  await button(w, '+ Ambiente').trigger('click');
+  await field(w, 'Altura de techo', 'input').setValue('2.8');
+  expect(w.vm.sketch.quote.heights.techo).toBe(2.8);
+  await button(w, 'Deshacer').trigger('click'); expect(w.vm.sketch.quote.heights.techo).toBe(2.8);
+  w.vm.disabled = true; await w.vm.$nextTick();
+  await field(w, 'Altura de techo', 'input').setValue('3'); expect(w.vm.sketch.quote.heights.techo).toBe(2.8);
+  w.unmount();
+});
