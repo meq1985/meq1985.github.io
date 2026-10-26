@@ -30,7 +30,11 @@ describe('professional landing and access', () => {
     expect(wrapper.text()).not.toMatch(/próximamente|en pruebas|en desarrollo|precio previsto|en preparación/i);
     expect(wrapper.get('.actions a').text()).toContain('Crear mi primer proyecto gratis');
     expect(wrapper.get('.lead').text()).toContain('desde el celular o la computadora');
-    expect(wrapper.find('a[download]').attributes('href')).toBe('/ejemplo-presupuesto-electrico.pdf');
+    expect(wrapper.get('a[download]').attributes('href')).toBe('/ejemplo-presupuesto-electrico.pdf');
+    expect(wrapper.get('a[download]').text()).toBe('Descargar PDF de ejemplo');
+    expect(wrapper.find('#demostracion').exists()).toBe(false);
+    expect(wrapper.text()).not.toMatch(/demostración|reproducir/i);
+    expect(wrapper.findAll('section[id]').map(section => section.attributes('id')).slice(0, 2)).toEqual(['croquis', 'herramientas']);
     expect(wrapper.get('#croquis').text()).toContain('borrador de mano de obra');
     expect(wrapper.get('#croquis svg').attributes('aria-label')).toContain('tablero general');
     expect(wrapper.get('.home-plan-full').text()).toContain('Recorridos medidos');

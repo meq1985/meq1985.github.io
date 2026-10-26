@@ -1,39 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import BudgetDemo from '../src/components/BudgetDemo.vue';
 import LegalView from '../src/views/LegalView.vue';
 import { HOME_TITLE, SITE_URL, updateSeo } from '../src/services/seo';
-afterEach(() => { vi.useRealTimers(); document.head.innerHTML = ''; });
-it('runs a user-started 50 second demo, pauses, ends and cleans up its timer', async () => {
-  vi.useFakeTimers();
-  const w = mount(BudgetDemo);
-  expect(vi.getTimerCount()).toBe(0);
-  await w.get('button').trigger('click');
-  await vi.advanceTimersByTimeAsync(15000);
-  expect(w.get('h3').text()).toBe('Ajustá las cantidades');
-  await w.get('[aria-label="Agregar una boca"]').trigger('click');
-  expect(w.text()).toContain('3.966.000');
-  await w.get('button').trigger('click');
-  await vi.advanceTimersByTimeAsync(10000);
-  expect(w.get('progress').attributes('value')).toBe('15');
-  await w.get('button').trigger('click');
-  await vi.advanceTimersByTimeAsync(35000);
-  expect(w.get('progress').attributes('value')).toBe('50');
-  expect(vi.getTimerCount()).toBe(0);
-  expect(w.get('a[download]').attributes('href')).toBe('/ejemplo-presupuesto-electrico.pdf');
-  await w.get('button').trigger('click'); w.unmount();
-  expect(vi.getTimerCount()).toBe(0);
-});
-it('allows direct demo navigation without motion or a timer', async () => {
-  const w = mount(BudgetDemo);
-  await w.findAll('.demo-steps button')[2].trigger('click');
-  expect(w.find('a[download]').exists()).toBe(true);
-  expect(w.text()).toContain('No cambia al explorar esta demostración');
-  w.unmount();
-});
+afterEach(() => { document.head.innerHTML = ''; });
 it('uses clean canonical URLs for public pages and noindex for account routes', () => {
   updateSeo({ path: '/', query: { utm_source: 'demo' } });
   expect(document.title).toBe(HOME_TITLE);
