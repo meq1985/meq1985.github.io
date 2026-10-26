@@ -3,7 +3,7 @@ import { materialAnchors, materialRouteLength, emptyMaterialNetwork } from './ma
 // Schneider Electrical Installation Guide, table G20 / IEC B.52.4.
 // The correction factor remains an explicit installation input, never inferred from geometry.
 export const CABLES = [[1.5, 15.5], [2.5, 21], [4, 28], [6, 36], [10, 50], [16, 68]];
-export const DEFAULT_CALCULATION = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, upstreamPercent: 0, correctionFactor: 1, boardHeight: 1.5 };
+export const DEFAULT_CALCULATION = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, totalLimitPercent: 3, feederLimitPercent: 1, upstreamPercent: 0, correctionFactor: 1, boardHeight: 1.5 };
 const grouping = [1, 0.8, 0.7, 0.65, 0.6, 0.57, 0.54, 0.52, 0.5];
 const groupFactor = n => n <= 9 ? grouping[Math.max(0, n - 1)] : n <= 12 ? 0.45 : n <= 16 ? 0.41 : n <= 20 ? 0.38 : 0;
 export function verticalForRoute(sketch, route) {
@@ -38,8 +38,8 @@ export function selectCable({ current, meters, minimum, breaker, settings }) {
   return null;
 }
 export function proposeElectrical(sketch) {
-  const settings = sketch.materials?.calculation;
-  if (!settings) return null;
+  if (!sketch.materials?.calculation) return null;
+  const settings = { ...DEFAULT_CALCULATION, ...sketch.materials.calculation };
   const anchors = materialAnchors(sketch), routes = sketch.materials.routes;
   const boards = anchors.filter(a => ['general', 'seccional'].includes(a.type));
   const warnings = [], circuits = [], pending = [], assignments = new Map(routes.map(r => [r.id, []]));
@@ -106,10 +106,9 @@ export function proposeElectrical(sketch) {
     if (!incoming.length) continue;
     const r = incoming[0], meters = calculatedRouteLength(sketch, r), current = circuits.filter(c => c.boardId === board.id).reduce((s, c) => s + c.current, 0);
     const breaker = [16, 20, 25, 32, 40, 50, 63].find(a => a >= current);
-    // Reserve half the remaining voltage-drop budget for the feeder, then add its
-    // actual calculated drop to each outgoing circuit. No double counting of upstream input.
+    // Explicit 1% feeder / 2% terminal design budgets, with a separate 3% total cap.
     const choice = breaker && meters !== null ? selectCable({ current, meters, minimum: 4, breaker,
-      settings: { ...settings, limitPercent: settings.upstreamPercent + (settings.limitPercent - settings.upstreamPercent) / 2 } }) : null;
+      settings: { ...settings, limitPercent: Math.min(settings.totalLimitPercent, settings.upstreamPercent + settings.feederLimitPercent) } }) : null;
     const c = { id: `auto-f-${feederCircuits.length}`, name: `Alimentador · ${board.name}`, type: 'otro', boardId: board.id, pointIds: [], routeIds: [r.id], demandVA: current * settings.voltage, current,
       breaker: breaker ?? null, meters: meters ?? 0, ...choice, status: choice ? 'proposal' : 'unresolved' };
     feederCircuits.push(c);
@@ -121,8 +120,9 @@ export function proposeElectrical(sketch) {
     const factor = groupFactor(Math.max(1, ...[...c.routeIds, ...c.controlRouteIds].map(id => circuits.filter(other => [...other.routeIds, ...other.controlRouteIds].includes(id)).length)));
     const feeder = feederCircuits.find(f => f.boardId === c.boardId);
     const ambiguous = routes.filter(r => r.feederId && r.toId === c.boardId).length > 1;
+    const upstream = feeder?.percent ?? settings.upstreamPercent;
     const choice = factor && !c.missingControlHeight && !ambiguous && (!feeder || feeder.section) ? selectCable({ current: c.current, meters: c.meters, minimum: c.type === 'IUG' ? 1.5 : 2.5, breaker: c.breaker,
-      settings: { ...settings, upstreamPercent: feeder?.percent ?? settings.upstreamPercent, correctionFactor: settings.correctionFactor * factor } }) : null;
+      settings: { ...settings, limitPercent: Math.min(settings.totalLimitPercent, upstream + settings.limitPercent), upstreamPercent: upstream, correctionFactor: settings.correctionFactor * factor } }) : null;
     c.groupFactor = factor;
     if (!choice) {
       delete c.section; delete c.ampacity; delete c.drop; delete c.percent; c.status = 'unresolved';

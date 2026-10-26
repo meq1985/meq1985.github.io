@@ -162,7 +162,7 @@ it('saves material networks with immutable budget versions using the existing ow
   await saveProject(data);
   expect((await loadProject('material-network')).version.sketch).toEqual(data.sketch);
     const next = structuredClone(data); next.expectedRevision = 1; next.sketch.materials.reservePercent = 20;
-    next.sketch.materials.calculation = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, upstreamPercent: 0.2, correctionFactor: 1, boardHeight: 1.5 };
+    next.sketch.materials.calculation = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, totalLimitPercent: 3, feederLimitPercent: 1, upstreamPercent: 0.2, correctionFactor: 1, boardHeight: 1.5 };
   await saveProject(next);
   expect((await loadProjectVersion('material-network', 1)).sketch.materials.reservePercent).toBe(0);
   expect((await loadProject('material-network')).version.sketch.materials.reservePercent).toBe(20);

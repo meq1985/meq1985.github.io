@@ -50,7 +50,8 @@ export function validateMaterialNetwork(input, sketch, unique) {
   if (input.calculation !== undefined) {
     const c = input.calculation;
     if (!c || c.profile !== 'cu-pvc-b1-v1') fail();
-    calculation = { profile: c.profile, voltage: number(c.voltage, 200, 240), limitPercent: number(c.limitPercent, 0.1, 5),
+    calculation = { profile: c.profile, voltage: number(c.voltage, 200, 240), limitPercent: number(c.limitPercent, 0.1, 2),
+      totalLimitPercent: number(c.totalLimitPercent ?? 3, 0.1, 3), feederLimitPercent: number(c.feederLimitPercent ?? 1, 0.1, 1),
       upstreamPercent: number(c.upstreamPercent, 0, 5), correctionFactor: number(c.correctionFactor, 0.1, 1), boardHeight: number(c.boardHeight ?? 1.5, 0.1, 5) };
   }
   return { schema: 1, circuits, junctions, routes, extras, reservePercent: number(input.reservePercent, 0, 50), ...(calculation ? { calculation } : {}) };

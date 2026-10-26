@@ -61,9 +61,18 @@ it('includes the drawn feeder and its voltage drop in the outgoing circuit', () 
   s.materials.routes.push({ id: 'fr', fromId: 'tp', toId: 'tg', feederId: 'feed', bends: [], verticalMeters: 0, conduit: '', assignments: [] });
   const result = proposeElectrical(s), feeder = result.feederCircuits[0], c = result.circuits.find(c => c.type === 'TUG');
   expect(feeder.section).toBeGreaterThanOrEqual(4); expect(feeder.percent).toBeGreaterThan(0);
+  expect(feeder.percent).toBeLessThanOrEqual(1);
   expect(c.percent).toBeCloseTo(c.drop * 100 / 220 + feeder.percent);
   expect(c.percent).toBeLessThanOrEqual(2);
   expect(withAutomaticConductors(s).materials.routes.find(r => r.id === 'fr').assignments).toHaveLength(1);
+});
+it('keeps terminal and total drop budgets separate and does not prorate TUG demand by outlet count', () => {
+  const s = fixture(10, 10); s.materials.calculation.upstreamPercent = 0.9;
+  const circuit = proposeElectrical(s).circuits.find(c => c.type === 'TUG');
+  expect(circuit.demandVA).toBe(2200); expect(circuit.current).toBe(10);
+  expect(circuit.section).toBe(2.5);
+  expect(circuit.percent).toBeGreaterThan(2); expect(circuit.percent).toBeLessThanOrEqual(3);
+  expect(circuit.drop * 100 / 220).toBeLessThanOrEqual(2);
 });
 it('preserves calculation inputs, equipment specifications and heights across persistence', () => {
   const s = fixture(); s.equipment[0].specification = 'Embutido 24 módulos';
