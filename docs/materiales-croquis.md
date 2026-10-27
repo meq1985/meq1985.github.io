@@ -4,7 +4,7 @@
 
 La rama incluye la portada del PR #15. Tablero, Medidor + TP, Jabalina y Caja de paso se ubican desde botones del plano. Trazar conexión permite elegir origen, quiebres y destino, incluso en otra planta. Se elimina el modo Conectar. Escape o Cancelar descartan un trazado sin guardar; cambiar de nivel conserva el origen y los quiebres para conectar plantas. No hay formularios inferiores para elegir Desde/Hasta. Tocar equipos abre materiales; allí se eligen función, capacidad/montaje y trabajo del catálogo. Especificación del gabinete es texto editable, no una selección automática de módulos.
 
-«Opciones de materiales» se reemplaza por «Calcular instalación». Los adicionales y reserva están plegados dentro de Ver materiales. La comprobación monofásica manual sigue disponible en Herramientas manuales adicionales.
+«Opciones de materiales» se reemplaza por «Calcular instalación». Los adicionales y reserva están plegados dentro de Ver materiales. Se elimina la comprobación monofásica manual independiente; el cálculo se realiza desde Calcular instalación. El botón para incorporar recorridos TP → TG anteriores solo aparece si todavía no están vinculados a materiales.
 
 ## Propuesta automática, perfil cu-pvc-b1-v1
 
@@ -46,3 +46,5 @@ Pendiente antes de considerar el diseño completo: perfiles reglamentarios publi
 
 Referencia contrastada para demanda TUG (tabla 770.8.I, página 17) y caída (770.15.6, página 50): AEA 770 edición 2017, copia publicada por el Colegio de Ingenieros de Jujuy: https://ingenierosdejujuy.org.ar/wp-content/uploads/2024/01/Reglamentacion-AEA-770.pdf
 Los 2200 VA son demanda mínima por circuito TUG; no se prorratean según cantidad de bocas. Las bocas limitan el reparto a 15 por circuito y no equivalen a una potencia fija por toma.
+
+Para revisar el presupuesto de mano de obra, cada recorrido TP → TG exige elegir su trabajo del catálogo o Solo medir. El cálculo eléctrico no asigna automáticamente un precio de tendido. La alerta identifica los nombres de los extremos y señala la propiedad que falta completar; no se omite el cobro sin una elección explícita.

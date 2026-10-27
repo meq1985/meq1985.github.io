@@ -27,7 +27,9 @@ it('quotes roles and rounds 5m work packages upward, discounting only PAT alread
 it('quotes metre items without rounding to 5m and requires explicit measure-only choice', () => {
   const s = scene(); s.feeders[0].itemId = 'mamposteria_comun_metro';
   expect(quoteFromSketch(s, LABOR_CATALOG).rows.find(r => r.descripcion.includes('Alimentación')).cantidad).toBe(12);
-  s.feeders[0].itemId = ''; expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('Solo medir');
+  s.feeders[0].itemId = ''; expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('Pilar → General');
+  expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('Mano de obra del recorrido');
+  expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('Solo medir');
   s.feeders[0].itemId = 'measure-only'; const result = quoteFromSketch(s, LABOR_CATALOG);
   expect(result.warnings.join()).toContain('no incluido en el importe');
   expect(result.rows.some(r => r.descripcion.includes('Alimentación'))).toBe(false);

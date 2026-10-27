@@ -34,11 +34,10 @@ it('edits shared materials, draws bends, removes orphan routes and restores them
   await button(w, 'Deshacer').trigger('click'); expect(w.vm.sketch.materials.routes).toHaveLength(1);
   w.unmount();
 });
-it('does not mutate a disabled editor and reproduces the monophase case without approving breaking capacity', async () => {
-  const w = editor(); await button(w, 'Ver materiales').trigger('click'); await button(w, 'Cargar caso de 11 bocas').trigger('click');
-  expect(w.get('.phase-check').text()).toContain('0,7278 V');
-  expect(w.get('.phase-check').text()).toContain('0,3308 %');
-  expect(w.get('.phase-check').text()).toContain('pendiente: falta la corriente prevista');
+it('does not expose the removed manual check or mutate a disabled editor', async () => {
+  const w = editor(); await button(w, 'Ver materiales').trigger('click');
+  expect(w.find('.phase-check').exists()).toBe(false);
+  expect(button(w, 'Cargar caso de 11 bocas')).toBeUndefined();
   w.vm.disabled = true; await w.vm.$nextTick();
   const before = JSON.stringify(w.vm.sketch);
   await button(w, 'Calcular instalación').trigger('click'); await w.get('[data-anchor=light]').trigger('click');

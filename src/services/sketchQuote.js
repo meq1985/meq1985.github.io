@@ -40,7 +40,11 @@ export function quoteFromSketch(input, entries) {
   }
   const measurements = (sketch.feeders ?? []).map(f => {
     const meters = feederLength(sketch, f);
-    if (!f.itemId) throw Error('Elegí un trabajo para cada recorrido o indicá «Solo medir».');
+    if (!f.itemId) {
+      const from = drawn.find(e => e.id === f.fromId)?.name ?? 'Principal';
+      const to = drawn.find(e => e.id === f.toId)?.name ?? 'General';
+      throw Error(`Falta definir la mano de obra del recorrido «${from} → ${to}». Tocá esa conexión en el croquis y elegí «Mano de obra del recorrido» o «Solo medir» para no cobrarla aparte.`);
+    }
     if (meters <= 0) throw Error('El recorrido necesita una longitud mayor que cero.');
     if (f.itemId === 'measure-only') warnings.push(`Recorrido de ${meters} m: solo medición, no incluido en el importe.`);
     else add(f.itemId, ['subterraneo_tierra', 'subterraneo_piso'].includes(f.itemId) ? Math.ceil(meters / 5) : meters, `Alimentación del principal al general: ${meters} m`);
