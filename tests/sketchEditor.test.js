@@ -25,7 +25,7 @@ it('draws boards and feeder connections on the canvas, measures bends and undoes
   await button(w, 'Trazar conexión').trigger('click');
   await w.get(`[data-anchor="${w.vm.sketch.equipment[0].id}"]`).trigger('click');
   await w.get(`[data-anchor="${w.vm.sketch.equipment[1].id}"]`).trigger('click');
-  const field = w.findAll('label').find(l => l.text().startsWith('Verticales manuales')).get('input');
+  const field = w.findAll('label').find(l => l.text().startsWith('Verticales extra')).get('input');
   await field.setValue(2);
   expect(w.vm.sketch.feeders[0].verticalMeters).toBe(2);
   svg.element.getBoundingClientRect.mockReturnValue({ left: 0, top: 0, width: 360, height: 300 });

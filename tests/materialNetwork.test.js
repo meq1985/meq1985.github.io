@@ -41,8 +41,8 @@ it('links existing feeders to live geometry without counting copied routes or do
     { id: 'tg', type: 'general', name: 'TG', itemId: 'seccional_8', levelId: 'planta-baja', x: 6, y: 8 }];
   s.feeders = [{ id: 'feeder', fromId: 'tp', toId: 'tg', bends: [], verticalMeters: 3, itemId: 'measure-only' }];
   s.materials.routes = [{ ...s.materials.routes[0], fromId: 'tp', toId: 'tg', feederId: 'feeder', verticalMeters: 99 }];
-  expect(materialRouteLength(validateSketch(s), s.materials.routes[0])).toBe(13);
-  s.equipment[1].x = 0; expect(materialRouteLength(validateSketch(s), s.materials.routes[0])).toBe(11);
+  expect(materialRouteLength(validateSketch(s), s.materials.routes[0])).toBe(16);
+  s.equipment[1].x = 0; expect(materialRouteLength(validateSketch(s), s.materials.routes[0])).toBe(14);
   expect(materialsFromSketch(s).warnings.some(w => w.includes('no está incorporado'))).toBe(false);
 });
 it('rejects broken references, reverse duplicates and malformed conductor quantities', () => {

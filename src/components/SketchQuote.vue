@@ -2,6 +2,7 @@
 import { computed, ref, watch, inject } from 'vue';
 import { emptySketch, encodeSketch } from '../services/sketch';
 import { BOARD_IDS, SERVICE_IDS, PAT_IDS, emptyQuoteSettings, validateQuoteSettings, includesPat } from '../services/sketchQuoteSettings';
+import { FEEDER_EXTRA_METERS } from '../services/sketchInfrastructure';
 import { quoteFromSketch } from '../services/sketchQuote';
 import NumberField from './NumberField.vue';
 const showHelp = inject('budgetHelp', () => {});
@@ -57,7 +58,7 @@ function apply() {
       <button type="button" :disabled="disabled" @click="review">Revisar presupuesto del croquis</button>
       <section v-if="preview" class="catalog-preview" aria-labelledby="quote-review-title">
         <h3 id="quote-review-title">Revisá los trabajos antes de aplicarlos</h3><p>{{ preview.bocas }} {{ preview.bocas === 1 ? 'boca' : 'bocas' }} · {{ preview.summary.area }} m² dibujados<span v-if="settings.includeProject"> · {{ preview.area }} m² a cotizar por proyecto</span></p>
-        <p v-for="warning in preview.warnings" :key="warning" class="catalog-notice">{{ warning }}</p><p v-for="route in preview.measurements" :key="route.id" class="muted">Recorrido principal → general: {{ route.meters }} m</p>
+        <p v-for="warning in preview.warnings" :key="warning" class="catalog-notice">{{ warning }}</p><p v-for="route in preview.measurements" :key="route.id" class="muted">Recorrido principal → general: {{ route.meters }} m (incluye {{ FEEDER_EXTRA_METERS }} m de subida/bajada)</p>
         <div class="catalog-scroll"><table class="catalog-table"><thead><tr><th>Trabajo</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead><tbody><tr v-for="(row, i) in preview.rows" :key="i"><td>{{ row.descripcion }}</td><td>{{ row.cantidad }} {{ row.unidad }}</td><td>{{ currency(row.precioUnitario) }}</td><td>{{ currency(Math.round(row.cantidad * row.precioUnitario * 100) / 100) }}</td></tr></tbody></table></div>
         <p class="catalog-total">Total mano de obra: {{ currency(preview.total) }}</p>
         <label v-if="existingCount" class="quote-check"><input v-model="replacementApproved" type="checkbox" />Reemplazar los {{ existingCount }} trabajos actuales por este borrador. Se quitarán también los trabajos agregados manualmente.</label>

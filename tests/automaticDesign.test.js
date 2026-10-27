@@ -12,6 +12,16 @@ it('adds rises and drops at both ends, with a manual override that is not counte
   s.materials.routes[0].verticalMeters = 6; expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(26);
   s.quote.heights.toma = null; s.materials.routes[0].verticalMeters = 0; expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(24.2);
 });
+it('does not add ceiling rises between outlets and lets the user choose ceiling routing explicitly', () => {
+  const s=fixture(2);s.materials.routes[1].fromId='p0';const r=s.materials.routes[1];
+  expect(calculatedRouteLength(s,r)).toBeCloseTo(0.5);
+  const circuit=proposeElectrical(s).circuits.find(c=>c.type==='TUG');expect(circuit.meters).toBeCloseTo(24.7);
+  expect(materialsFromSketch(withAutomaticConductors(s)).rows.find(r=>r.description.startsWith('Canalización')).quantity).toBe(24.7);
+  r.routing='ceiling';expect(calculatedRouteLength(s,r)).toBeCloseTo(5.9);
+  expect(decodeSketch(encodeSketch(s)).materials.routes[1].routing).toBe('ceiling');
+  r.verticalMeters=2;expect(calculatedRouteLength(s,r)).toBeCloseTo(2.5);
+  r.routing='invalid';expect(()=>encodeSketch(s)).toThrow();
+});
 it('increases cable section with distance and never rounds before selecting', () => {
   const short = proposeElectrical(fixture(1, 10)).circuits.find(c => c.type === 'TUG');
   const long = proposeElectrical(fixture(1, 50)).circuits.find(c => c.type === 'TUG');
@@ -123,11 +133,14 @@ it('includes the drawn feeder and its voltage drop in the outgoing circuit', () 
   s.feeders.push({ id: 'feed', fromId: 'tp', toId: 'tg', bends: [], verticalMeters: 0, itemId: '' });
   s.materials.routes.push({ id: 'fr', fromId: 'tp', toId: 'tg', feederId: 'feed', bends: [], verticalMeters: 0, conduit: '', assignments: [] });
   const result = proposeElectrical(s), feeder = result.feederCircuits[0], c = result.circuits.find(c => c.type === 'TUG');
+  expect(feeder.meters).toBeCloseTo(Math.hypot(20,20)+3);
   expect(feeder.section).toBeGreaterThanOrEqual(4); expect(feeder.percent).toBeGreaterThan(0);
   expect(feeder.percent).toBeLessThanOrEqual(1);
   expect(c.percent).toBeCloseTo(c.drop * 100 / 220 + feeder.percent);
   expect(c.percent).toBeLessThanOrEqual(2);
   expect(withAutomaticConductors(s).materials.routes.find(r => r.id === 'fr').assignments).toHaveLength(1);
+  const computed=withAutomaticConductors(s);
+  expect(calculatedRouteLength(computed,computed.materials.routes.find(r=>r.id==='fr'))).toBeCloseTo(feeder.meters);
 });
 it('keeps terminal and total drop budgets separate and does not prorate TUG demand by outlet count', () => {
   const s = fixture(10, 10); s.materials.calculation.upstreamPercent = 0.9;

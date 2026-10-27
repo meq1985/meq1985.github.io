@@ -1,7 +1,7 @@
 import { validateSketch, sketchSummary, overlapsRoom } from './sketch';
 import { validateBudget } from './budgetValidation';
 import { validateQuoteSettings, includesPat } from './sketchQuoteSettings';
-import { EQUIPMENT_TYPES, PACKAGE_PAT, feederLength } from './sketchInfrastructure';
+import { EQUIPMENT_TYPES, PACKAGE_PAT, feederLength, FEEDER_EXTRA_METERS } from './sketchInfrastructure';
 
 export function quoteFromSketch(input, entries) {
   const sketch = validateSketch(input);
@@ -47,7 +47,7 @@ export function quoteFromSketch(input, entries) {
     }
     if (meters <= 0) throw Error('El recorrido necesita una longitud mayor que cero.');
     if (f.itemId === 'measure-only') warnings.push(`Recorrido de ${meters} m: solo medición, no incluido en el importe.`);
-    else add(f.itemId, ['subterraneo_tierra', 'subterraneo_piso'].includes(f.itemId) ? Math.ceil(meters / 5) : meters, `Alimentación del principal al general: ${meters} m`);
+    else add(f.itemId, ['subterraneo_tierra', 'subterraneo_piso'].includes(f.itemId) ? Math.ceil(meters / 5) : meters, `Alimentación del principal al general: ${meters} m (incluye ${FEEDER_EXTRA_METERS} m de subida/bajada)`);
     return { id: f.id, meters };
   });
   if (!rows.length) throw Error('Agregá puntos o seleccioná al menos un trabajo para presupuestar.');

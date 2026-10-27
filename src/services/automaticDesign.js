@@ -1,4 +1,4 @@
-import { materialAnchors, materialRouteLength, materialRouteVertical, materialRouteFloorRise, emptyMaterialNetwork } from './materialNetwork';
+import { materialAnchors, materialRouteLength, materialRouteVertical, materialRouteFloorRise, levelElevation, emptyMaterialNetwork } from './materialNetwork';
 import { sketchHeights } from './sketchQuoteSettings';
 import { switchTopology } from './switchTopology';
 // Conservative reference: IEC B1, copper PVC, THREE loaded conductors at 30 °C.
@@ -10,13 +10,21 @@ const grouping = [1, 0.8, 0.7, 0.65, 0.6, 0.57, 0.54, 0.52, 0.5];
 const groupFactor = n => n <= 9 ? grouping[Math.max(0, n - 1)] : n <= 12 ? 0.45 : n <= 16 ? 0.41 : n <= 20 ? 0.38 : 0;
 export function verticalForRoute(sketch, route) {
   const manual = route.feederId ? sketch.feeders.find(f => f.id === route.feederId).verticalMeters : route.verticalMeters;
+  // TP → TG uses its explicit 3 m service rise/drop allowance, not ceiling routing.
+  if (route.feederId) return manual;
   if (manual > 0) return manual;
   const heights = sketchHeights(sketch), ceiling = heights.techo;
   if (!(ceiling > 0)) return null;
   const anchors = materialAnchors(sketch);
   const height = a => ['luminaria', undefined].includes(a.type) ? ceiling : ['toma', 'llave'].includes(a.type) ? heights[a.type] :
     ['general', 'seccional', 'principal', 'medidor_tp'].includes(a.type) ? sketch.materials.calculation.boardHeight : null;
-  const ends = [route.fromId, route.toId].map(id => height(anchors.find(a => a.id === id) ?? {}));
+  const nodes = [route.fromId, route.toId].map(id => anchors.find(a => a.id === id) ?? {});
+  const ends = nodes.map(height);
+  if (route.routing === 'direct' || (route.routing === undefined && nodes.every(a => a.type === 'toma'))) {
+    if (!ends.every(h => Number.isFinite(h) && h > 0 && h <= ceiling)) return null;
+    const floorDelta = levelElevation(sketch,nodes[1].levelId)-levelElevation(sketch,nodes[0].levelId);
+    return materialRouteFloorRise(sketch,route)-Math.abs(floorDelta)+Math.abs(floorDelta+ends[1]-ends[0]);
+  }
   return ends.every(h => Number.isFinite(h) && h > 0 && h <= ceiling) ? materialRouteFloorRise(sketch, route) + ends.reduce((sum, h) => sum + ceiling - h, 0) : null;
 }
 export function calculatedRouteLength(sketch, route) {

@@ -1,5 +1,6 @@
 // Physical routes are independent of labour prices and of regulatory design rules.
 import { switchTopology } from './switchTopology';
+import { FEEDER_EXTRA_METERS } from './sketchInfrastructure';
 export const WIRE_ROLES = { phase: 'Fase', neutral: 'Neutro', pe: 'Protección PE', return: 'Retorno', traveller: 'Viajero' };
 export const emptyMaterialNetwork = () => ({ schema: 1, circuits: [], junctions: [], routes: [], extras: [], reservePercent: 0 });
 export function materialAnchors(sketch) {
@@ -27,6 +28,7 @@ export function validateMaterialNetwork(input, sketch, unique) {
     const from = anchors.find(a => a.id === r.fromId), to = anchors.find(a => a.id === r.toId);
     if (!from || !to || from.id === to.id) fail();
     if (r.kind !== undefined && !['physical', 'control'].includes(r.kind)) fail();
+    if (r.routing !== undefined && !['direct','ceiling'].includes(r.routing)) fail();
     if (r.kind === 'control' && ![from.type, to.type].sort().every((type, i) => type === ['llave', 'luminaria'][i])) fail();
     const key = [from.id, to.id].sort().join(':'); if (pairs.has(key)) fail(); pairs.add(key);
     const planeOrder = [from.levelId, ...list(r.bends,50).map(p => p.levelId ?? from.levelId), to.levelId].filter((id,i,a) => !i || id !== a[i-1]);
@@ -42,7 +44,7 @@ export function validateMaterialNetwork(input, sketch, unique) {
         return { role: w.role, count: number(w.count, 1, 20), section: number(w.section, 0.1, 240) };
       }) };
     });
-    return { id: unique(r.id), fromId: from.id, toId: to.id, feederId: r.feederId, ...(r.kind === undefined ? {} : { kind: r.kind }),
+    return { id: unique(r.id), fromId: from.id, toId: to.id, feederId: r.feederId, ...(r.kind === undefined ? {} : { kind: r.kind }), ...(r.routing === undefined ? {} : { routing: r.routing }),
       bends: list(r.bends, 50).map(p => ({ ...coords(p), ...(p.levelId === undefined ? {} : { levelId: sketch.levels.some(l => l.id === p.levelId) ? p.levelId : fail() }) })), verticalMeters: number(r.verticalMeters, 0, 200),
       conduit: typeof r.conduit === 'string' && r.conduit.length <= 120 ? r.conduit.trim() : fail(), assignments };
   });
@@ -70,7 +72,7 @@ export function materialRoutePoints(sketch, route) {
 export function materialRouteLength(sketch, route) {
   const points = materialRoutePoints(sketch, route);
   const vertical = materialRouteVertical(sketch, route);
-  return points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - points[i].x, p.y - points[i].y), 0) + vertical;
+  return points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - points[i].x, p.y - points[i].y), 0) + vertical + (route.feederId ? FEEDER_EXTRA_METERS : 0);
 }
 export const levelElevation = (sketch, id) => sketch.levels.find(l => l.id === id)?.elevation ?? sketch.levels.findIndex(l => l.id === id) * 3;
 export function materialRouteFloorRise(sketch, route) {

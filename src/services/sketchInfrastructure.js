@@ -2,6 +2,7 @@ export const EQUIPMENT_TYPES = { medidor_tp: 'Medidor + tablero principal', prin
 const sectional = ['seccional_8', 'seccional_36', 'seccional_54'];
 export const EQUIPMENT_ITEMS = { medidor_tp: ['pilar', 'gabinete_adicional'], principal: ['tp_mono', 'tp_tri'], general: sectional, seccional: sectional, jabalina: ['tp_pat', 'pat_servicio'] };
 export const FEEDER_ITEMS = ['subterraneo_tierra', 'subterraneo_piso', 'mamposteria_comun_metro', 'mamposteria_hueco_metro'];
+export const FEEDER_EXTRA_METERS = 3;
 export const PACKAGE_PAT = ['tp_mono', 'tp_tri', 'gabinete_1', 'gabinete_2', 'gabinete_3', 'gabinete_4', 'pilar'];
 export function validateInfrastructure(input, levels, unique) {
   const fail = () => { throw Error('Revisá los tableros, jabalinas y recorridos del croquis.'); };
@@ -29,5 +30,5 @@ export function feederPoints(sketch, feeder) {
 export function feederLength(sketch, feeder) {
   const points = feederPoints(sketch, feeder);
   const horizontal = points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - points[i].x, p.y - points[i].y), 0);
-  return Math.round((horizontal + feeder.verticalMeters) * 100) / 100;
+  return Math.round((horizontal + feeder.verticalMeters + FEEDER_EXTRA_METERS) * 100) / 100;
 }
