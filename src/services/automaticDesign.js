@@ -5,7 +5,7 @@ import { switchTopology } from './switchTopology';
 // Schneider Electrical Installation Guide, table G20 / IEC B.52.4.
 // The correction factor remains an explicit installation input, never inferred from geometry.
 export const CABLES = [[1.5, 15.5], [2.5, 21], [4, 28], [6, 36], [10, 50], [16, 68]];
-export const DEFAULT_CALCULATION = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, totalLimitPercent: 3, feederLimitPercent: 1, upstreamPercent: 0, correctionFactor: 1, boardHeight: 1.5 };
+export const DEFAULT_CALCULATION = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, totalLimitPercent: 3, feederLimitPercent: 1, upstreamPercent: 0, correctionFactor: 1, boardHeight: 1.5, tugDemandMode: 'per-point-150' };
 const grouping = [1, 0.8, 0.7, 0.65, 0.6, 0.57, 0.54, 0.52, 0.5];
 const groupFactor = n => n <= 9 ? grouping[Math.max(0, n - 1)] : n <= 12 ? 0.45 : n <= 16 ? 0.41 : n <= 20 ? 0.38 : 0;
 export function verticalForRoute(sketch, route) {
@@ -114,7 +114,7 @@ export function proposeElectrical(sketch) {
     if (boards.length === 1) while (buckets.length < minimum[t]) buckets.push([]);
     for (const bucket of buckets) {
       const index = circuits.length, id = `auto-c-${index}`, name = `${type} ${circuits.filter(c => c.type === type).length + 1}`;
-      const demandVA = type === 'IUG' ? bucket.length * 60 * 2 / 3 : 2200;
+      const demandVA = type === 'IUG' ? bucket.length * 60 * 2 / 3 : settings.tugDemandMode === 'per-point-150' ? bucket.length * 150 : 2200;
       const current = demandVA / settings.voltage, breaker = type === 'IUG' ? 10 : 16;
       const controlRoutes = type === 'IUG' ? routes.filter(r => r.kind === 'control' && bucket.some(p => [r.fromId, r.toId].includes(p.anchor.id))) : [];
       const rolesByRoute = new Map();
@@ -199,6 +199,7 @@ export function proposeElectrical(sketch) {
   const sharedRoutes = [...assignments].filter(([, a]) => a.length > 1).map(([id]) => id);
   if (sharedRoutes.length) warnings.push('Se aplicó reducción por cantidad de circuitos en cañerías compartidas. Confirmar temperatura y condiciones reales de instalación.');
   if (pending.length) warnings.push(`${pending.length} punto(s) sin camino dibujado hasta un tablero general o seccional.`);
+  if (settings.tugDemandMode === 'per-point-150') warnings.push('Estimación TUG con 150 VA por toma elegida para el proyecto; no equivale al mínimo de 2200 VA por circuito de la tabla AEA.');
   if (routes.some(r => verticalForRoute(sketch, r) === null)) warnings.push('Completá las alturas de techo, tomas, llaves y tableros: hay tramos sin verticales calculables.');
   if (!boards.length) warnings.push('Dibujá un tablero general para alimentar los circuitos.');
   if (boards.length > 1) warnings.push('Varios tableros: revisar reparto de circuitos mínimos y caída en sus alimentadores.');

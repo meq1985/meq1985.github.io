@@ -6,7 +6,7 @@ import { DEFAULT_CALCULATION, calculatedRouteLength, proposeElectrical, selectCa
 const fixture = (count = 1, width = 20) => ({ ...emptySketch(), schema: 2, quote: { ...emptyQuoteSettings(), heights: { toma: 0.3, llave: 1.2, techo: 3 } },
   equipment: [{ id: 'tg', type: 'general', name: 'TG', levelId: 'planta-baja', x: 0, y: 0, itemId: '' }], feeders: [],
   rooms: [{ id: 'room', levelId: 'planta-baja', name: 'Sala', x: 0, y: 0, width, depth: 1, points: Array.from({ length: count }, (_, i) => ({ id: `p${i}`, type: 'toma', x: 1, y: i / count })) }],
-  materials: { ...emptyMaterialNetwork(), calculation: { ...DEFAULT_CALCULATION }, routes: Array.from({ length: count }, (_, i) => ({ id: `r${i}`, fromId: 'tg', toId: `p${i}`, feederId: null, kind: 'physical', bends: [], verticalMeters: 0, conduit: '', assignments: [] })) } });
+  materials: { ...emptyMaterialNetwork(), calculation: { ...DEFAULT_CALCULATION, tugDemandMode: 'per-circuit-2200' }, routes: Array.from({ length: count }, (_, i) => ({ id: `r${i}`, fromId: 'tg', toId: `p${i}`, feederId: null, kind: 'physical', bends: [], verticalMeters: 0, conduit: '', assignments: [] })) } });
 it('adds rises and drops at both ends, with a manual override that is not counted twice', () => {
   const s = fixture(); expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(24.2);
   s.materials.routes[0].verticalMeters = 6; expect(calculatedRouteLength(s, s.materials.routes[0])).toBeCloseTo(26);
@@ -149,6 +149,24 @@ it('keeps terminal and total drop budgets separate and does not prorate TUG dema
   expect(circuit.section).toBe(2.5);
   expect(circuit.percent).toBeGreaterThan(2); expect(circuit.percent).toBeLessThanOrEqual(3);
   expect(circuit.drop * 100 / 220).toBeLessThanOrEqual(2);
+});
+it('uses 150 VA per outlet by default, persists the choice and recalculates the feeder too', () => {
+  const s=fixture(6,40);s.materials.calculation={...DEFAULT_CALCULATION};
+  for(let i=1;i<6;i++) s.materials.routes[i].fromId=`p${i-1}`;
+  const custom=proposeElectrical(s).circuits.find(c=>c.type==='TUG');
+  expect(custom.pointIds).toHaveLength(6);expect(custom.demandVA).toBe(900);expect(custom.current).toBeCloseTo(900/220);expect(custom.section).toBe(2.5);
+  expect(custom.percent).toBeLessThanOrEqual(2);
+  expect(decodeSketch(encodeSketch(s)).materials.calculation.tugDemandMode).toBe('per-point-150');
+  delete s.materials.calculation.tugDemandMode;
+  expect(proposeElectrical(s).circuits.find(c=>c.type==='TUG').demandVA).toBe(900);
+  s.equipment.push({id:'tp',name:'TP',type:'principal',levelId:'planta-baja',x:0,y:2,itemId:''});
+  s.feeders.push({id:'f',fromId:'tp',toId:'tg',bends:[],verticalMeters:0,itemId:''});
+  s.materials.routes.push({id:'fr',fromId:'tp',toId:'tg',feederId:'f',bends:[],verticalMeters:0,conduit:'',assignments:[]});
+  expect(proposeElectrical(s).feederCircuits[0].demandVA).toBe(900);
+  s.materials.calculation.tugDemandMode='per-circuit-2200';
+  expect(proposeElectrical(s).circuits.find(c=>c.type==='TUG').demandVA).toBe(2200);
+  expect(proposeElectrical(s).feederCircuits[0].demandVA).toBe(2200);
+  s.materials.calculation.tugDemandMode='invalid';expect(()=>encodeSketch(s)).toThrow();
 });
 it('preserves calculation inputs, equipment specifications and heights across persistence', () => {
   const s = fixture(); s.equipment[0].specification = 'Embutido 24 módulos';

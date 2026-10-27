@@ -86,8 +86,12 @@ it('calculates circuits from drawn board connections and exposes equipment speci
   }
   await button(w, 'Calcular instalación').trigger('click'); await button(w, 'Calcular circuitos y cables').trigger('click');
   expect(w.vm.sketch.materials.calculation.profile).toBe('cu-pvc-b1-v1');
+  expect(w.vm.sketch.materials.calculation.tugDemandMode).toBe('per-point-150');
   expect(w.get('.auto-design').text()).toContain('IUG 1'); expect(w.get('.auto-design').text()).toContain('TUG 1');
   expect(w.get('.auto-design').text()).toContain('mm²');
+  await field(w,'Demanda de tomacorrientes','select').setValue('per-circuit-2200');
+  expect(w.vm.sketch.materials.calculation.tugDemandMode).toBe('per-circuit-2200');
+  expect(w.get('.auto-design').text()).toContain('2200 VA por circuito');
   await button(w, 'Ver materiales').trigger('click');
   await field(w, 'Tipo, capacidad y montaje', 'input').setValue('Embutido 24 módulos');
   await field(w, 'Tipo, capacidad y montaje', 'input').trigger('change');
