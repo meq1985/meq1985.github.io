@@ -1,5 +1,6 @@
-import { materialAnchors, materialRouteLength, emptyMaterialNetwork } from './materialNetwork';
+import { materialAnchors, materialRouteLength, materialRouteVertical, materialRouteFloorRise, emptyMaterialNetwork } from './materialNetwork';
 import { sketchHeights } from './sketchQuoteSettings';
+import { switchTopology } from './switchTopology';
 // Conservative reference: IEC B1, copper PVC, THREE loaded conductors at 30 °C.
 // Schneider Electrical Installation Guide, table G20 / IEC B.52.4.
 // The correction factor remains an explicit installation input, never inferred from geometry.
@@ -16,11 +17,11 @@ export function verticalForRoute(sketch, route) {
   const height = a => ['luminaria', undefined].includes(a.type) ? ceiling : ['toma', 'llave'].includes(a.type) ? heights[a.type] :
     ['general', 'seccional', 'principal', 'medidor_tp'].includes(a.type) ? sketch.materials.calculation.boardHeight : null;
   const ends = [route.fromId, route.toId].map(id => height(anchors.find(a => a.id === id) ?? {}));
-  return ends.every(h => Number.isFinite(h) && h > 0 && h <= ceiling) ? ends.reduce((sum, h) => sum + ceiling - h, 0) : null;
+  return ends.every(h => Number.isFinite(h) && h > 0 && h <= ceiling) ? materialRouteFloorRise(sketch, route) + ends.reduce((sum, h) => sum + ceiling - h, 0) : null;
 }
 export function calculatedRouteLength(sketch, route) {
   const vertical = verticalForRoute(sketch, route);
-  const manual = route.feederId ? sketch.feeders.find(f => f.id === route.feederId).verticalMeters : route.verticalMeters;
+  const manual = materialRouteVertical(sketch, route);
   return vertical === null ? null : materialRouteLength(sketch, route) + vertical - manual;
 }
 export function selectCable({ current, meters, minimum, breaker, settings }) {
@@ -42,6 +43,7 @@ export function proposeElectrical(sketch) {
   if (!sketch.materials?.calculation) return null;
   const settings = { ...DEFAULT_CALCULATION, ...sketch.materials.calculation };
   const anchors = materialAnchors(sketch), routes = sketch.materials.routes;
+  const topology = switchTopology(sketch);
   const boards = anchors.filter(a => ['general', 'seccional'].includes(a.type));
   const warnings = [], circuits = [], pending = [], assignments = new Map(routes.map(r => [r.id, []]));
   const graph = new Map(anchors.map(a => [a.id, []]));
@@ -55,8 +57,8 @@ export function proposeElectrical(sketch) {
     graph.get(from.id).push({ to: to.id, routeId: r.id, meters }); graph.get(to.id).push({ to: from.id, routeId: r.id, meters });
   }
   // A proposed radial tree follows the shortest DRAWN path; it never invents segments.
-  function pathsFor(type) {
-  const paths = new Map(boards.map(b => [b.id, { distance: 0, boardId: b.id, routeIds: [] }])), done = new Set();
+  function pathsFor(type, roots = boards.map(b => b.id)) {
+  const paths = new Map(roots.map(id => [id, { distance: 0, boardId: id, routeIds: [] }])), done = new Set();
   while (true) {
     const next = [...paths].filter(([id]) => !done.has(id)).sort((a, b) => a[1].distance - b[1].distance || a[0].localeCompare(b[0]))[0];
     if (!next) break;
@@ -71,6 +73,8 @@ export function proposeElectrical(sketch) {
   return paths;
   }
   const iugPaths = pathsFor('IUG'), tugPaths = pathsFor('TUG');
+  const cache = new Map();
+  const pathBetween = (from,to) => { if (!cache.has(from)) cache.set(from, pathsFor('IUG', [from])); return cache.get(from).get(to); };
   const groups = new Map();
   for (const a of anchors.filter(a => ['luminaria', 'toma'].includes(a.type))) {
     const path = (a.type === 'luminaria' ? iugPaths : tugPaths).get(a.id);
@@ -105,29 +109,50 @@ export function proposeElectrical(sketch) {
       const demandVA = type === 'IUG' ? bucket.length * 60 * 2 / 3 : 2200;
       const current = demandVA / settings.voltage, breaker = type === 'IUG' ? 10 : 16;
       const controlRoutes = type === 'IUG' ? routes.filter(r => r.kind === 'control' && bucket.some(p => [r.fromId, r.toId].includes(p.anchor.id))) : [];
-      const missingControlHeight = controlRoutes.some(r => calculatedRouteLength(sketch, r) === null);
-      const length = bucket.length ? Math.max(...bucket.map(p => p.distance + controlRoutes.filter(r => !p.routeIds.includes(r.id)).reduce((max, r) => Math.max(max, calculatedRouteLength(sketch, r) ?? 0), 0))) : 0;
-      const choice = bucket.length && !missingControlHeight ? selectCable({ current, meters: length, minimum: type === 'IUG' ? 1.5 : 2.5, breaker, settings }) : null;
-      const routeIds = [...new Set(bucket.flatMap(p => p.routeIds))];
+      const rolesByRoute = new Map();
+      let missingWiring = false, length = 0;
+      const addPath = (path, role, net = role, count = 1) => {
+        if (!path) { missingWiring = true; return; }
+        for (const routeId of path.routeIds) {
+          if (!rolesByRoute.has(routeId)) rolesByRoute.set(routeId, new Map());
+          const roles = rolesByRoute.get(routeId);
+          if (!roles.has(role)) roles.set(role, new Map());
+          roles.get(role).set(net, count);
+        }
+      };
+      for (const p of bucket) {
+        const neutral = pathBetween(board.id, p.anchor.id);
+        if (type === 'TUG') {
+          addPath(p, 'phase'); addPath(p, 'neutral'); length = Math.max(length, p.distance); continue;
+        }
+        const group = topology.groups.find(g => g.lightIds.includes(p.anchor.id));
+        const switches = (group?.switchIds ?? []).slice().sort((a,b) => (pathBetween(board.id,a)?.distance ?? Infinity) - (pathBetween(board.id,b)?.distance ?? Infinity) || a.localeCompare(b));
+        if (switches.length > 2) { missingWiring = true; continue; }
+        const phase = switches.length ? pathBetween(board.id, switches[0]) : neutral;
+        const travellers = switches.length === 2 ? pathBetween(switches[0], switches[1]) : null;
+        const returned = switches.length ? pathBetween(switches.at(-1), p.anchor.id) : null;
+        addPath(phase, 'phase'); addPath(neutral, 'neutral');
+        if (switches.length === 2) addPath(travellers, 'traveller', group.id, 2);
+        if (switches.length) addPath(returned, 'return', group.id);
+        if (phase && neutral && (!switches.length || returned) && (switches.length !== 2 || travellers))
+          length = Math.max(length, (phase.distance + neutral.distance + (travellers?.distance ?? 0) + (returned?.distance ?? 0)) / 2);
+      }
+      for (const roles of rolesByRoute.values()) roles.set('pe', new Map([['pe', 1]]));
+      const missingControlHeight = missingWiring;
+      const choice = bucket.length && !missingWiring ? selectCable({ current, meters: length, minimum: type === 'IUG' ? 1.5 : 2.5, breaker, settings }) : null;
+      const routeIds = [...rolesByRoute.keys()];
       const circuit = { id, name, type, boardId: board.id, departureRouteId: bucket[0]?.routeIds[0] ?? null, pointIds: bucket.map(p => p.anchor.id), routeIds, controlRouteIds: controlRoutes.map(r => r.id), missingControlHeight, demandVA, current, breaker, meters: length, ...choice,
         status: !bucket.length ? 'reserved' : choice ? 'proposal' : 'unresolved' };
       circuits.push(circuit);
       const initialSection = choice?.section ?? (type === 'IUG' ? 1.5 : 2.5);
-      const rolesByRoute = new Map();
-      const addRoles = (routeId, roles) => { if (!rolesByRoute.has(routeId)) rolesByRoute.set(routeId, new Set()); for (const role of roles) rolesByRoute.get(routeId).add(role); };
-      for (const p of bucket) {
-        let switched = false, nodeId = board.id;
-        for (const routeId of p.routeIds) {
-          const edge = routes.find(r => r.id === routeId);
-          if (type === 'IUG' && (edge.kind === 'control' || anchors.find(a => a.id === nodeId)?.type === 'llave')) switched = true;
-          addRoles(routeId, [switched ? 'return' : 'phase', 'neutral', 'pe']);
-          nodeId = edge.fromId === nodeId ? edge.toId : edge.fromId;
-        }
-      }
-      // A switch leg fed from the luminaire box needs phase + return, without neutral.
-      // When supply enters through the switch box, the same route instead carries return + neutral.
-      for (const r of controlRoutes) if (!routeIds.includes(r.id)) addRoles(r.id, ['phase', 'return', 'pe']);
-      for (const [routeId, roles] of rolesByRoute) assignments.get(routeId).push({ circuitId: id, wires: [...roles].map(role => ({ role, count: 1, section: role === 'pe' ? Math.max(2.5, initialSection) : initialSection })) });
+      for (const [routeId, roles] of rolesByRoute) assignments.get(routeId).push({ circuitId: id, wires: [...roles].map(([role, nets]) => ({ role, count: [...nets.values()].reduce((sum,n) => sum+n, 0), section: role === 'pe' ? Math.max(2.5, initialSection) : initialSection })) });
+    }
+  }
+  for (const g of topology.groups.filter(g => g.switchIds.length)) {
+    const controlled = circuits.filter(c => c.type === 'IUG' && c.pointIds.some(id => g.lightIds.includes(id)));
+    if (controlled.length > 1) {
+      controlled.forEach(c => { c.missingControlHeight = true; });
+      warnings.push('Un mismo grupo con llave quedó repartido en varios circuitos: separá sus mandos antes de completar los conductores.');
     }
   }
   const feederCircuits = [];
@@ -169,6 +194,7 @@ export function proposeElectrical(sketch) {
   if (routes.some(r => verticalForRoute(sketch, r) === null)) warnings.push('Completá las alturas de techo, tomas, llaves y tableros: hay tramos sin verticales calculables.');
   if (!boards.length) warnings.push('Dibujá un tablero general para alimentar los circuitos.');
   if (boards.length > 1) warnings.push('Varios tableros: revisar reparto de circuitos mínimos y caída en sus alimentadores.');
+  if (topology.groups.some(g => g.switchIds.length > 2)) warnings.push('Hay mandos de más de dos puntos: revisar cruzamientos y conductores antes de completar ese circuito.');
   if (circuits.some(c => c.status === 'unresolved')) warnings.push('Hay circuitos sin sección disponible que cumpla las condiciones ingresadas.');
   if (feederCircuits.some(c => c.status === 'unresolved')) warnings.push('Hay alimentadores sin sección calculable: revisar longitud, demanda, alturas y límite de caída.');
   if (!feederCircuits.length) warnings.push('No hay alimentador TP → TG dibujado: la caída previa al tablero debe ingresarse en los datos del cálculo.');

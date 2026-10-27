@@ -14,7 +14,7 @@ export function validateSketch(input) {
       !input.levels.length || input.levels.length > SKETCH_LIMITS.levels || input.rooms.length > SKETCH_LIMITS.rooms) fail();
   const ids = new Set();
   const unique = value => { const key = id(value); if (ids.has(key)) fail(); ids.add(key); return key; };
-  const levels = input.levels.map(level => ({ id: unique(level.id), name: label(level.name) }));
+  const levels = input.levels.map(level => ({ id: unique(level.id), name: label(level.name), ...(level.elevation === undefined ? {} : { elevation: number(level.elevation, -30, 100) }) }));
   let count = 0;
   const rooms = input.rooms.map(room => {
     if (!levels.some(level => level.id === room.levelId) || !Array.isArray(room.points)) fail();

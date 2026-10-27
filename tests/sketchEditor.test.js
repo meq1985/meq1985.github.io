@@ -22,7 +22,7 @@ it('draws boards and feeder connections on the canvas, measures bends and undoes
   await button(w, 'Medidor + TP').trigger('click'); await svg.trigger('click', { clientX: 0, clientY: 0 });
   await button(w, 'Tablero').trigger('click'); await svg.trigger('click', { clientX: 180, clientY: 240 });
   expect(w.vm.sketch.equipment.map(e => e.type)).toEqual(['medidor_tp', 'general']);
-  await button(w, 'Conectar').trigger('click');
+  await button(w, 'Trazar conexión').trigger('click');
   await w.get(`[data-anchor="${w.vm.sketch.equipment[0].id}"]`).trigger('click');
   await w.get(`[data-anchor="${w.vm.sketch.equipment[1].id}"]`).trigger('click');
   const field = w.findAll('label').find(l => l.text().startsWith('Verticales manuales')).get('input');

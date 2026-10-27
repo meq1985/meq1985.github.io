@@ -100,8 +100,8 @@ it.each([false, true])('supplies lighting through a switch box, including chaine
   expect(c.meters).toBeCloseTo(s.materials.routes.reduce((sum, r) => sum + calculatedRouteLength(s, r), 0));
   expect(result.assignments.get('supply')[0].wires.map(w => w.role)).toEqual(['phase', 'neutral', 'pe']);
   expect(result.assignments.get('control')).toHaveLength(1);
-  expect(result.assignments.get('control')[0].wires.map(w => w.role)).toEqual(['return', 'neutral', 'pe']);
-  expect(result.assignments.get('chain')[0].wires.map(w => w.role)).toEqual(['return', 'neutral', 'pe']);
+  expect(result.assignments.get('control')[0].wires.map(w => w.role).sort()).toEqual(['neutral', 'pe', 'return']);
+  expect(result.assignments.get('chain')[0].wires.map(w => w.role).sort()).toEqual(['neutral', 'pe', 'return']);
 });
 it('does not route a TUG circuit through a switch', () => {
   const s = fixture(); s.rooms[0].points.push({ id: 'sw', type: 'llave', x: 0.5, y: 0 });

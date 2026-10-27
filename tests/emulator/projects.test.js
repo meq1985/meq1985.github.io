@@ -161,12 +161,16 @@ it('saves material networks with immutable budget versions using the existing ow
     ] } } };
   await saveProject(data);
   expect((await loadProject('material-network')).version.sketch).toEqual(data.sketch);
-    const next = structuredClone(data); next.expectedRevision = 1; next.sketch.materials.reservePercent = 20;
-    next.sketch.materials.calculation = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, totalLimitPercent: 3, feederLimitPercent: 1, upstreamPercent: 0.2, correctionFactor: 1, boardHeight: 1.5 };
+  const next = structuredClone(data); next.expectedRevision = 1; next.sketch.materials.reservePercent = 20;
+  next.sketch.materials.calculation = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, totalLimitPercent: 3, feederLimitPercent: 1, upstreamPercent: 0.2, correctionFactor: 1, boardHeight: 1.5 };
+  next.sketch.levels.push({ id: 'upper', name: 'Alta', elevation: 3.2 });
+  next.sketch.rooms.push({ id: 'up-room', levelId: 'upper', name: 'Dormitorio', x: 2, y: 1, width: 4, depth: 3, points: [{ id: 'up-light', type: 'luminaria', x: 0.5, y: 0.5 }] });
+  next.sketch.materials.routes.push({ id: 'cross-floor', fromId: 'p1', toId: 'up-light', feederId: null, bends: [{ x: 1, y: 0, levelId: 'planta-baja' }, { x: 1, y: 1, levelId: 'upper' }], verticalMeters: 0, conduit: '', assignments: [] });
   await saveProject(next);
   expect((await loadProjectVersion('material-network', 1)).sketch.materials.reservePercent).toBe(0);
   expect((await loadProject('material-network')).version.sketch.materials.reservePercent).toBe(20);
-    expect((await loadProject('material-network')).version.sketch.materials.calculation).toEqual(next.sketch.materials.calculation);
+  expect((await loadProject('material-network')).version.sketch).toEqual(next.sketch);
+  expect((await loadProjectVersion('material-network', 1)).sketch.levels).toHaveLength(1);
   await assertFails(updateDoc(doc(ref('material-network'), 'versiones', '1'), { sketch: encodeSketch(next.sketch) }));
 });
 it('refuses writes and reads after logout', async () => {

@@ -45,7 +45,7 @@ it('links existing feeders to live geometry without counting copied routes or do
   s.equipment[1].x = 0; expect(materialRouteLength(validateSketch(s), s.materials.routes[0])).toBe(11);
   expect(materialsFromSketch(s).warnings.some(w => w.includes('no está incorporado'))).toBe(false);
 });
-it('rejects broken references, reverse duplicates, cross-level routes and malformed conductor quantities', () => {
+it('rejects broken references, reverse duplicates and malformed conductor quantities', () => {
   const cases = [s => s.materials.routes[0].fromId = 'missing', s => s.materials.routes[0].assignments[0].circuitId = 'missing',
     s => s.materials.routes.push({ ...s.materials.routes[0], id: 'r2', fromId: 'p2', toId: 'p1' }),
     s => s.materials.routes[0].assignments[0].wires[0].count = 1.5,
@@ -56,7 +56,7 @@ it('rejects broken references, reverse duplicates, cross-level routes and malfor
   for (const edit of cases) { const s = drawing(); edit(s); expect(() => encodeSketch(s)).toThrow(); }
   const s = drawing(); s.levels.push({ id: 'upper', name: 'Alta' });
   s.materials.junctions.push({ id: 'j', name: 'Caja', levelId: 'upper', x: 0, y: 0 }); s.materials.routes[0].toId = 'j';
-  expect(() => encodeSketch(s)).toThrow();
+  expect(decodeSketch(encodeSketch(s)).materials.routes[0].toId).toBe('j');
 });
 it('prunes attached routes only for deliberate removals; loading broken data fails instead of silently repairing it', () => {
   const s = drawing(); s.rooms[0].points = s.rooms[0].points.slice(1);

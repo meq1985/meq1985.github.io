@@ -12,8 +12,8 @@ function editor(existingCount = 0, withSketch = false) {
 }
 it('persists heights, reviews a quote and requires explicit replacement before overwriting manual work', async () => {
   const w = editor(2, true), quote = w.getComponent(SketchQuote);
-  await w.findAll('input[type="number"]')[0].setValue('0.4');
-  expect(w.findAll('input[type="number"]')[0].attributes('step')).toBe('0.1');
+  await w.findAll('label').find(l => l.text().startsWith('Altura de tomacorrientes')).get('input').setValue('0.4');
+  expect(w.findAll('label').find(l => l.text().startsWith('Altura de tomacorrientes')).get('input').attributes('step')).toBe('0.1');
   expect(w.vm.sketch.quote.heights.toma).toBe(0.4);
   await button(w, 'Revisar presupuesto').trigger('click');
   expect(w.text()).toContain('30 m² a cotizar');

@@ -11,7 +11,7 @@ const emit = defineEmits(['edit', 'select', 'trace', 'close']);
 const network = computed(() => props.sketch.materials ?? emptyMaterialNetwork());
 const anchors = computed(() => materialAnchors(props.sketch).filter(a => a.levelId === props.levelId));
 const circuitId = ref('');
-const route = computed(() => network.value.routes.find(r => r.id === props.selectedRouteId && anchors.value.some(a => a.id === r.fromId)));
+const route = computed(() => network.value.routes.find(r => r.id === props.selectedRouteId));
 const design = computed(() => proposeElectrical(props.sketch));
 const result = computed(() => {
   const result = materialsFromSketch(withAutomaticConductors(props.sketch));

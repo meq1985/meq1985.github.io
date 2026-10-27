@@ -1,4 +1,5 @@
 // Physical routes are independent of labour prices and of regulatory design rules.
+import { switchTopology } from './switchTopology';
 export const WIRE_ROLES = { phase: 'Fase', neutral: 'Neutro', pe: 'Protección PE', return: 'Retorno', traveller: 'Viajero' };
 export const emptyMaterialNetwork = () => ({ schema: 1, circuits: [], junctions: [], routes: [], extras: [], reservePercent: 0 });
 export function materialAnchors(sketch) {
@@ -24,10 +25,12 @@ export function validateMaterialNetwork(input, sketch, unique) {
   const pairs = new Set();
   const routes = list(input.routes, 150).map(r => {
     const from = anchors.find(a => a.id === r.fromId), to = anchors.find(a => a.id === r.toId);
-    if (!from || !to || from.id === to.id || from.levelId !== to.levelId) fail();
+    if (!from || !to || from.id === to.id) fail();
     if (r.kind !== undefined && !['physical', 'control'].includes(r.kind)) fail();
     if (r.kind === 'control' && ![from.type, to.type].sort().every((type, i) => type === ['llave', 'luminaria'][i])) fail();
     const key = [from.id, to.id].sort().join(':'); if (pairs.has(key)) fail(); pairs.add(key);
+    const planeOrder = [from.levelId, ...list(r.bends,50).map(p => p.levelId ?? from.levelId), to.levelId].filter((id,i,a) => !i || id !== a[i-1]);
+    if (new Set(planeOrder).size !== planeOrder.length) fail();
     const feeder = r.feederId === null ? null : (sketch.feeders ?? []).find(f => f.id === r.feederId);
     if (r.feederId !== null && (!feeder || feeder.fromId !== from.id || feeder.toId !== to.id)) fail();
     const used = new Set();
@@ -40,7 +43,7 @@ export function validateMaterialNetwork(input, sketch, unique) {
       }) };
     });
     return { id: unique(r.id), fromId: from.id, toId: to.id, feederId: r.feederId, ...(r.kind === undefined ? {} : { kind: r.kind }),
-      bends: list(r.bends, 50).map(coords), verticalMeters: number(r.verticalMeters, 0, 200),
+      bends: list(r.bends, 50).map(p => ({ ...coords(p), ...(p.levelId === undefined ? {} : { levelId: sketch.levels.some(l => l.id === p.levelId) ? p.levelId : fail() }) })), verticalMeters: number(r.verticalMeters, 0, 200),
       conduit: typeof r.conduit === 'string' && r.conduit.length <= 120 ? r.conduit.trim() : fail(), assignments };
   });
   const extras = list(input.extras, 100).map(e => ({ id: unique(e.id), description: text(e.description, 120),
@@ -66,8 +69,30 @@ export function materialRoutePoints(sketch, route) {
 }
 export function materialRouteLength(sketch, route) {
   const points = materialRoutePoints(sketch, route);
-  const vertical = route.feederId ? sketch.feeders.find(f => f.id === route.feederId).verticalMeters : route.verticalMeters;
+  const vertical = materialRouteVertical(sketch, route);
   return points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - points[i].x, p.y - points[i].y), 0) + vertical;
+}
+export const levelElevation = (sketch, id) => sketch.levels.find(l => l.id === id)?.elevation ?? sketch.levels.findIndex(l => l.id === id) * 3;
+export function materialRouteFloorRise(sketch, route) {
+  const points = materialRoutePoints(sketch, route), origin = points[0].levelId;
+  return points.slice(1).reduce((sum, p, i) => sum + Math.abs(levelElevation(sketch, p.levelId ?? origin) - levelElevation(sketch, points[i].levelId ?? origin)), 0);
+}
+export function materialRouteVertical(sketch, route) {
+  const manual = route.feederId ? sketch.feeders.find(f => f.id === route.feederId).verticalMeters : route.verticalMeters;
+  return manual > 0 ? manual : materialRouteFloorRise(sketch, route);
+}
+// A change of floor is a vertical riser at the last position on the previous floor.
+export function materialRoutePlanePoints(sketch, route, levelId) {
+  const points = materialRoutePoints(sketch, route), origin = points[0].levelId;
+  const local = [];
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i], plane = p.levelId ?? origin, previous = points[i - 1];
+    if (plane === levelId) {
+      if (previous && (previous.levelId ?? origin) !== plane) local.push({ x: previous.x, y: previous.y });
+      local.push(p);
+    }
+  }
+  return local;
 }
 // Only called after deliberate editor changes, never while loading untrusted stored data.
 export function pruneMaterialNetwork(sketch) {
@@ -75,18 +100,21 @@ export function pruneMaterialNetwork(sketch) {
   sketch.materials.junctions = sketch.materials.junctions.filter(j => sketch.levels.some(l => l.id === j.levelId));
   const ids = new Set(materialAnchors(sketch).map(a => a.id));
   sketch.materials.routes = sketch.materials.routes.filter(r => ids.has(r.fromId) && ids.has(r.toId) &&
+    r.bends.every(p => p.levelId === undefined || sketch.levels.some(l => l.id === p.levelId)) &&
     (!r.feederId || (sketch.feeders ?? []).some(f => f.id === r.feederId)));
 }
 const round = n => Math.round((n + Number.EPSILON) * 100) / 100;
 export function materialsFromSketch(sketch) {
   const network = sketch.materials ?? emptyMaterialNetwork(), rows = new Map(), warnings = [];
+  const controls = switchTopology(sketch);
   const add = (key, description, unit, quantity, source, pending = false) => {
     if (!rows.has(key)) rows.set(key, { description, unit, quantity: 0, sources: [], pending });
     const row = rows.get(key); row.quantity += quantity; row.sources.push(source);
   };
   for (const room of sketch.rooms) for (const point of room.points) {
     add(point.type === 'luminaria' ? 'box-light' : 'box-mechanism', point.type === 'luminaria' ? 'Caja para luminaria · modelo a definir' : 'Caja para mecanismo · modelo a definir', 'ud.', 1, point.id, true);
-    add(`device-${point.type}`, { luminaria: 'Luminaria · artefacto a definir', toma: 'Tomacorriente · mecanismo a definir', llave: 'Llave · mecanismo a definir' }[point.type], 'ud.', 1, point.id, true);
+    const switchLabel = controls.switches.find(s => s.id === point.id)?.label;
+    add(point.type === 'llave' ? `device-${switchLabel}` : `device-${point.type}`, point.type === 'llave' ? `${switchLabel} · mecanismo a definir` : { luminaria: 'Luminaria · artefacto a definir', toma: 'Tomacorriente · mecanismo a definir' }[point.type], 'ud.', 1, point.id, true);
   }
   for (const j of network.junctions) add('junction', 'Caja de paso · modelo a definir', 'ud.', 1, j.id, true);
   for (const e of sketch.equipment ?? []) add(`equipment-${e.type}-${e.specification ?? ''}`, ({ general: 'Gabinete TG', seccional: 'Gabinete TS', principal: 'Conjunto TP', medidor_tp: 'Conjunto medidor + TP', jabalina: 'Jabalina' }[e.type]) + ' · ' + (e.specification || 'componentes a definir'), 'ud.', 1, e.id, true);
