@@ -83,11 +83,23 @@ export function proposeElectrical(sketch) {
   // Owner-supplied planning variants, not a declaration of regulatory compliance.
   const minimum = area <= 60 ? [1, 1] : area <= 130 ? [2, 1] : area <= 200 ? [2, 3] : [2, 4];
   for (const board of boards) for (const [t, type] of ['IUG', 'TUG'].entries()) {
-    const points = (groups.get(`${board.id}/${type}`) ?? []).sort((a, b) => b.distance - a.distance || a.anchor.id.localeCompare(b.anchor.id));
-    // Whole-installation area minima only for one-board layouts; multi-board allocation needs review.
-    const count = Math.max(Math.ceil(points.length / 15), boards.length === 1 ? minimum[t] : (points.length ? 1 : 0));
-    const buckets = Array.from({ length: count }, () => []);
-    points.forEach((p, i) => buckets[i % count].push(p));
+    const points = groups.get(`${board.id}/${type}`) ?? [];
+    // Independent departures from a board define independent proposed circuits.
+    // A common initial conduit remains one branch even if it forks downstream.
+    const branches = new Map();
+    for (const point of points) {
+      const departure = point.routeIds[0];
+      if (!branches.has(departure)) branches.set(departure, []);
+      branches.get(departure).push(point);
+    }
+    const buckets = [];
+    for (const [, branch] of [...branches].sort(([a], [b]) => a.localeCompare(b))) {
+      // Traverse common path prefixes together instead of alternating distant points.
+      branch.sort((a, b) => a.routeIds.join('/').localeCompare(b.routeIds.join('/')) || a.anchor.id.localeCompare(b.anchor.id));
+      for (let start = 0; start < branch.length; start += 15) buckets.push(branch.slice(start, start + 15));
+    }
+    // Reserve additional area minimums without moving points between drawn branches.
+    if (boards.length === 1) while (buckets.length < minimum[t]) buckets.push([]);
     for (const bucket of buckets) {
       const index = circuits.length, id = `auto-c-${index}`, name = `${type} ${circuits.filter(c => c.type === type).length + 1}`;
       const demandVA = type === 'IUG' ? bucket.length * 60 * 2 / 3 : 2200;
@@ -97,7 +109,7 @@ export function proposeElectrical(sketch) {
       const length = bucket.length ? Math.max(...bucket.map(p => p.distance + controlRoutes.filter(r => !p.routeIds.includes(r.id)).reduce((max, r) => Math.max(max, calculatedRouteLength(sketch, r) ?? 0), 0))) : 0;
       const choice = bucket.length && !missingControlHeight ? selectCable({ current, meters: length, minimum: type === 'IUG' ? 1.5 : 2.5, breaker, settings }) : null;
       const routeIds = [...new Set(bucket.flatMap(p => p.routeIds))];
-      const circuit = { id, name, type, boardId: board.id, pointIds: bucket.map(p => p.anchor.id), routeIds, controlRouteIds: controlRoutes.map(r => r.id), missingControlHeight, demandVA, current, breaker, meters: length, ...choice,
+      const circuit = { id, name, type, boardId: board.id, departureRouteId: bucket[0]?.routeIds[0] ?? null, pointIds: bucket.map(p => p.anchor.id), routeIds, controlRouteIds: controlRoutes.map(r => r.id), missingControlHeight, demandVA, current, breaker, meters: length, ...choice,
         status: !bucket.length ? 'reserved' : choice ? 'proposal' : 'unresolved' };
       circuits.push(circuit);
       const initialSection = choice?.section ?? (type === 'IUG' ? 1.5 : 2.5);

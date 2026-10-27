@@ -20,19 +20,55 @@ it('increases cable section with distance and never rounds before selecting', ()
   const exact = 2 * 10 / 1000 * 10 * 23.7 / 2.5 * 100 / 220;
   expect(selectCable({ current: 10, meters: 10, minimum: 2.5, breaker: 16, settings: { ...DEFAULT_CALCULATION, limitPercent: exact - 1e-9 } }).section).toBe(4);
 });
-it('splits 16 TUG into circuits of at most 15 and reserves area minimums', () => {
+it('keeps independent TUG departures separate and reserves area minimums', () => {
   const result = proposeElectrical(fixture(16));
   const tug = result.circuits.filter(c => c.type === 'TUG');
-  expect(tug).toHaveLength(2); expect(tug.flatMap(c => c.pointIds)).toHaveLength(16);
+  expect(tug).toHaveLength(16); expect(tug.flatMap(c => c.pointIds)).toHaveLength(16);
   expect(tug.every(c => c.pointIds.length <= 15)).toBe(true);
   const large = fixture(1, 50); large.rooms[0].depth = 3;
   expect(proposeElectrical(large).circuits.filter(c => c.type === 'TUG')).toHaveLength(3);
+});
+const lightingBranches = sizes => {
+  const s = fixture(sizes.reduce((sum, n) => sum + n, 0));
+  s.rooms[0].points.forEach(p => { p.type = 'luminaria'; });
+  let offset = 0;
+  for (const size of sizes) {
+    for (let i = 0; i < size; i++) s.materials.routes[offset + i].fromId = i ? `p${offset + i - 1}` : 'tg';
+    offset += size;
+  }
+  return s;
+};
+it.each([false, true])('keeps the 4-light and 12-light drawn branches as independent circuits (reversed=%s)', reversed => {
+  const s = lightingBranches([4, 12]);
+  if (reversed) { s.materials.routes.reverse(); for (const r of s.materials.routes) [r.fromId, r.toId] = [r.toId, r.fromId]; }
+  const result = proposeElectrical(s), circuits = result.circuits.filter(c => c.type === 'IUG');
+  expect(circuits).toHaveLength(2);
+  const a = circuits.find(c => c.pointIds.includes('p0')), b = circuits.find(c => c.pointIds.includes('p4'));
+  expect(new Set(a.pointIds)).toEqual(new Set(['p0', 'p1', 'p2', 'p3']));
+  expect(new Set(b.pointIds)).toEqual(new Set(Array.from({ length: 12 }, (_, i) => `p${i + 4}`)));
+  expect(a.demandVA).toBe(160); expect(b.demandVA).toBe(480);
+  expect(a.departureRouteId).toBe('r0'); expect(b.departureRouteId).toBe('r4');
+  expect(a.groupFactor).toBe(1); expect(b.groupFactor).toBe(1);
+  expect(a.routeIds.some(id => b.routeIds.includes(id))).toBe(false);
+  expect(result.assignments.get('r0').map(a => a.circuitId)).toEqual([a.id]);
+  expect(result.assignments.get('r4').map(a => a.circuitId)).toEqual([b.id]);
+  expect(proposeElectrical(decodeSketch(encodeSketch(s))).circuits).toEqual(result.circuits);
+});
+it('splits only the oversized branch at 15 points without mixing the other branch', () => {
+  const result = proposeElectrical(lightingBranches([16, 4]));
+  const circuits = result.circuits.filter(c => c.type === 'IUG');
+  expect(circuits).toHaveLength(3);
+  expect(circuits.filter(c => c.departureRouteId === 'r0').map(c => c.pointIds.length).sort((a,b) => a-b)).toEqual([1,15]);
+  const other = circuits.find(c => c.departureRouteId === 'r16');
+  expect(new Set(other.pointIds)).toEqual(new Set(['p16', 'p17', 'p18', 'p19']));
+  expect(result.assignments.get('r0')).toHaveLength(2); expect(result.assignments.get('r16')).toHaveLength(1);
 });
 it('uses drawn graph routes, applies grouping to common conduits and counts conduit only once', () => {
   const s = fixture(16, 5); s.materials.junctions = [{ id: 'j', levelId: 'planta-baja', name: 'Caja', x: 1, y: 0 }];
   s.materials.routes.forEach(r => { r.fromId = 'j'; });
   s.materials.routes.push({ id: 'trunk', fromId: 'tg', toId: 'j', feederId: null, bends: [], verticalMeters: 0, conduit: '', assignments: [] });
   const result = proposeElectrical(s);
+  expect(result.circuits.filter(c => c.type === 'TUG')).toHaveLength(2);
   expect(result.circuits.filter(c => c.type === 'TUG').every(c => c.groupFactor === 0.8 && c.section === 2.5)).toBe(true);
   const computed = withAutomaticConductors(s), list = materialsFromSketch(computed);
   expect(computed.materials.routes.find(r => r.id === 'trunk').assignments).toHaveLength(2);
