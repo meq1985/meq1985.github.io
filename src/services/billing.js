@@ -1,4 +1,4 @@
-import { doc, getDocFromServer } from 'firebase/firestore';
+import { doc, getDocFromServer, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { isAdministrator } from './billingPolicy';
@@ -12,11 +12,16 @@ export async function loadBillingAccess() {
   const admin = isAdministrator(user, administrator.data());
   const enabled = config.data()?.enabled === true;
   assertCurrentUser(user);
-  if (admin) return { enabled, admin, freeProjectId: null, subscription: null, checkoutAvailable: false };
+  if (admin) return { enabled, admin, trialStartedAt: null, subscription: null, checkoutAvailable: false };
+  await runTransaction(db, async transaction => {
+    const allowance = await transaction.get(allowanceRef(user.uid));
+    assertCurrentUser(user);
+    if (!allowance.exists()) transaction.set(allowanceRef(user.uid), { claimedAt: serverTimestamp() });
+  });
   const [allowance, subscription] = await Promise.all([getDocFromServer(allowanceRef(user.uid)), getDocFromServer(subscriptionRef(user.uid))]);
   assertCurrentUser(user);
   const stored = subscription.data();
-  return { enabled, admin: false, freeProjectId: allowance.data()?.freeProjectId ?? null,
+  return { enabled, admin: false, trialStartedAt: allowance.data()?.claimedAt?.toMillis?.() ?? null,
     subscription: stored ? { planId: stored.planId, status: stored.status, paidThrough: stored.paidThrough?.toMillis?.() ?? null,
       providerStatus: stored.providerStatus, manageable: stored.manageable === true } : null,
     checkoutAvailable: enabled && config.data()?.checkoutAvailable === true };

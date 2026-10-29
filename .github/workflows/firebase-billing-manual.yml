@@ -38,7 +38,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { writeFileSync } from 'node:fs';
-          const origin = process.env.BILLING_ORIGIN || 'https://electricistaxpress.web.app';
+          const origin = process.env.BILLING_ORIGIN || 'https://electricistaxpress.com.ar';
           const collector = process.env.BILLING_COLLECTOR;
           if (!/^https:\/\/[a-z0-9.-]+$/.test(origin) || !/^\d+$/.test(collector || '')) throw new Error('Set APP_ORIGIN and MP_COLLECTOR_ID in the protected environment.');
           writeFileSync('functions/.env.presupuesto-electrico', [

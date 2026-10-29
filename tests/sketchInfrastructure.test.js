@@ -11,13 +11,13 @@ export const scene = () => ({ ...emptySketch(), rooms: [{ id: 'room', name: 'Cas
 ], feeders: [{ id: 'feed', fromId: 'meter', toId: 'general', bends: [], verticalMeters: 2, itemId: 'subterraneo_tierra' }] });
 it('round trips equipment and routes; measures a drawn path plus explicit vertical metres', () => {
   const s = scene(); expect(decodeSketch(encodeSketch(s))).toEqual(s);
-  expect(feederLength(s, s.feeders[0])).toBe(12);
-  s.feeders[0].bends.push({ x: 0, y: 8 }); expect(feederLength(s, s.feeders[0])).toBe(16);
-  s.equipment[1].x = 8; expect(feederLength(s, s.feeders[0])).toBe(18);
+  expect(feederLength(s, s.feeders[0])).toBe(15);
+  s.feeders[0].bends.push({ x: 0, y: 8 }); expect(feederLength(s, s.feeders[0])).toBe(19);
+  s.equipment[1].x = 8; expect(feederLength(s, s.feeders[0])).toBe(21);
 });
 it('quotes roles and rounds 5m work packages upward, discounting only PAT already included', () => {
   const result = quoteFromSketch(scene(), LABOR_CATALOG);
-  expect(result.measurements[0].meters).toBe(12);
+  expect(result.measurements[0].meters).toBe(15);
   expect(result.rows.find(r => r.descripcion.includes('tramo de 5 m')).cantidad).toBe(3);
   expect(result.rows.filter(r => r.descripcion.includes('Jabalina de protección'))).toHaveLength(1);
   expect(result.warnings.join()).toContain('1 jabalina cubierta');
@@ -26,8 +26,10 @@ it('quotes roles and rounds 5m work packages upward, discounting only PAT alread
 });
 it('quotes metre items without rounding to 5m and requires explicit measure-only choice', () => {
   const s = scene(); s.feeders[0].itemId = 'mamposteria_comun_metro';
-  expect(quoteFromSketch(s, LABOR_CATALOG).rows.find(r => r.descripcion.includes('Alimentación')).cantidad).toBe(12);
-  s.feeders[0].itemId = ''; expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('Solo medir');
+  expect(quoteFromSketch(s, LABOR_CATALOG).rows.find(r => r.descripcion.includes('Alimentación')).cantidad).toBe(15);
+  s.feeders[0].itemId = ''; expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('Pilar → General');
+  expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('Mano de obra del recorrido');
+  expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('Solo medir');
   s.feeders[0].itemId = 'measure-only'; const result = quoteFromSketch(s, LABOR_CATALOG);
   expect(result.warnings.join()).toContain('no incluido en el importe');
   expect(result.rows.some(r => r.descripcion.includes('Alimentación'))).toBe(false);

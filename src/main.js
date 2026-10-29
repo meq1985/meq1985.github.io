@@ -23,6 +23,10 @@ import { costoStore } from './stores/dbCostos';
 import App from './App.vue'
 import router from './router'
 
+// Retire public aliases while keeping Firebase's own Auth handler domain intact.
+if (import.meta.env.PROD && ['electricistaxpress.web.app', 'electricistaxpress.firebaseapp.com', 'www.electricistaxpress.com.ar'].includes(window.location.hostname)) {
+    window.location.replace('https://electricistaxpress.com.ar' + window.location.pathname + window.location.search + window.location.hash);
+}
 const app = createApp(App)
 
 const pinia = createPinia();

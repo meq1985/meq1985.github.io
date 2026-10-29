@@ -6,12 +6,16 @@ it('reserves administration for the verified existing account, never a profile f
   expect(isAdministrator({ emailVerified: false }, { enabled: true })).toBe(false);
   expect(isAdministrator({ email: 'other@example.invalid', admin: true, emailVerified: true })).toBe(false);
 });
-it('allows one project without a clock-based trial and preserves editing', () => {
-  expect(projectAccess({ enabled: true }, 'first')).toBe(true);
-  expect(projectAccess({ enabled: true, freeProjectId: 'first' }, 'first')).toBe(true);
-  expect(projectAccess({ enabled: true, freeProjectId: 'first' }, 'second')).toBe(false);
-  expect(projectAccess({ enabled: true, freeProjectId: 'first' }, undefined)).toBe(false);
-  expect(projectAccess({ enabled: true, freeProjectId: 'first', admin: true }, 'second')).toBe(true);
+it('allows every project for 30 days and expires at the boundary without a reset', () => {
+  const start = 1000, end = start + 30 * 86400000;
+  for (const id of ['first', 'second', undefined]) {
+    expect(projectAccess({ trialStartedAt: start }, id, start)).toBe(true);
+    expect(projectAccess({ trialStartedAt: start }, id, end - 1)).toBe(true);
+    expect(projectAccess({ trialStartedAt: start }, id, end)).toBe(false);
+  }
+  expect(projectAccess({ enabled: false }, 'first', start)).toBe(false);
+  expect(projectAccess({ trialStartedAt: start + 1 }, 'first', start)).toBe(false);
+  expect(projectAccess({ admin: true }, 'second', end)).toBe(true);
 });
 it('requires a paid basic subscription that has not expired; an authorized checkout is not payment', () => {
   const base = { enabled: true, freeProjectId: 'first' };

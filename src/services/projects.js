@@ -1,6 +1,6 @@
 import { collection, doc, getDocFromServer, getDocsFromServer, query, orderBy, limit, startAfter, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { billingConfigRef, allowanceRef, subscriptionRef } from './billing';
+import { allowanceRef, subscriptionRef } from './billing';
 import { isAdministrator, projectAccess, subscriptionRequired } from './billingPolicy';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { projectBudget, projectProfile, projectName, validProjectId, validRevision } from './projectValidation';
@@ -64,10 +64,11 @@ async function writeProject(user, input) {
     await runTransaction(db, async transaction => {
       const [existing, previous] = await Promise.all([transaction.get(reference), transaction.get(target)]);
       assertCurrentUser(user);
-      const [config, administrator] = await Promise.all([transaction.get(billingConfigRef()), transaction.get(doc(db, 'administradores', user.uid))]);
-      let allowance, subscription;
-      const metered = config.data()?.enabled === true && !isAdministrator(user, administrator.data());
-      if (metered) [allowance, subscription] = await Promise.all([transaction.get(allowanceRef(user.uid)), transaction.get(subscriptionRef(user.uid))]);
+      const administrator = await transaction.get(doc(db, 'administradores', user.uid));
+      let allowance, subscription, quota;
+      const quotaRef = doc(db, 'cuotas', user.uid);
+      const metered = !isAdministrator(user, administrator.data());
+      if (metered) [allowance, subscription, quota] = await Promise.all([transaction.get(allowanceRef(user.uid)), transaction.get(subscriptionRef(user.uid)), transaction.get(quotaRef)]);
       const current = existing.data();
       // A retry after a lost response recognizes the exact same committed version.
       if (current?.revision === revision && previous.exists()) {
@@ -78,11 +79,21 @@ async function writeProject(user, input) {
         throw new Error('El proyecto cambió en otra pestaña o dispositivo. Conservá esta pestaña abierta para revisar tus cambios y abrí la versión actual desde Mis proyectos en otra pestaña.');
       }
       if (current && current.ownerUid !== user.uid) throw new Error('El proyecto no corresponde a tu cuenta.');
-      const state = { enabled: metered, freeProjectId: allowance?.data()?.freeProjectId ?? null,
+      const state = { admin: !metered, trialStartedAt: allowance?.exists() ? allowance.data().claimedAt?.toMillis?.() ?? null : Date.now(),
         subscription: subscription?.exists() ? { ...subscription.data(), paidThrough: subscription.data().paidThrough?.toMillis?.() } : null };
       if (!projectAccess(state, input.id)) throw subscriptionRequired();
       const now = serverTimestamp();
-      if (metered && !allowance.exists()) transaction.set(allowanceRef(user.uid), { freeProjectId: input.id, claimedAt: now });
+      if (metered) {
+        const usage = quota.data() ?? {}, time = Date.now();
+        const reset = !usage.windowStartedAt || time >= usage.windowStartedAt.toMillis() + 86400000;
+        const saves = reset ? 1 : usage.saveCount + 1;
+        const total = (usage.totalProjects ?? 0) + (existing.exists() ? 0 : 1);
+        const paid = state.subscription?.status === 'active' && state.subscription.planId === 'presupuestos' && state.subscription.paidThrough > time;
+        if (saves > 10) throw new Error('Alcanzaste los 10 guardados diarios de tu cuenta. Podés consultar y descargar tus proyectos; volvé a guardar mañana.');
+        if (!existing.exists() && total > (paid ? 100 : 10)) throw new Error(paid ? 'Alcanzaste el límite de 100 proyectos de tu cuenta. Contactanos para ampliar tu capacidad.' : 'La prueba gratuita permite hasta 10 proyectos. Podés seguir editando los que ya creaste.');
+        transaction.set(quotaRef, { totalProjects: total, saveCount: saves, windowStartedAt: reset ? now : usage.windowStartedAt, projectId: input.id, revision, updatedAt: now });
+      }
+      if (metered && !allowance.exists()) transaction.set(allowanceRef(user.uid), { claimedAt: now });
       transaction.set(target, { ...payload, createdAt: now });
       const metadata = { name, cliente: budget.cliente, tipoInmueble: budget.tipoInmueble ?? '', total: budget.total, revision, updatedAt: now };
       if (existing.exists()) transaction.update(reference, metadata);

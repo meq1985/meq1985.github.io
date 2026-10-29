@@ -57,6 +57,8 @@ describe('server rules on the actual Firestore emulator', () => {
     await assertSucceeds(updateDoc(doc(own(), 'costos', email), { price: 5 }));
   });
   it('protects existing data from unverified email reuse', async () => {
+    await assertFails(setDoc(doc(unverified(), 'usuarios', 'new-unverified@example.invalid'), {}));
+    await assertFails(setDoc(doc(unverified(), 'costos', 'new-unverified@example.invalid'), {}));
     await assertFails(getDoc(doc(unverified(), 'usuarios', email)));
     await assertFails(getDoc(doc(unverified(), 'costos', email)));
     await assertFails(updateDoc(doc(unverified(), 'usuarios', email), { nombre: 'invalid' }));

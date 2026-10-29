@@ -1,9 +1,12 @@
 export const SITE_URL = 'https://electricistaxpress.com.ar';
 export const HOME_TITLE = 'Presupuestos eléctricos con tus precios | Electricista Xpress';
-export const HOME_DESCRIPTION = 'Organizá tus trabajos, actualizá la mano de obra y prepará presupuestos eléctricos en PDF desde el celular o la computadora. Creá tu primer proyecto gratis.';
+export const HOME_DESCRIPTION = 'Organizá tus trabajos, actualizá la mano de obra y prepará presupuestos eléctricos en PDF desde el celular o la computadora. Probá 30 días gratis, sin tarjeta.';
 const pages = {
   '/': [HOME_TITLE, HOME_DESCRIPTION],
   '/condiciones': ['Condiciones de uso | Electricista Xpress', 'Conocé los planes, la renovación, la cancelación y el acceso a tus proyectos de Electricista Xpress.'],
+  '/aviso-legal': ['Aviso legal | Electricista Xpress', 'Identidad del responsable, contacto y alcance de Electricista Xpress en Argentina.'],
+  '/seguridad': ['Seguridad y confianza | Electricista Xpress', 'Conexión HTTPS, protección de la cuenta y gestión de pagos en Electricista Xpress.'],
+  '/gestiones': ['Baja y arrepentimiento | Electricista Xpress', 'Solicitá la baja o el arrepentimiento de una contratación sin iniciar sesión.'],
   '/privacidad': ['Privacidad | Electricista Xpress', 'Cómo usamos los datos de tu cuenta y tus proyectos y cómo contactarnos sobre privacidad.'],
 };
 export function updateSeo(route) {

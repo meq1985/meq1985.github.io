@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, it, expect } from 'vitest';
+import { beforeAll, beforeEach, afterAll, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails } from '@firebase/rules-unit-testing';
 import { doc, getDoc, getDocs, collection, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp, writeBatch, disableNetwork, enableNetwork } from 'firebase/firestore';
@@ -8,6 +8,7 @@ import { auth, db } from '../../src/firebase';
 import { saveProject, loadProject, listProjects, loadProjectVersion, listProjectVersions } from '../../src/services/projects';
 import { emptySketch, encodeSketch } from '../../src/services/sketch';
 import { emptyQuoteSettings } from '../../src/services/sketchQuoteSettings';
+import { emptyMaterialNetwork } from '../../src/services/materialNetwork';
 const project = 'demo-presupuesto-electrico';
 let env, uid;
 const email = 'cloud-projects@example.invalid', password = 'Demo-only-Password42';
@@ -23,6 +24,14 @@ beforeAll(async () => {
   const response = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${project}/oobCodes`);
   const code = (await response.json()).oobCodes.filter(item => item.email === email).at(-1).oobCode;
   await applyActionCode(auth, code); await signOut(auth); await signInWithEmailAndPassword(auth, email, password); uid = auth.currentUser.uid;
+  await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'suscripciones', uid), { planId: 'presupuestos', status: 'active', paidThrough: Timestamp.fromMillis(Date.now() + 86400000) }); });
+});
+beforeEach(async () => {
+  if (!uid || !auth.currentUser) return;
+  await env.withSecurityRulesDisabled(async context => {
+    const q = doc(context.firestore(), 'cuotas', uid);
+    if ((await getDoc(q)).exists()) await updateDoc(q, { saveCount: 0, windowStartedAt: Timestamp.fromMillis(Date.now() - 86400001) });
+  });
 });
 afterAll(async () => { await signOut(auth); await env?.cleanup(); await deleteApp(auth.app); });
 it('saves metadata and immutable snapshot atomically and retries without duplicates', async () => {
@@ -63,10 +72,14 @@ it('rejects mutations, deletions, orphan versions and metadata-only saves', asyn
   await assertFails(setDoc(doc(ref('missing'), 'versiones', '1'), { ...(await getDoc(version)).data(), createdAt: serverTimestamp() }));
 });
 it('paginates projects and versions without duplicates or omissions', async () => {
-  await Promise.all(Array.from({ length: 20 }, (_, index) => saveProject(input('page-' + index))));
+  for (let index = 0; index < 20; index++) {
+    if (index === 8 || index === 16) await env.withSecurityRulesDisabled(async context => updateDoc(doc(context.firestore(), 'cuotas', uid), { saveCount: 0, windowStartedAt: Timestamp.fromMillis(Date.now() - 86400001) }));
+    await saveProject(input('page-' + index));
+  }
   const first = await listProjects(), second = await listProjects(first.cursor);
   expect(first.items).toHaveLength(20);
   expect(new Set([...first.items, ...second.items].map(item => item.id)).size).toBe(21);
+  await env.withSecurityRulesDisabled(async context => updateDoc(doc(context.firestore(), 'cuotas', uid), { saveCount: 0, windowStartedAt: Timestamp.fromMillis(Date.now() - 86400001) }));
   for (let revision = 3; revision < 12; revision++) await saveProject(input('first', revision));
   const versions = await listProjectVersions('first'); expect(versions.items).toHaveLength(10);
   expect(versions.items[0].revision).toBe(12);
@@ -77,36 +90,82 @@ it('does not report a cached list as a successful cloud read when offline', asyn
   try { await expect(listProjects()).rejects.toThrow(); }
   finally { await enableNetwork(db); }
 });
-it('enforces one free project atomically, blocks resets and denies forged subscriptions', async () => {
-  const config = doc(db, 'configuracion', 'facturacion');
+it('enforces the immutable 30 day trial even with billing disabled, preserving read access', async () => {
   const allowance = doc(db, 'accesos', uid), subscription = doc(db, 'suscripciones', uid);
-  await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'configuracion', 'facturacion'), { enabled: true }); });
+  await env.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'suscripciones', uid)); await deleteDoc(doc(context.firestore(), 'cuotas', uid)); });
+  await saveProject(input('trial-a')); await saveProject(input('trial-b'));
+  const claimedAt = (await getDoc(allowance)).data().claimedAt;
+  expect(claimedAt).toBeInstanceOf(Timestamp);
+  await assertFails(updateDoc(allowance, { claimedAt: serverTimestamp() }));
+  await assertFails(deleteDoc(allowance));
+  await assertFails(setDoc(subscription, { planId: 'presupuestos', status: 'active', paidThrough: Timestamp.fromMillis(Date.now() + 86400000) }));
+  await assertFails(setDoc(doc(db, 'administradores', uid), { enabled: true }));
+  await assertFails(setDoc(doc(db, 'accesos', 'other'), { claimedAt: serverTimestamp() }));
+  const intruder = env.authenticatedContext('unused', { email: 'unused@example.invalid', email_verified: true }).firestore();
+  await assertFails(setDoc(doc(intruder, 'accesos', 'unused'), { claimedAt: Timestamp.fromMillis(Date.now() + 86400000) }));
+  await assertFails(setDoc(doc(intruder, 'accesos', 'unused'), { claimedAt: serverTimestamp(), freeProjectId: 'forged' }));
+  for (const path of ['billingCheckouts', 'billingBindings', 'billingPayments', 'billingLocks', 'billingTesters']) {
+    await assertFails(getDoc(doc(db, path, uid)));
+    await assertFails(setDoc(doc(db, path, uid), { enabled: true }));
+  }
+  const old = (await getDoc(ref('trial-a'))).data(), version = (await getDoc(doc(ref('trial-a'), 'versiones', '1'))).data();
+  const forge = () => {
+    const batch = writeBatch(db), target = ref('forged-expired');
+    batch.set(target, { ...old, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    batch.set(doc(target, 'versiones', '1'), { ...version, createdAt: serverTimestamp() });
+    return batch.commit();
+  };
   try {
-    const attempts = await Promise.allSettled([saveProject(input('free-a')), saveProject(input('free-b'))]);
-    expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1);
-    const freeId = (await getDoc(allowance)).data().freeProjectId;
-    await saveProject(input(freeId, 1));
-    await expect(saveProject(input('free-c'))).rejects.toThrow('suscripción');
-    await assertFails(updateDoc(allowance, { freeProjectId: 'free-c' })); await assertFails(deleteDoc(allowance));
-    await assertFails(setDoc(subscription, { planId: 'presupuestos', status: 'active', paidThrough: Timestamp.fromMillis(Date.now() + 86400000) }));
-    await assertFails(setDoc(config, { enabled: false }));
-    await assertFails(setDoc(doc(db, 'administradores', uid), { enabled: true }));
-    await assertFails(getDoc(doc(db, 'suscripciones', 'other')));
-    for (const path of ['billingCheckouts', 'billingBindings', 'billingPayments', 'billingLocks', 'billingTesters']) {
-      await assertFails(getDoc(doc(db, path, uid)));
-      await assertFails(setDoc(doc(db, path, uid), { enabled: true }));
-    }
-    await assertFails(setDoc(doc(db, 'accesos', 'other'), { freeProjectId: freeId, claimedAt: serverTimestamp() }));
-    // An allowance cannot refer to a nonexistent project, even in a forged batch.
-    const intruder = env.authenticatedContext('unused', { email: 'unused@example.invalid', email_verified: true }).firestore();
-    await assertFails(setDoc(doc(intruder, 'accesos', 'unused'), { freeProjectId: 'nonexistent', claimedAt: serverTimestamp() }));
+    await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'accesos', uid), { claimedAt: Timestamp.fromMillis(Date.now() - 31 * 86400000), freeProjectId: 'trial-a' }); });
+    await expect(saveProject(input('expired'))).rejects.toThrow('suscripción');
+    await expect(saveProject(input('trial-a', 1))).rejects.toThrow('suscripción');
+    await assertFails(forge());
+    expect((await loadProject('trial-a')).revision).toBe(1);
     await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'suscripciones', uid), { planId: 'presupuestos', status: 'active', paidThrough: Timestamp.fromMillis(Date.now() + 86400000) }); });
     await saveProject(input('paid-project'));
     await env.withSecurityRulesDisabled(async context => { await updateDoc(doc(context.firestore(), 'suscripciones', uid), { paidThrough: Timestamp.fromMillis(Date.now() - 1000) }); });
     await expect(saveProject(input('paid-project', 1))).rejects.toThrow('suscripción');
-    await saveProject(input(freeId, 2));
     expect((await loadProject('paid-project')).revision).toBe(1);
-  } finally { await env.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'configuracion', 'facturacion')); }); }
+  } finally {
+    await env.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'accesos', uid), { claimedAt }); await setDoc(doc(context.firestore(), 'suscripciones', uid), { planId: 'presupuestos', status: 'active', paidThrough: Timestamp.fromMillis(Date.now() + 86400000) }); });
+  }
+});
+it('blocks quota bypasses, concurrent excess saves and trial project spam on the server', async () => {
+  const quota = doc(db, 'cuotas', uid), stored = (await getDoc(quota)).data();
+  const subscription = (await getDoc(doc(db, 'suscripciones', uid))).data();
+  const seed = async data => env.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), 'cuotas', uid), data));
+  try {
+    await assertFails(updateDoc(quota, { totalProjects: 0, saveCount: 0 }));
+    await assertFails(deleteDoc(quota));
+    await seed({ ...stored, totalProjects: 100, saveCount: 1 });
+    await expect(saveProject(input('over-cap'))).rejects.toThrow('100 proyectos');
+    await seed({ ...stored, saveCount: 9, windowStartedAt: Timestamp.now() });
+    const attempts = await Promise.allSettled([saveProject(input('daily-a')), saveProject(input('daily-b'))]);
+    expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect((await getDoc(quota)).data().saveCount).toBe(10);
+    await expect(saveProject(input('daily-c'))).rejects.toThrow('10 guardados');
+    // Raw SDK writes cannot skip the quota transaction.
+    const old = (await getDoc(ref('trial-a'))).data(), v = (await getDoc(doc(ref('trial-a'), 'versiones', '1'))).data();
+    const batch = writeBatch(db), target = ref('raw-bypass');
+    batch.set(target, { ...old, revision: 1, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    batch.set(doc(target, 'versiones', '1'), { ...v, revision: 1, createdAt: serverTimestamp() });
+    await assertFails(batch.commit());
+    await seed({ ...stored, saveCount: 10, windowStartedAt: Timestamp.fromMillis(Date.now() - 86400001) });
+    await saveProject(input('next-day')); expect((await getDoc(quota)).data().saveCount).toBe(1);
+    await env.withSecurityRulesDisabled(async context => deleteDoc(doc(context.firestore(), 'suscripciones', uid)));
+    await seed({ ...stored, totalProjects: 10, saveCount: 1, windowStartedAt: Timestamp.now() });
+    await expect(saveProject(input('trial-eleven'))).rejects.toThrow('10 proyectos');
+    await saveProject(input('trial-a', 1));
+    await env.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), 'configuracion', 'seguridad'), { pauseWrites: true }));
+    await assertFails(saveProject(input('trial-a', 2)));
+    expect((await loadProject('trial-a')).revision).toBe(2);
+  } finally {
+    await seed(stored);
+    await env.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), 'suscripciones', uid), subscription);
+      await deleteDoc(doc(context.firestore(), 'configuracion', 'seguridad'));
+    });
+  }
 });
 it('gives only the verified designated administrator unlimited own projects', async () => {
   const adminUid = 'administrator-demo';
@@ -149,6 +208,28 @@ it('versions drawings with budgets and does not confuse changed drawings with a 
     await assertFails(batch.commit());
   }
   expect(encodeSketch(next.sketch)).toBeTypeOf('string');
+});
+it('saves material networks with immutable budget versions using the existing owner-scoped rules', async () => {
+  const data = { ...input('material-network'), sketch: { ...emptySketch(), schema: 2,
+    rooms: [{ id: 'room', levelId: 'planta-baja', name: 'Estar', x: 0, y: 0, width: 4, depth: 3,
+      points: [{ id: 'p1', type: 'luminaria', x: 0, y: 0 }, { id: 'p2', type: 'toma', x: 1, y: 1 }] }],
+    materials: { ...emptyMaterialNetwork(), circuits: [{ id: 'c1', name: 'Luces', type: 'IUG' }], routes: [
+      { id: 'r1', fromId: 'p1', toId: 'p2', feederId: null, bends: [], verticalMeters: 2, conduit: 'Caño elegido',
+        assignments: [{ circuitId: 'c1', wires: [{ role: 'phase', section: 2.5, count: 1 }] }] },
+    ] } } };
+  await saveProject(data);
+  expect((await loadProject('material-network')).version.sketch).toEqual(data.sketch);
+  const next = structuredClone(data); next.expectedRevision = 1; next.sketch.materials.reservePercent = 20;
+  next.sketch.materials.calculation = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, totalLimitPercent: 3, feederLimitPercent: 1, upstreamPercent: 0.2, correctionFactor: 1, boardHeight: 1.5, tugDemandMode: 'per-point-150' };
+  next.sketch.levels.push({ id: 'upper', name: 'Alta', elevation: 3.2 });
+  next.sketch.rooms.push({ id: 'up-room', levelId: 'upper', name: 'Dormitorio', x: 2, y: 1, width: 4, depth: 3, points: [{ id: 'up-light', type: 'luminaria', x: 0.5, y: 0.5 }] });
+  next.sketch.materials.routes.push({ id: 'cross-floor', fromId: 'p1', toId: 'up-light', feederId: null, bends: [{ x: 1, y: 0, levelId: 'planta-baja' }, { x: 1, y: 1, levelId: 'upper' }], verticalMeters: 0, conduit: '', assignments: [] });
+  await saveProject(next);
+  expect((await loadProjectVersion('material-network', 1)).sketch.materials.reservePercent).toBe(0);
+  expect((await loadProject('material-network')).version.sketch.materials.reservePercent).toBe(20);
+  expect((await loadProject('material-network')).version.sketch).toEqual(next.sketch);
+  expect((await loadProjectVersion('material-network', 1)).sketch.levels).toHaveLength(1);
+  await assertFails(updateDoc(doc(ref('material-network'), 'versiones', '1'), { sketch: encodeSketch(next.sketch) }));
 });
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');

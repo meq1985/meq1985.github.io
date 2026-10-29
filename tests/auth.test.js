@@ -4,6 +4,10 @@ vi.mock('../src/firebase', () => ({ auth: { currentUser: null } }));
 vi.mock('../src/services/accountProvisioning', () => ({ ensureAccountReady: vi.fn() }));
 vi.mock('firebase/auth', () => ({ createUserWithEmailAndPassword: vi.fn(), signInWithEmailAndPassword: vi.fn(),
   signOut: vi.fn(), sendEmailVerification: vi.fn(), sendPasswordResetEmail: vi.fn() }));
+vi.mock('../src/services/protectedRegistration', () => ({ createProtectedUser: async (email, password) => {
+  const { auth } = await import('../src/firebase'); const { createUserWithEmailAndPassword } = await import('firebase/auth');
+  return createUserWithEmailAndPassword(auth, email, password);
+} }));
 import { auth } from '../src/firebase';
 import { ensureAccountReady } from '../src/services/accountProvisioning';
 import { createUserWithEmailAndPassword as createUser, signInWithEmailAndPassword as signIn,

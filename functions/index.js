@@ -1,3 +1,5 @@
+import { getAuth } from 'firebase-admin/auth';
+import { registerProtected } from './registration.js';
 import { randomUUID } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
@@ -10,7 +12,7 @@ const db = getFirestore();
 const accessToken = defineSecret('MP_ACCESS_TOKEN');
 const webhookSecret = defineSecret('MP_WEBHOOK_SECRET');
 const mode = defineString('MP_MODE', { default: 'disabled' });
-const returnOrigin = defineString('APP_ORIGIN', { default: 'https://electricistaxpress.web.app' });
+const returnOrigin = defineString('APP_ORIGIN', { default: 'https://electricistaxpress.com.ar' });
 const webhookUrl = defineString('MP_WEBHOOK_URL', { default: 'https://us-central1-presupuesto-electrico.cloudfunctions.net/mercadoPagoWebhook' });
 const collectorId = defineString('MP_COLLECTOR_ID', { default: '' });
 const options = { region: 'us-central1', minInstances: 0, maxInstances: 2, concurrency: 10, timeoutSeconds: 120, memory: '256MiB', secrets: [accessToken] };
@@ -201,3 +203,10 @@ export async function handleMercadoPagoWebhook(req, res) {
   }
 }
 export const mercadoPagoWebhook = onRequest({ ...options, secrets: [accessToken, webhookSecret], cors: false }, handleMercadoPagoWebhook);
+
+const turnstileSecret = defineSecret('TURNSTILE_SECRET');
+export const registerAccount = onCall({ region: 'us-central1', minInstances: 0, maxInstances: 1, concurrency: 5, timeoutSeconds: 20, memory: '256MiB',
+  cors: ['https://electricistaxpress.com.ar', 'https://www.electricistaxpress.com.ar'], secrets: [turnstileSecret] }, async request => {
+  try { return await registerProtected({ data: request.data, ip: request.rawRequest.ip, secret: turnstileSecret.value(), db, auth: getAuth(), Timestamp }); }
+  catch { throw new HttpsError('failed-precondition', 'No se pudo completar el registro. Revisá la verificación o reintentá más tarde. Si ya tenés cuenta, ingresá o recuperá tu contraseña.'); }
+});

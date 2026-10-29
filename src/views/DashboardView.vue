@@ -71,8 +71,8 @@ async function outputBudget() {
     if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Recargá el proyecto.');
     if (requiresProfileReview.value) throw new Error('Revisá los datos profesionales y guardá una nueva versión en tu cuenta antes de generar el PDF.');
     const currentAccess = await loadBillingAccess();
-    if (!projectAccess(currentAccess, cloudId.value)) { subscriptionBlocked.value = true; throw new Error('Para trabajar en otro proyecto necesitás una suscripción.'); }
-    if (currentAccess.enabled && (dirty.value || !cloudSaved.value)) {
+    if (!projectAccess(currentAccess, cloudId.value)) { subscriptionBlocked.value = true; throw new Error('Tu prueba gratuita terminó. Para crear proyectos o guardar cambios necesitás una suscripción.'); }
+    if (!currentAccess.admin && (dirty.value || !cloudSaved.value)) {
       saving.value = false;
       const saved = await saveToAccount();
       saving.value = true;
@@ -147,8 +147,8 @@ watch(() => props.projectId, initialize);
     <div class="catalog-main">
       <div class="budget-heading"><h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><button type="button" @click="showHelp('inicio')">Ayuda para presupuestar</button></div><BudgetHelp ref="help" :ready="ready" /><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
       <p v-if="access?.admin" class="catalog-notice">Cuenta administradora: acceso completo sin suscripción.</p>
-      <p v-else-if="access?.enabled" class="catalog-notice">Tu cuenta incluye un proyecto gratuito, sin vencimiento. <RouterLink to="/planes">Ver planes</RouterLink></p>
-      <p v-if="subscriptionBlocked" class="catalog-notice" role="status">Para trabajar en otro proyecto necesitás una suscripción. <RouterLink to="/planes">Ver suscripción →</RouterLink><span v-if="access?.freeProjectId"> · <RouterLink :to="'/proyectos/' + access.freeProjectId + '/editar'">Abrir mi proyecto gratuito</RouterLink></span></p>
+      <p v-else-if="access && !access.admin" class="catalog-notice">Tu cuenta incluye una prueba gratuita de 30 días, sin tarjeta. <RouterLink to="/planes">Ver planes</RouterLink></p>
+      <p v-if="subscriptionBlocked" class="catalog-notice" role="status">Tu prueba gratuita terminó. Para crear proyectos o guardar cambios necesitás una suscripción. <RouterLink to="/planes">Ver suscripción →</RouterLink></p>
       <p v-if="error" class="catalog-notice error" role="alert">{{ error }}</p>
       <p v-if="message" class="catalog-notice" role="status">{{ message }}</p>
       <fieldset :disabled="subscriptionBlocked || loading || saving || !ready">

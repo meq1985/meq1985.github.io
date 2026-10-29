@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://electricistaxpress.com.ar/</loc></url>
-  <url><loc>https://electricistaxpress.com.ar/condiciones</loc></url>
-  <url><loc>https://electricistaxpress.com.ar/privacidad</loc></url>
+  <url><loc>https://electricistaxpress.com.ar/</loc><lastmod>2026-10-29</lastmod></url>
+  <url><loc>https://electricistaxpress.com.ar/condiciones</loc><lastmod>2026-10-29</lastmod></url>
+  <url><loc>https://electricistaxpress.com.ar/privacidad</loc><lastmod>2026-10-29</lastmod></url>
+  <url><loc>https://electricistaxpress.com.ar/aviso-legal</loc><lastmod>2026-10-29</lastmod></url>
+  <url><loc>https://electricistaxpress.com.ar/seguridad</loc><lastmod>2026-10-29</lastmod></url>
+  <url><loc>https://electricistaxpress.com.ar/gestiones</loc><lastmod>2026-10-29</lastmod></url>
 </urlset>
