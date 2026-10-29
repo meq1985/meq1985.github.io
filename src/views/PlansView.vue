@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import CatalogHeader from '../components/CatalogHeader.vue';
-import { PLANS } from '../services/billingPolicy';
+import { PLANS, TRIAL_MS } from '../services/billingPolicy';
 import { PLAN_PRESENTATION } from '../data/planPresentation';
 import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription } from '../services/billing';
 import { currency } from '../data/laborCatalog';
@@ -19,8 +19,7 @@ const statusTitle = computed(() => {
   if (access.value?.admin) return 'Acceso administrador';
   if (paid.value) return cancelled.value ? 'Plan activo · renovación cancelada' : 'Plan Presupuestos activo';
   if (pending.value) return 'Suscripción pendiente de pago';
-  if (!access.value?.enabled) return 'Tu cuenta de Electricista Xpress';
-  return access.value?.freeProjectId ? 'Tu proyecto gratuito está disponible' : 'Empezá con un proyecto gratuito';
+  return access.value?.trialStartedAt != null && now.value < access.value.trialStartedAt + TRIAL_MS ? 'Tu prueba gratuita está activa' : 'Tu prueba gratuita terminó';
 });
 const date = value => new Date(value).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'long', year: 'numeric' });
 async function load() {
@@ -75,25 +74,24 @@ onMounted(async () => {
         <div><p class="eyebrow">TU CUENTA</p><h2 id="account-title">{{ statusTitle }}</h2>
           <p v-if="access.admin">Acceso completo, sin mensualidad ni límite de proyectos.</p>
           <p v-else-if="paid">Tu acceso está disponible hasta el {{ date(subscription.paidThrough) }}.</p>
-          <p v-else-if="!access.enabled">Consultá tus proyectos y elegí cómo querés presupuestar.</p>
-          <p v-else>Un proyecto sin tarjeta ni vencimiento. Seguirá disponible aunque no contrates un plan.</p>
+          <p v-else-if="access.trialStartedAt != null && now < access.trialStartedAt + TRIAL_MS">Disponible hasta el {{ date(access.trialStartedAt + TRIAL_MS) }}. Sin tarjeta ni cobro automático.</p><p v-else>Podés consultar tus proyectos y descargar sus PDF. Elegí un plan para guardar cambios.</p>
         </div>
-        <RouterLink class="secondary-link" :to="access.freeProjectId ? '/proyectos/' + access.freeProjectId + '/editar' : '/proyectos'">{{ access.freeProjectId ? 'Abrir mi proyecto gratuito' : 'Ver mis proyectos' }} →</RouterLink>
+        <RouterLink class="secondary-link" to="/proyectos">Ver mis proyectos →</RouterLink>
       </section>
 
       <section class="plans-grid" aria-label="Comparar planes">
         <article class="plan-card free-plan">
-          <p class="plan-tag">PARA EMPEZAR</p><h2>Tu primer proyecto</h2><p class="plan-description">Conocé la herramienta con un trabajo real.</p>
-          <p class="price">$0 <small>sin vencimiento</small></p>
-          <ul><li>Un proyecto guardado en tu cuenta</li><li>Catálogo de mano de obra editable</li><li>Historial de versiones</li><li>PDF con tus datos profesionales</li></ul>
-          <RouterLink class="plan-link" to="/proyectos">{{ access?.freeProjectId ? 'Ver mi proyecto' : 'Ir a mis proyectos' }} →</RouterLink>
+          <p class="plan-tag">PARA EMPEZAR</p><h2>Un mes gratis</h2><p class="plan-description">Conocé la herramienta con un trabajo real.</p>
+          <p class="price">$0 <small>30 días · sin tarjeta</small></p>
+          <ul><li>Hasta 10 proyectos durante los 30 días</li><li>Catálogo de mano de obra editable</li><li>Historial de versiones</li><li>PDF con tus datos profesionales</li></ul>
+          <RouterLink class="plan-link" to="/proyectos">Ir a mis proyectos →</RouterLink>
           <small>Sin tarjeta. No se transforma en un plan pago.</small>
         </article>
         <article v-for="plan in PLANS" :key="plan.id" class="plan-card" :class="{ featured: plan.available, upcoming: !plan.available }">
           <p class="plan-tag">{{ PLAN_PRESENTATION[plan.id].tag }}</p><h2>{{ PLAN_PRESENTATION[plan.id].title }}</h2>
           <p class="plan-description">{{ PLAN_PRESENTATION[plan.id].description }}</p>
           <p class="price">{{ currency(plan.amount) }} <small>ARS / mes</small></p>
-          <ul><li>Más de un proyecto en tu cuenta</li><li v-for="feature in PLAN_PRESENTATION[plan.id].features" :key="feature">{{ feature }}</li></ul>
+          <ul><li>Hasta 100 proyectos · 10 guardados diarios</li><li v-for="feature in PLAN_PRESENTATION[plan.id].features" :key="feature">{{ feature }}</li></ul>
           <template v-if="plan.available && canSubscribe">
             <label class="check-label"><input v-model="consent" type="checkbox" :disabled="!!busy" data-testid="renewal-consent"><span>Acepto $12.000 ARS por mes, con renovación automática hasta cancelarla.</span></label>
             <button class="primary subscribe-button" :disabled="!!busy || !consent" @click="act('subscribe')">{{ busy === 'subscribe' ? 'Abriendo Mercado Pago…' : pending ? 'Retomar en Mercado Pago' : 'Elegir Presupuestos' }} <span aria-hidden="true">↗</span></button>
@@ -119,12 +117,12 @@ onMounted(async () => {
       </section>
 
       <section class="plans-faq" aria-labelledby="plans-faq-title"><p class="eyebrow">ANTES DE ELEGIR</p><h2 id="plans-faq-title">Sin sorpresas.</h2>
-        <details><summary>¿Cómo funciona el proyecto gratuito?</summary><p>Tenés un proyecto sin vencimiento. Podés editarlo, guardar versiones y descargar su PDF. Para trabajar en otros proyectos, necesitás el plan Presupuestos.</p></details>
+        <details><summary>¿Cómo funciona la prueba gratuita?</summary><p>Tenés 30 días desde tu primer acceso verificado a Presupuestar o Planes. Podés crear hasta 10 proyectos durante la prueba y realizar hasta 10 guardados diarios, guardar versiones y descargar sus PDF. No requiere tarjeta ni se convierte en un cobro automático.</p></details>
         <details><summary>¿Cuándo empieza mi acceso pago?</summary><p>Cuando nuestro servidor confirma un pago aprobado. Si volvés de Mercado Pago y todavía está pendiente, podés actualizar el estado desde esta página.</p></details>
-        <details><summary>¿Qué pasa cuando cancelo?</summary><p>Se detienen las próximas renovaciones. Conservás el período ya abonado y tu proyecto gratuito continúa disponible. Los demás proyectos guardados se pueden consultar y descargar; guardar cambios o crear otros requiere una suscripción activa. Una devolución puede retirar el acceso correspondiente al pago devuelto.</p></details>
-        <details><summary>¿Qué incluye el Full con croquis?</summary><p>Suma ambientes, niveles y puntos eléctricos, medidor, tableros, jabalinas y recorridos medidos. Prepara un borrador de mano de obra que revisás antes de aplicar.</p></details><details><summary>¿Calcula materiales y secciones de cables?</summary><p>El alcance del croquis es la representación de la obra y el presupuesto de mano de obra. El cálculo de materiales y el dimensionamiento de conductores requieren el criterio del profesional.</p></details>
+        <details><summary>¿Qué pasa cuando cancelo?</summary><p>Se detienen las próximas renovaciones. Conservás el período ya abonado. Tus proyectos guardados se pueden consultar y descargar; guardar cambios o crear otros requiere una suscripción activa. Una devolución puede retirar el acceso correspondiente al pago devuelto.</p></details>
+        <details><summary>¿Qué incluye el Full con croquis?</summary><p>Suma ambientes, niveles y puntos eléctricos, medidor, tableros, jabalinas y recorridos medidos. Prepara un borrador de mano de obra que revisás antes de aplicar.</p></details><details><summary>¿Calcula materiales y secciones de cables?</summary><p>El croquis estima materiales, circuitos, secciones y caída de tensión a partir de los recorridos dibujados. El profesional debe revisar las hipótesis y validar la instalación.</p></details>
       </section>
-      <footer class="plans-footer"><RouterLink to="/proyectos">← Volver a Mis proyectos</RouterLink><RouterLink to="/condiciones">Condiciones</RouterLink><RouterLink to="/privacidad">Privacidad</RouterLink><a href="mailto:emanuelquiroga.bgh@gmail.com">¿Necesitás ayuda? Contactanos</a></footer>
+      <footer class="plans-footer"><RouterLink to="/proyectos">← Volver a Mis proyectos</RouterLink><RouterLink to="/aviso-legal">Aviso legal</RouterLink><RouterLink to="/seguridad">Seguridad y confianza</RouterLink><RouterLink to="/gestiones#baja">Botón de baja</RouterLink><RouterLink to="/gestiones#arrepentimiento">Botón de arrepentimiento</RouterLink><RouterLink to="/condiciones">Condiciones</RouterLink><RouterLink to="/privacidad">Privacidad</RouterLink><a href="mailto:meq1985@hotmail.com">¿Necesitás ayuda? Contactanos</a></footer>
     </main>
   </div>
 </template>

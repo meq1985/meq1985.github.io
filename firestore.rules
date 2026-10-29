@@ -22,36 +22,64 @@ service cloud.firestore {
         get(/databases/$(database)/documents/suscripciones/$(uid)).data.status == 'active' &&
         get(/databases/$(database)/documents/suscripciones/$(uid)).data.paidThrough > request.time;
     }
+    function writesEnabled() {
+      return !exists(/databases/$(database)/documents/configuracion/seguridad) ||
+        get(/databases/$(database)/documents/configuracion/seguridad).data.get('pauseWrites', false) != true;
+    }
+    function withinQuota(uid, id) {
+      let q = getAfter(/databases/$(database)/documents/cuotas/$(uid)).data;
+      return q.updatedAt == request.time && q.projectId == id &&
+        q.revision == getAfter(/databases/$(database)/documents/cuentas/$(uid)/proyectos/$(id)).data.revision;
+    }
+    match /cuotas/{uid} {
+      allow get: if verified() && request.auth.uid == uid;
+      function validQuota() {
+        let q = request.resource.data;
+        let project = /databases/$(database)/documents/cuentas/$(uid)/proyectos/$(q.projectId);
+        let prior = exists(/databases/$(database)/documents/cuotas/$(uid));
+        return q.keys().hasAll(['totalProjects', 'saveCount', 'windowStartedAt', 'projectId', 'revision', 'updatedAt']) &&
+          q.keys().hasOnly(['totalProjects', 'saveCount', 'windowStartedAt', 'projectId', 'revision', 'updatedAt']) &&
+          q.projectId is string && q.projectId.matches('^[A-Za-z0-9_-]{1,100}$') &&
+          q.totalProjects is int && q.totalProjects > 0 && q.totalProjects <= 100 && (exists(project) || q.totalProjects <= (paid(uid) ? 100 : 10)) &&
+          q.saveCount is int && q.saveCount > 0 && q.saveCount <= 10 &&
+          q.windowStartedAt is timestamp && q.updatedAt == request.time &&
+          q.totalProjects == (prior ? resource.data.totalProjects : 0) + (exists(project) ? 0 : 1) &&
+          ((!prior && q.saveCount == 1 && q.windowStartedAt == request.time) ||
+           (prior && request.time >= resource.data.windowStartedAt + duration.value(1, 'd') && q.saveCount == 1 && q.windowStartedAt == request.time) ||
+           (prior && request.time < resource.data.windowStartedAt + duration.value(1, 'd') && q.saveCount == resource.data.saveCount + 1 && q.windowStartedAt == resource.data.windowStartedAt)) &&
+          getAfter(project).data.revision == q.revision && getAfter(project).data.updatedAt == request.time;
+      }
+      allow create, update: if verified() && request.auth.uid == uid && writesEnabled() && validQuota();
+    }
     function projectAllowed(uid, id) {
-      return !billingEnabled() || administrator() || paid(uid) ||
-        getAfter(/databases/$(database)/documents/accesos/$(uid)).data.freeProjectId == id;
+      return administrator() || (writesEnabled() && withinQuota(uid, id) && (paid(uid) ||
+        (getAfter(/databases/$(database)/documents/accesos/$(uid)).data.claimedAt <= request.time &&
+         request.time < getAfter(/databases/$(database)/documents/accesos/$(uid)).data.claimedAt + duration.value(30, 'd'))));
     }
     match /administradores/{uid} { allow get: if verified() && request.auth.uid == uid; }
     match /configuracion/facturacion { allow get: if verified(); }
     match /suscripciones/{uid} { allow get: if verified() && request.auth.uid == uid; }
     match /accesos/{uid} {
       allow get: if verified() && request.auth.uid == uid;
-      allow create: if verified() && request.auth.uid == uid && billingEnabled() &&
-        request.resource.data.keys().hasAll(['freeProjectId', 'claimedAt']) &&
-        request.resource.data.keys().hasOnly(['freeProjectId', 'claimedAt']) &&
-        request.resource.data.freeProjectId is string && request.resource.data.freeProjectId.matches('^[A-Za-z0-9_-]{1,100}$') &&
-        request.resource.data.claimedAt == request.time &&
-        getAfter(/databases/$(database)/documents/cuentas/$(uid)/proyectos/$(request.resource.data.freeProjectId)).data.ownerUid == uid;
+      // Immutable server timestamp; existing trial starts cannot be reset.
+      allow create: if verified() && request.auth.uid == uid &&
+        request.resource.data.keys().hasAll(['claimedAt']) &&
+        request.resource.data.keys().hasOnly(['claimedAt']) && request.resource.data.claimedAt == request.time;
     }
     match /usuarios/{email} {
       // During signup, permit checking that the document is absent.
       // Existing personal data requires a verified email, including on reused emails.
       allow get: if owner(email) &&
         (verified() || !exists(/databases/$(database)/documents/usuarios/$(email)));
-      allow create: if owner(email);
-      allow update: if owner(email) && verified();
+      allow create: if owner(email) && verified() && writesEnabled();
+      allow update: if owner(email) && verified() && writesEnabled();
     }
     match /costos/{email} {
       allow get: if (email == 'codigos' && verified()) ||
         (owner(email) && (verified() ||
           !exists(/databases/$(database)/documents/costos/$(email))));
-      allow create: if email != 'codigos' && owner(email);
-      allow update: if email != 'codigos' && owner(email) && verified();
+      allow create: if email != 'codigos' && owner(email) && verified() && writesEnabled();
+      allow update: if email != 'codigos' && owner(email) && verified() && writesEnabled();
     }
     match /cuentas/{uid}/proyectos/{projectId} {
       function access() { return verified() && request.auth.uid == uid; }

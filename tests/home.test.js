@@ -6,6 +6,7 @@ import { createRouter, createMemoryHistory } from 'vue-router';
 import HomeView from '../src/views/HomeView.vue';
 import AuthView from '../src/views/AuthView.vue';
 import { createAuthGuard } from '../src/router/guard';
+vi.mock('../src/components/BotCheck.vue', () => ({ default: { emits: ['verified'], template: `<button type="button" data-testid="challenge" @click="$emit('verified', 'test-challenge')">Verificar</button>` } }));
 const state = vi.hoisted(() => ({ store: null }));
 vi.mock('../src/stores/user', () => ({ useUserStore: () => state.store }));
 beforeEach(() => { state.store = reactive({ user: null, busy: false, error: '', notice: '', login: vi.fn(), register: vi.fn(), resetPassword: vi.fn() }); });
@@ -28,7 +29,7 @@ describe('professional landing and access', () => {
     expect(wrapper.get('#planes').text()).toContain('12.000');
     expect(wrapper.get('#planes').text()).toContain('25.000');
     expect(wrapper.text()).not.toMatch(/próximamente|en pruebas|en desarrollo|precio previsto|en preparación/i);
-    expect(wrapper.get('.actions a').text()).toContain('Crear mi primer proyecto gratis');
+    expect(wrapper.get('.actions a').text()).toContain('Empezar mi mes gratis');
     expect(wrapper.get('.lead').text()).toContain('desde el celular o la computadora');
     expect(wrapper.get('a[download]').attributes('href')).toBe('/ejemplo-presupuesto-electrico.pdf');
     expect(wrapper.get('a[download]').text()).toBe('Descargar PDF de ejemplo');
@@ -64,8 +65,9 @@ describe('professional landing and access', () => {
     await wrapper.get('#auth-email').setValue('demo@example.com');
     if (action !== 'resetPassword') await wrapper.get('#auth-password').setValue('password123');
     else expect(wrapper.find('input[type="password"]').exists()).toBe(false);
+    if (action === 'register') { await wrapper.get('[data-testid="legal-consent"]').setValue(true); await wrapper.get('[data-testid="challenge"]').trigger('click'); }
     await wrapper.get('form').trigger('submit');
-    expect(state.store[action]).toHaveBeenCalledWith(...(action === 'resetPassword' ? ['demo@example.com'] : ['demo@example.com', 'password123']));
+    expect(state.store[action]).toHaveBeenCalledWith(...(action === 'resetPassword' ? ['demo@example.com'] : action === 'register' ? ['demo@example.com', 'password123', 'test-challenge'] : ['demo@example.com', 'password123']));
     wrapper.unmount();
   });
   it('prevents duplicate submissions and exposes accessible feedback', async () => {
@@ -93,4 +95,14 @@ describe('professional landing and access', () => {
     expect(await createAuthGuard(auth, async () => {})(route)).toBe('/config');
     expect(await createAuthGuard(auth, async () => {}, async () => { throw Error('offline'); })(route)).toEqual({ path: '/', query: { setup: 'pending' } });
   });
+});
+
+it('requires legal acceptance to register and clears it on mode changes', async () => {
+  const { wrapper, router } = await page('/registrarse');
+  await wrapper.get('form').trigger('submit'); expect(state.store.register).not.toHaveBeenCalled();
+  await wrapper.get('[data-testid="legal-consent"]').setValue(true);
+  await wrapper.get('[data-testid="challenge"]').trigger('click');
+  await wrapper.get('form').trigger('submit'); expect(state.store.register).toHaveBeenCalledOnce();
+  await router.push('/ingresar'); await router.push('/registrarse'); await flushPromises();
+  expect(wrapper.get('[data-testid="legal-consent"]').element.checked).toBe(false); wrapper.unmount();
 });

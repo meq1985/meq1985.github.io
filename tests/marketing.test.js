@@ -32,15 +32,15 @@ it('ships static social metadata, valid structured data and a public-only sitema
   expect(data).not.toHaveProperty('aggregateRating');
   expect(html).toContain('og:description');
   const sitemap = readFileSync(resolve('public/sitemap.xml'), 'utf8');
-  expect(sitemap.match(/<loc>/g)).toHaveLength(3);
+  expect(sitemap.match(/<loc>/g)).toHaveLength(6);
   expect(sitemap.match(/<loc>(.*?)<\/loc>/g).every(url => url.startsWith('<loc>' + SITE_URL + '/'))).toBe(true);
   expect(readFileSync(resolve('public/robots.txt'), 'utf8')).toContain(`Sitemap: ${SITE_URL}/sitemap.xml`);
   expect(sitemap).not.toMatch(/dashboard|proyectos|planes|registrarse/);
 });
-it.each(['conditions', 'privacy'])('offers a public %s page without requiring account data', kind => {
+it.each(['conditions', 'privacy', 'notice', 'security', 'requests'])('offers a public %s page without requiring account data', kind => {
   const w = mount(LegalView, { props: { kind }, global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } });
   expect(w.findAll('h1')).toHaveLength(1);
-  expect(w.text()).toContain('emanuelquiroga.bgh@gmail.com');
+  expect(w.text()).toContain('meq1985@hotmail.com');
   if (kind === 'conditions') expect(w.text()).toContain('Cancelar la renovación no elimina tus proyectos');
   w.unmount();
 });

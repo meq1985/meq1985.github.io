@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender.mjs",
     "preview": "vite preview --port 5050",
     "test": "vitest run --maxWorkers=1",
     "test:emulator": "vitest run --config vitest.emulator.config.js --mode emulator"

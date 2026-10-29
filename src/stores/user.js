@@ -1,13 +1,14 @@
+import { createProtectedUser } from '../services/protectedRegistration';
 import { defineStore } from 'pinia';
 import { auth } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
+import { signInWithEmailAndPassword, signOut,
   sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
 import { ensureAccountReady } from '../services/accountProvisioning';
 
 export const useUserStore = defineStore('user', {
   state: () => ({ user: null, busy: false, notice: '', error: '' }),
   actions: {
-    async register(email, password) {
+    async register(email, password, token) {
       if (this.busy) return false;
       this.busy = true;
       this.notice = this.error = '';
@@ -15,7 +16,7 @@ export const useUserStore = defineStore('user', {
       let complete = false;
       try {
         let credential;
-        try { credential = await createUserWithEmailAndPassword(auth, email.trim(), password); }
+        try { credential = await createProtectedUser(email.trim(), password, token); }
         catch (error) {
           if (error.code !== 'auth/email-already-in-use') throw error;
           credential = await signInWithEmailAndPassword(auth, email.trim(), password);

@@ -5,7 +5,7 @@ vi.mock('../src/components/CatalogHeader.vue', () => ({ default: { template: '<d
 vi.mock('../src/stores/dbUsers', () => ({ PostStore: () => ({ obtenerDato: vi.fn(), updateItem: vi.fn(), nombre1: 'Demo' }) }));
 vi.mock('../src/services/catalogPersistence', () => ({ loadCatalog: vi.fn(), loadSuggestedCatalog: vi.fn(), saveCatalogPrices: vi.fn() }));
 vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(async () => ({ uid: 'demo', email: 'demo@example.invalid' })), assertCurrentUser: vi.fn() }));
-vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(async () => ({ enabled: false })) }));
+vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(async () => ({ enabled: false, admin: true })) }));
 vi.mock('../src/services/projects', () => ({ newProjectId: () => 'project-demo', loadProject: vi.fn(), saveProject: vi.fn() }));
 vi.mock('../src/services/budgetPdf', () => ({ buildBudgetPdf: vi.fn(async () => ({ output: () => new Blob(['pdf']), save: vi.fn() })) }));
 import { loadCatalog, loadSuggestedCatalog, saveCatalogPrices } from '../src/services/catalogPersistence';
@@ -17,7 +17,7 @@ const entries = [
   { id: 'visita', category: 'general', code: 'A26-001', description: 'Visita', unit: 'visita', price: 56393 },
   { id: 'losa_metal', category: 'canalizacion', code: 'A26-008', description: 'Losa', unit: 'boca', price: 57000 },
 ];
-beforeEach(async () => { vi.clearAllMocks(); const { loadBillingAccess } = await import('../src/services/billing'); loadBillingAccess.mockResolvedValue({ enabled: false }); loadCatalog.mockResolvedValue(structuredClone(entries)); saveCatalogPrices.mockResolvedValue(); });
+beforeEach(async () => { vi.clearAllMocks(); const { loadBillingAccess } = await import('../src/services/billing'); loadBillingAccess.mockResolvedValue({ enabled: false, admin: true }); loadCatalog.mockResolvedValue(structuredClone(entries)); saveCatalogPrices.mockResolvedValue(); });
 const button = (wrapper, text) => wrapper.findAll('button').find(item => item.text().startsWith(text));
 
 it('places individual work inside the detail and varies quantity steps by unit', async () => {
@@ -209,10 +209,10 @@ it('requires saving a reviewed new version before regenerating a PDF with a miss
   expect(buildBudgetPdf).toHaveBeenCalledOnce(); wrapper.unmount();
 });
 
-it('saves the free project before generating its PDF and blocks a second project without losing the draft', async () => {
+it('saves a trial project before generating its PDF and blocks saving after expiry without losing the draft', async () => {
   const { loadBillingAccess } = await import('../src/services/billing');
   const { saveProject } = await import('../src/services/projects');
-  loadBillingAccess.mockResolvedValue({ enabled: true, freeProjectId: null });
+  loadBillingAccess.mockResolvedValue({ enabled: true, trialStartedAt: Date.now() });
   saveProject.mockResolvedValue({ id: 'project-demo', revision: 1 });
   const wrapper = mount(Dashboard); await flushPromises();
   await wrapper.get('#budget-client').setValue('Primer cliente');
@@ -220,7 +220,7 @@ it('saves the free project before generating its PDF and blocks a second project
   await button(wrapper, 'Descargar PDF').trigger('click'); await flushPromises();
   expect(saveProject).toHaveBeenCalledOnce(); expect(buildBudgetPdf).toHaveBeenCalledOnce();
   expect(saveProject.mock.invocationCallOrder[0]).toBeLessThan(buildBudgetPdf.mock.invocationCallOrder[0]);
-  loadBillingAccess.mockResolvedValue({ enabled: true, freeProjectId: 'different-project' });
+  loadBillingAccess.mockResolvedValue({ enabled: true, trialStartedAt: Date.now() - 31 * 86400000 });
   await button(wrapper, 'Descargar PDF').trigger('click'); await flushPromises();
   expect(buildBudgetPdf).toHaveBeenCalledOnce(); expect(wrapper.text()).toContain('Ver suscripción');
   expect(wrapper.get('#budget-client').element.value).toBe('Primer cliente'); wrapper.unmount();

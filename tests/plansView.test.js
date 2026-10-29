@@ -5,7 +5,7 @@ vi.mock('../src/components/CatalogHeader.vue', () => ({ default: { template: '<h
 vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(), startSubscription: vi.fn(), refreshSubscription: vi.fn(), cancelSubscription: vi.fn() }));
 import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription } from '../src/services/billing';
 import Plans from '../src/views/PlansView.vue';
-const base = { enabled: true, admin: false, checkoutAvailable: true, freeProjectId: 'free', subscription: null };
+const base = { enabled: true, admin: false, checkoutAvailable: true, trialStartedAt: Date.now(), subscription: null };
 const subscription = patch => ({ planId: 'presupuestos', status: 'active', manageable: true, providerStatus: 'authorized', paidThrough: Date.now() + 86400000, ...patch });
 const render = () => mount(Plans, { global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } });
 const button = (wrapper, text) => wrapper.findAll('button').find(b => b.text().includes(text));
@@ -22,7 +22,7 @@ it('compares the free project and both plans with finished-product copy while re
   expect(full.text()).toContain('Medidor, tableros y jabalinas');
   expect(w.text()).not.toMatch(/próximamente|en pruebas|en desarrollo|en preparación/i);
   expect(full.text()).not.toContain('calcular presupuestos y materiales');
-  expect(w.get('a[href="/proyectos/free/editar"]').text()).toContain('gratuito'); w.unmount();
+  expect(w.text()).toContain('Tu prueba gratuita está activa'); expect(w.text()).toContain('Disponible hasta'); w.unmount();
 });
 it('requires renewal consent and prevents blind repeated checkouts after failure', async () => {
   startSubscription.mockRejectedValue(new Error('private provider error'));
@@ -37,7 +37,7 @@ it('requires renewal consent and prevents blind repeated checkouts after failure
 });
 it('does not expose checkout when commercial activation is disabled or account loading fails', async () => {
   loadBillingAccess.mockResolvedValue({ ...base, enabled: false, checkoutAvailable: false });
-  const w = render(); await flushPromises(); expect(w.text()).toContain('Tu cuenta de Electricista Xpress'); expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false); w.unmount();
+  const w = render(); await flushPromises(); expect(w.text()).toContain('Tu prueba gratuita está activa'); expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false); w.unmount();
   loadBillingAccess.mockRejectedValue(new Error('private failure'));
   const failed = render(); await flushPromises(); expect(failed.get('[role="alert"]').text()).toContain('conexión');
   expect(failed.find('[data-testid="renewal-consent"]').exists()).toBe(false); expect(startSubscription).not.toHaveBeenCalled(); failed.unmount();
@@ -72,4 +72,12 @@ it('queries the server once on checkout return and never trusts forged approved 
   const w = render(); await flushPromises();
   expect(refreshSubscription).toHaveBeenCalledExactlyOnceWith(); expect(loadBillingAccess).toHaveBeenCalledTimes(2);
   expect(w.text()).not.toContain('Plan Presupuestos activo'); expect(w.text()).not.toContain('Pago confirmado.'); w.unmount();
+});
+
+it('shows an expired trial without losing access to project consultation', async () => {
+  loadBillingAccess.mockResolvedValue({ ...base, trialStartedAt: Date.now() - 31 * 86400000, checkoutAvailable: false });
+  const w = render(); await flushPromises();
+  expect(w.text()).toContain('Tu prueba gratuita terminó');
+  expect(w.text()).toContain('consultar tus proyectos');
+  expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false); w.unmount();
 });

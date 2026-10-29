@@ -8,6 +8,9 @@ import { ensureAccountReady } from '../services/accountProvisioning';
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    { path: "/aviso-legal", component: () => import("../views/LegalView.vue"), props: { kind: "notice" } },
+    { path: "/seguridad", component: () => import("../views/LegalView.vue"), props: { kind: "security" } },
+    { path: "/gestiones", component: () => import("../views/LegalView.vue"), props: { kind: "requests" } },
     { path: "/condiciones", component: () => import("../views/LegalView.vue"), props: { kind: "conditions" } },
     { path: "/privacidad", component: () => import("../views/LegalView.vue"), props: { kind: "privacy" } },
     { path: "/planes", name: "planes", component: () => import("../views/PlansView.vue"), meta: { auth: true } },
