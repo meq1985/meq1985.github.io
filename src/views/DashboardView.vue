@@ -44,12 +44,11 @@ const warnBeforeClose = event => { if (dirty.value) { event.preventDefault(); ev
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeClose));
 const tipoInmueble = ref('');
 const propertyTypes = ['Vivienda unifamiliar', 'Departamento', 'Local', 'Depósito', 'Oficina', 'Edificio', 'Taller', 'Galpón'];
-const cliente = ref(''), tabla = ref([]), entries = ref([]), search = ref(''), selected = ref('');
+const cliente = ref(''), tabla = ref([]), entries = ref([]), selected = ref('');
 const loading = ref(true), saving = ref(false), error = ref(''), message = ref('');
 watch(formSignature, () => { if (pendingSave.value && pendingSave.value.signature !== formSignature.value) pendingSave.value = null; });
-const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const groups = computed(() => [...CATALOG_GROUPS, { id: 'anteriores', label: 'Mis ítems anteriores' }].map(group => ({ ...group,
-  items: entries.value.filter(item => item.category === group.id && normalize(item.description + ' ' + item.unit).includes(normalize(search.value))) })).filter(group => group.items.length));
+  items: entries.value.filter(item => item.category === group.id) })).filter(group => group.items.length));
 const selectedItem = computed(() => entries.value.find(item => item.id === selected.value));
 const subtotal = row => { const value = Math.round(Number(row.cantidad) * Number(row.precioUnitario) * 100) / 100; return Number.isFinite(value) ? value : 0; };
 const total = computed(() => Math.round(tabla.value.reduce((sum, row) => sum + subtotal(row), 0) * 100) / 100);
@@ -172,7 +171,6 @@ watch(() => props.projectId, initialize);
         <fieldset :disabled="subscriptionBlocked || loading || saving">
           <h3>Agregar trabajos</h3>
           <div class="catalog-fields">
-            <label>Buscar ítem<input v-model="search" type="search" placeholder="Ej.: boca, tablero, bandeja…" /></label>
             <label>Seleccionar ítem<select id="budget-catalog-item" v-model="selected" aria-label="Seleccionar ítem"><option disabled value="">Elegí un trabajo</option><optgroup v-for="group in groups" :key="group.id" :label="group.label"><option v-for="item in group.items" :key="item.id" :value="item.id">{{ item.description }} / {{ item.unit }} — {{ currency(item.price) }}</option></optgroup></select></label>
           </div>
           <button v-if="selectedItem?.note" type="button" @click="showHelp('trabajo', selectedItem.note)">Nota del trabajo</button>
