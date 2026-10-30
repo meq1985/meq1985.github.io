@@ -244,7 +244,10 @@ it('selects account promotions for this quote, stores them with the budget and p
  const w=mount(Dashboard);await flushPromises();
  await w.get('#budget-client').setValue('Cliente con promoción');await button(w,'Agregar ítem personalizado').trigger('click');
  await w.get('[aria-label="Descripción del ítem 1"]').setValue('Mano de obra');await w.get('[aria-label="Precio del ítem 1"]').setValue('1000');
- await button(w,'Usar descuento configurado').trigger('click');await w.get('[aria-label="Incluir 3 cuotas en PDF"]').setValue(true);
+ expect(w.get('.budget-promotions h3').text()).toBe('Promociones');
+ expect(w.find('[aria-label="Descuento al contado del presupuesto"]').exists()).toBe(false);
+ expect(w.get('.budget-promotions').findAll('input[type="number"]')).toHaveLength(0);
+ await w.get('[aria-label="Aplicar descuento al contado"]').setValue(true);await w.get('[aria-label="Incluir 3 cuotas"]').setValue(true);
  expect(w.get('.budget-promotions').text()).toContain('900');expect(w.get('.budget-promotions').text()).toContain('1.200');
  await button(w,'Guardar proyecto en mi cuenta').trigger('click');await flushPromises();
  expect(saveProject.mock.calls.at(-1)[0].budget.paymentOptions).toEqual({discountPercent:10,installments:[{count:3,surchargePercent:20}]});
