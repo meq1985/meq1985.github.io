@@ -65,3 +65,17 @@ test('provider never follows redirects or exposes financial error bodies', async
   await assert.rejects(api('/preapproval'), /provider-unavailable/);
   assert.equal(options.redirect, 'error');
 });
+
+test('Full checkout and confirmed payments must match the server-owned ARS 25000 plan', () => {
+ const body=subscriptionBody({planId:'croquis',email:'buyer@testuser.com',reference:'full',returnOrigin:'https://electricistaxpress.com.ar',webhook:'https://fixed.example.invalid'});
+ assert.equal(body.auto_recurring.transaction_amount,25000);
+ assert.match(body.reason,/croquis/);
+ const remote={...body,collector_id:123};
+ assert.equal(validSubscription(remote,'full','123','croquis'),true);
+ assert.equal(validSubscription(remote,'full','123','presupuestos'),false);
+ const invoice={preapproval_id:'full',payment:{id:1},debit_date:'2026-10-20T10:00:00Z',currency_id:'ARS',transaction_amount:25000};
+ const payment={id:1,status:'approved',currency_id:'ARS',transaction_amount:25000,collector_id:123,live_mode:false,payer:{email:'buyer@testuser.com'}};
+ assert.ok(paidPeriod(invoice,payment,'full','123',false,'buyer@testuser.com','croquis'));
+ assert.equal(paidPeriod({...invoice,transaction_amount:12000},{...payment,transaction_amount:12000},'full','123',false,'buyer@testuser.com','croquis'),null);
+ assert.throws(()=>subscriptionBody({planId:'forged'}),/invalid-plan/);
+});

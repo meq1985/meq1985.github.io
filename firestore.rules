@@ -18,9 +18,15 @@ service cloud.firestore {
     }
     function paid(uid) {
       return exists(/databases/$(database)/documents/suscripciones/$(uid)) &&
-        get(/databases/$(database)/documents/suscripciones/$(uid)).data.planId == 'presupuestos' &&
+        get(/databases/$(database)/documents/suscripciones/$(uid)).data.planId in ['presupuestos', 'croquis'] &&
         get(/databases/$(database)/documents/suscripciones/$(uid)).data.status == 'active' &&
         get(/databases/$(database)/documents/suscripciones/$(uid)).data.paidThrough > request.time;
+    }
+    function sketchAllowed(uid) {
+      return administrator() || (paid(uid) ?
+        get(/databases/$(database)/documents/suscripciones/$(uid)).data.planId == 'croquis' :
+        (getAfter(/databases/$(database)/documents/accesos/$(uid)).data.claimedAt <= request.time &&
+         request.time < getAfter(/databases/$(database)/documents/accesos/$(uid)).data.claimedAt + duration.value(30, 'd')));
     }
     function writesEnabled() {
       return !exists(/databases/$(database)/documents/configuracion/seguridad) ||
@@ -132,10 +138,17 @@ service cloud.firestore {
       allow update: if access() && projectAllowed(uid, projectId) && validProject(request.resource.data) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'cliente', 'tipoInmueble', 'total', 'revision', 'updatedAt']) &&
         request.resource.data.revision == resource.data.revision + 1 && linkedVersion(request.resource.data);
+      function preservedSketch() {
+        let project = /databases/$(database)/documents/cuentas/$(uid)/proyectos/$(projectId);
+        return !('sketch' in request.resource.data) || (exists(project) &&
+          request.resource.data.sketch == get(/databases/$(database)/documents/cuentas/$(uid)/proyectos/$(projectId)/versiones/$(string(get(project).data.revision))).data.get('sketch', null));
+      }
       match /versiones/{versionId} {
         allow get, list: if access();
         allow create: if access() && projectAllowed(uid, projectId) && request.resource.data.keys().hasAll(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId']) &&
           request.resource.data.keys().hasOnly(['schema', 'revision', 'name', 'budget', 'profile', 'createdAt', 'sourceLocalId', 'sketch']) &&
+          // Basic may retain an existing drawing verbatim, but cannot create or change one.
+          (sketchAllowed(uid) || preservedSketch()) &&
           // Opaque drawing data: bounded here and parsed/validated by the editor.
           (!('sketch' in request.resource.data) || (request.resource.data.sketch is string && request.resource.data.sketch.size() <= 80000)) &&
           request.resource.data.schema == 1 && request.resource.data.revision is int &&

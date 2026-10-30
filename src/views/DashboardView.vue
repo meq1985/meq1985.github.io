@@ -5,7 +5,7 @@ import { loadPromotionSettings } from '../services/promotionPersistence';
 import { computed, inject, provide, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { routerKey, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { loadBillingAccess } from '../services/billing';
-import { projectAccess } from '../services/billingPolicy';
+import { projectAccess, sketchAccess, paidPlan } from '../services/billingPolicy';
 import { newProjectId, loadProject, saveProject } from '../services/projects';
 import { projectProfile, projectBudget } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
@@ -29,6 +29,8 @@ const showHelp = (topic, detail) => help.value?.show(topic, detail);
 provide('budgetHelp', showHelp);
 const name = ref(''), revision = ref(0), cloudId = ref(props.projectId || newProjectId()), selectedProfile = ref(null);
 const access = ref(null), subscriptionBlocked = ref(false);
+const canUseSketch = computed(() => access.value && sketchAccess(access.value));
+const activePlan = computed(() => paidPlan(access.value?.subscription));
 const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
 const savedForm = ref(null), savedBudget = ref(null), requiresProfileReview = ref(false);
 const sketch = ref(null), paymentOptions = ref(emptyPaymentOptions()), promotionDefaults = ref(defaultPromotionSettings());
@@ -61,7 +63,7 @@ function addItem() {
 }
 function addCustom() { tabla.value.push({ key: ++counter, codigo: `P-${counter}`, descripcion: '', unidad: 'ud.', cantidad: 1, precioUnitario: 0 }); }
 function applySketchQuote(rows) {
-  if (!ready.value || loading.value || saving.value || subscriptionBlocked.value) return;
+  if (!ready.value || loading.value || saving.value || subscriptionBlocked.value || !canUseSketch.value) return;
   tabla.value = rows.map(row => ({ ...row, key: ++counter }));
   message.value = 'Borrador del croquis aplicado. Revisá el detalle y guardá el proyecto en tu cuenta.';
 }
@@ -72,7 +74,7 @@ async function outputBudget() {
     const user = await requireUser();
     if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Recargá el proyecto.');
     if (requiresProfileReview.value) throw new Error('Revisá los datos profesionales y guardá una nueva versión en tu cuenta antes de generar el PDF.');
-    const currentAccess = await loadBillingAccess();
+    const currentAccess = await loadBillingAccess(); access.value = currentAccess;
     if (!projectAccess(currentAccess, cloudId.value)) { subscriptionBlocked.value = true; throw new Error('Tu prueba gratuita terminó. Para crear proyectos o guardar cambios necesitás una suscripción.'); }
     if (!currentAccess.admin && (dirty.value || !cloudSaved.value)) {
       saving.value = false;
@@ -150,6 +152,7 @@ watch(() => props.projectId, initialize);
     <div class="catalog-main">
       <div class="budget-heading"><h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><button type="button" @click="showHelp('inicio')">Ayuda para presupuestar</button></div><BudgetHelp ref="help" :ready="ready" /><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
       <p v-if="access?.admin" class="catalog-notice">Cuenta administradora: acceso completo sin suscripción.</p>
+      <p v-else-if="activePlan" class="catalog-notice">Plan {{ activePlan === 'croquis' ? 'Full' : 'Básico' }} activo. <RouterLink to="/planes">Gestionar suscripción</RouterLink></p>
       <p v-else-if="access && !access.admin" class="catalog-notice">Tu cuenta incluye una prueba gratuita de 30 días, sin tarjeta. <RouterLink to="/planes">Ver planes</RouterLink></p>
       <p v-if="subscriptionBlocked" class="catalog-notice" role="status">Tu prueba gratuita terminó. Para crear proyectos o guardar cambios necesitás una suscripción. <RouterLink to="/planes">Ver suscripción →</RouterLink></p>
       <p v-if="error" class="catalog-notice error" role="alert">{{ error }}</p>
@@ -164,8 +167,11 @@ watch(() => props.projectId, initialize);
 
 
       </section>
+      <template v-if="canUseSketch">
       <SketchEditor :key="cloudId" v-model="sketch" :entries="entries" :disabled="subscriptionBlocked || loading || saving || !ready" />
       <SketchQuote :key="cloudId + '-quote'" v-model="sketch" :entries="entries" :existing-count="tabla.length" :disabled="subscriptionBlocked || loading || saving || !ready" @apply="applySketchQuote" />
+      </template>
+      <section v-else-if="ready && !subscriptionBlocked" class="catalog-panel"><h2>Croquis incluido en Full</h2><p>Tu plan Básico permite presupuestar desde el catálogo. Con Full podés dibujar la obra y calcular mano de obra, circuitos y materiales.</p><p v-if="sketch">El croquis guardado se conserva y sus materiales siguen incluidos al descargar el PDF.</p><RouterLink to="/planes">Ver plan Full →</RouterLink></section>
       <section class="catalog-panel">
         <div class="budget-heading"><h2>Detalle del presupuesto</h2><button type="button" @click="showHelp('presupuesto')">Ayuda del presupuesto</button></div>
         <fieldset :disabled="subscriptionBlocked || loading || saving">

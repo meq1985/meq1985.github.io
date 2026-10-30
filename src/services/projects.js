@@ -1,7 +1,7 @@
 import { collection, doc, getDocFromServer, getDocsFromServer, query, orderBy, limit, startAfter, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { allowanceRef, subscriptionRef } from './billing';
-import { isAdministrator, projectAccess, subscriptionRequired } from './billingPolicy';
+import { isAdministrator, projectAccess, sketchAccess, paidPlan, subscriptionRequired } from './billingPolicy';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { projectBudget, projectProfile, projectName, validProjectId, validRevision } from './projectValidation';
 import { encodeSketch, decodeSketch } from './sketch';
@@ -82,13 +82,17 @@ async function writeProject(user, input) {
       const state = { admin: !metered, trialStartedAt: allowance?.exists() ? allowance.data().claimedAt?.toMillis?.() ?? null : Date.now(),
         subscription: subscription?.exists() ? { ...subscription.data(), paidThrough: subscription.data().paidThrough?.toMillis?.() } : null };
       if (!projectAccess(state, input.id)) throw subscriptionRequired();
+      if (sketch !== null && !sketchAccess(state)) {
+        const prior = current ? await transaction.get(versionRef(reference, current.revision)) : null;
+        if (prior?.data()?.sketch !== sketch) throw new Error('El croquis requiere el plan Full. Tu dibujo guardado se conserva sin cambios.');
+      }
       const now = serverTimestamp();
       if (metered) {
         const usage = quota.data() ?? {}, time = Date.now();
         const reset = !usage.windowStartedAt || time >= usage.windowStartedAt.toMillis() + 86400000;
         const saves = reset ? 1 : usage.saveCount + 1;
         const total = (usage.totalProjects ?? 0) + (existing.exists() ? 0 : 1);
-        const paid = state.subscription?.status === 'active' && state.subscription.planId === 'presupuestos' && state.subscription.paidThrough > time;
+        const paid = !!paidPlan(state.subscription, time);
         if (saves > 10) throw new Error('Alcanzaste los 10 guardados diarios de tu cuenta. Podés consultar y descargar tus proyectos; volvé a guardar mañana.');
         if (!existing.exists() && total > (paid ? 100 : 10)) throw new Error(paid ? 'Alcanzaste el límite de 100 proyectos de tu cuenta. Contactanos para ampliar tu capacidad.' : 'La prueba gratuita permite hasta 10 proyectos. Podés seguir editando los que ya creaste.');
         transaction.set(quotaRef, { totalProjects: total, saveCount: saves, windowStartedAt: reset ? now : usage.windowStartedAt, projectId: input.id, revision, updatedAt: now });

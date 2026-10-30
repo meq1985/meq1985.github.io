@@ -49,11 +49,11 @@ const webhook = async (id, type = 'subscription_authorized_payment', signed = tr
 };
 test('complete billing lifecycle uses only the emulator and a simulated provider', async t => {
   await db.doc('billingTesters/billing-owner').set({ enabled: true, payerEmail: 'buyer@testuser.com' });
-  await t.test('rejects anonymous, unverified, non-testers and future croquis plan', async () => {
+  await t.test('rejects anonymous, unverified, non-testers and unknown plans', async () => {
     await assert.rejects(billing.createSubscription.run({ data: {} }), /correo verificado/);
     await assert.rejects(billing.createSubscription.run({ ...request(), auth: { ...request().auth, token: { email_verified: false } } }), /correo verificado/);
     await assert.rejects(billing.createSubscription.run(request('not-tester')), /privado/);
-    await assert.rejects(billing.createSubscription.run(request('billing-owner', { planId: 'croquis', consent: true })), /mensualidad/);
+    await assert.rejects(billing.createSubscription.run(request('billing-owner', { planId: 'forged', consent: true })), /mensualidad/);
   });
   await t.test('administrator cannot accidentally buy a subscription', async () => {
     await db.doc('administradores/billing-owner').set({ enabled: true });
@@ -135,6 +135,37 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     assert.equal(await webhook('inv2'), 200);
     assert.equal(await webhook('inv1'), 200);
     assert.equal((await db.doc('suscripciones/billing-owner').get()).data().status, 'active');
+  });
+  await t.test('Full grants only verified Full payments, blocks duplicate plans and retains access after cancellation', async () => {
+    const uid='full-owner';
+    await db.doc(`billingTesters/${uid}`).set({enabled:true,payerEmail:'buyer@testuser.com'});
+    const req=()=>request(uid,{planId:'croquis',consent:true});
+    await billing.createSubscription.run(req());
+    const id=`sub${posts}`, before=posts;
+    assert.equal(subscriptions.get(id).auto_recurring.transaction_amount,25000);
+    const stored=(await db.doc(`billingCheckouts/${uid}`).get()).data();
+    assert.equal(stored.planId,'croquis');assert.equal(stored.consent.amount,25000);assert.equal(stored.consent.currency,'ARS');assert.ok(stored.consent.acceptedAt.toMillis()>0);
+    await assert.rejects(billing.createSubscription.run(request(uid)),/Cancelá/);
+    assert.equal(posts,before);
+    const invoice={id:'fullinv',preapproval_id:id,payment:{id:'fullpay'},debit_date:debit,currency_id:'ARS',transaction_amount:12000};
+    const payment={...payments.get('pay2'),id:'fullpay',transaction_amount:12000};
+    invoices.set('fullinv',invoice); payments.set('fullpay',payment);
+    assert.equal(await webhook('fullinv'),200);
+    assert.equal((await db.doc(`suscripciones/${uid}`).get()).data().status,'inactive');
+    invoice.transaction_amount=25000; payment.transaction_amount=25000;
+    subscriptions.get(id).status='authorized';
+    assert.equal(await webhook('fullinv'),200);
+    let access=(await db.doc(`suscripciones/${uid}`).get()).data();
+    assert.equal(access.planId,'croquis'); assert.equal(access.status,'active');
+    const expiry=access.paidThrough.toMillis();
+    await billing.cancelSubscription.run(request(uid,{confirm:true}));
+    await assert.rejects(billing.createSubscription.run(request(uid)),/período abonado/);
+    assert.equal(posts,before);
+    assert.equal(await webhook('fullinv'),200);
+    access=(await db.doc(`suscripciones/${uid}`).get()).data();
+    assert.equal(access.planId,'croquis');assert.equal(access.paidThrough.toMillis(),expiry);
+    payment.status='rejected'; assert.equal(await webhook('fullinv'),200);
+    assert.equal((await db.doc(`suscripciones/${uid}`).get()).data().status,'inactive');
   });
   await t.test('live mode stays closed without both production activation flags', async () => {
     process.env.MP_MODE = 'live';

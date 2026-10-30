@@ -255,3 +255,21 @@ it('selects account promotions for this quote, stores them with the budget and p
  expect(buildBudgetPdf.mock.calls.at(-1)[0]).toMatchObject({total:1000,paymentOptions:{discountPercent:10}});
  expect(buildBudgetPdf.mock.calls.at(-1)[2]).toEqual({sketch:null});w.unmount();
 });
+
+it('hides sketch tools for Basic while retaining manual budgeting and an upgrade link', async () => {
+  const {loadBillingAccess}=await import('../src/services/billing');
+  loadBillingAccess.mockResolvedValue({admin:false,trialStartedAt:Date.now(),subscription:{planId:'presupuestos',status:'active',paidThrough:Date.now()+86400000}});
+  const w=mount(Dashboard); await flushPromises();
+  expect(w.text()).toContain('Plan Básico activo');
+  expect(w.text()).toContain('Croquis incluido en Full');
+  expect(button(w,'+ Ambiente')).toBeUndefined();
+  expect(w.find('#budget-catalog-item').exists()).toBe(true); w.unmount();
+});
+it('enables drawing for paid Full and the free trial', async () => {
+  const {loadBillingAccess}=await import('../src/services/billing');
+  for (const access of [{admin:false,trialStartedAt:Date.now()}, {admin:false,subscription:{planId:'croquis',status:'active',paidThrough:Date.now()+86400000}}]) {
+    loadBillingAccess.mockResolvedValue(access);
+    const w=mount(Dashboard); await flushPromises();
+    expect(button(w,'+ Ambiente')).toBeTruthy(); w.unmount();
+  }
+});

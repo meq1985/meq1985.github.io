@@ -23,7 +23,7 @@ export async function loadBillingAccess() {
   const stored = subscription.data();
   return { enabled, admin: false, trialStartedAt: allowance.data()?.claimedAt?.toMillis?.() ?? null,
     subscription: stored ? { planId: stored.planId, status: stored.status, paidThrough: stored.paidThrough?.toMillis?.() ?? null,
-      providerStatus: stored.providerStatus, manageable: stored.manageable === true } : null,
+      pendingPlanId: stored.pendingPlanId, providerStatus: stored.providerStatus, manageable: stored.manageable === true } : null,
     checkoutAvailable: enabled && config.data()?.checkoutAvailable === true };
 }
 async function billingCall(name, data) {
@@ -39,8 +39,9 @@ async function billingCall(name, data) {
   assertCurrentUser(user);
   return response.data;
 }
-export async function startSubscription() {
-  const result = await billingCall('createSubscription', { planId: 'presupuestos', consent: true });
+export async function startSubscription(planId) {
+  if (!['presupuestos', 'croquis'].includes(planId)) throw new Error('Elegí un plan válido.');
+  const result = await billingCall('createSubscription', { planId, consent: true });
   const url = new URL(result.url);
   if (url.protocol !== 'https:' || url.hostname !== 'www.mercadopago.com.ar' || url.username || url.password) throw new Error('La dirección de pago no es válida.');
   return url.href;

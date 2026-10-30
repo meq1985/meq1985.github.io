@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { PLANS, isAdministrator, projectAccess } from '../src/services/billingPolicy';
+import { PLANS, isAdministrator, projectAccess, sketchAccess } from '../src/services/billingPolicy';
 it('reserves administration for the verified existing account, never a profile flag', () => {
   expect(isAdministrator({ emailVerified: true }, { enabled: true })).toBe(true);
   expect(isAdministrator({ emailVerified: true }, null)).toBe(false);
@@ -17,13 +17,26 @@ it('allows every project for 30 days and expires at the boundary without a reset
   expect(projectAccess({ trialStartedAt: start + 1 }, 'first', start)).toBe(false);
   expect(projectAccess({ admin: true }, 'second', end)).toBe(true);
 });
-it('requires a paid basic subscription that has not expired; an authorized checkout is not payment', () => {
+it('requires a paid known subscription that has not expired; an authorized checkout is not payment', () => {
   const base = { enabled: true, freeProjectId: 'first' };
   expect(projectAccess({ ...base, subscription: { planId: 'presupuestos', status: 'active', paidThrough: 2000 } }, 'second', 1000)).toBe(true);
-  for (const subscription of [{ planId: 'presupuestos', status: 'authorized', paidThrough: 2000 }, { planId: 'presupuestos', status: 'active', paidThrough: 1000 }, { planId: 'croquis', status: 'active', paidThrough: 2000 }]) {
+  for (const subscription of [{ planId: 'presupuestos', status: 'authorized', paidThrough: 2000 }, { planId: 'presupuestos', status: 'active', paidThrough: 1000 }, { planId: 'forged', status: 'active', paidThrough: 2000 }]) {
     expect(projectAccess({ ...base, subscription }, 'second', 1000)).toBe(false);
   }
 });
-it('offers ARS monthly prices and does not sell the unfinished sketch plan', () => {
-  expect(PLANS.map(p => [p.amount, p.currency, p.available])).toEqual([[12000, 'ARS', true], [25000, 'ARS', false]]);
+it('offers both ARS monthly plans behind the separate checkout activation gate', () => {
+  expect(PLANS.map(p => [p.amount, p.currency, p.available])).toEqual([[12000, 'ARS', true], [25000, 'ARS', true]]);
+});
+
+it('separates Full, Basic, trial and expired access without trusting a profile flag', () => {
+  const now = 1000, trialStartedAt = 100;
+  const basic = { planId: 'presupuestos', status: 'active', paidThrough: 2000 };
+  const full = { ...basic, planId: 'croquis' };
+  expect(sketchAccess({ trialStartedAt }, now)).toBe(true);
+  expect(sketchAccess({ trialStartedAt, subscription: basic }, now)).toBe(false);
+  expect(sketchAccess({ subscription: full }, now)).toBe(true);
+  expect(projectAccess({ subscription: full }, null, now)).toBe(true);
+  expect(sketchAccess({ subscription: full }, 2000)).toBe(false);
+  expect(sketchAccess({ admin: true }, now)).toBe(true);
+  expect(sketchAccess({ full: true }, now)).toBe(false);
 });

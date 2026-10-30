@@ -186,6 +186,7 @@ it('gives only the verified designated administrator unlimited own projects', as
   } finally { await env.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'configuracion', 'facturacion')); }); }
 });
 it('versions drawings with budgets and does not confuse changed drawings with a successful retry', async () => {
+  await env.withSecurityRulesDisabled(async context => updateDoc(doc(context.firestore(), 'suscripciones', uid), { planId: 'croquis' }));
   const data = { ...input('drawing'), sketch: { ...emptySketch(), rooms: [{ id: 'room', levelId: 'planta-baja', name: 'Cocina', x: 0, y: 0, width: 4, depth: 3, points: [{ id: 'p', type: 'toma', x: 0.3, y: 0.6 }] }] } };
   data.sketch.quote = { ...emptyQuoteSettings(), heights: { toma: 0.4, llave: 1.1, techo: 2.8 }, board: 'tp_mono' };
   data.sketch.equipment = [{ id: 'meter', type: 'medidor_tp', name: 'Pilar', levelId: 'planta-baja', x: 0, y: 0, itemId: 'pilar' }, { id: 'tg', type: 'general', name: 'General', levelId: 'planta-baja', x: 6, y: 8, itemId: 'seccional_8' }];
@@ -257,6 +258,34 @@ it('saves account promotion presets without changing prices and rejects a stale 
  const intruder=env.authenticatedContext('promotions-intruder',{email:'other@example.invalid',email_verified:true}).firestore();
  await assertFails(updateDoc(doc(intruder,'costos',email),{promotions:baseline}));
 });
+it('enforces sketch entitlement in raw Firestore writes and preserves Full drawings after downgrade', async () => {
+  const setPlan = planId => env.withSecurityRulesDisabled(async c => setDoc(doc(c.firestore(), 'suscripciones', uid), {planId, status:'active', paidThrough:Timestamp.fromMillis(Date.now()+86400000)}));
+  await setPlan('croquis');
+  const data = {...input('tier-drawing'), sketch: emptySketch()};
+  await saveProject(data);
+  await setPlan('presupuestos');
+  const loaded = await loadProject('tier-drawing');
+  expect(loaded.version.sketch).toEqual(data.sketch);
+  await saveProject({...data, expectedRevision:1, name:'Cambio manual'});
+  const changed = structuredClone(data.sketch); changed.levels[0].name='Alterado';
+  await expect(saveProject({...data,expectedRevision:2,sketch:changed})).rejects.toThrow('Full');
+  await expect(saveProject({...input('basic-drawing'),sketch:emptySketch()})).rejects.toThrow('Full');
+  // Bypass the client: submit an otherwise valid linked version and matching quota.
+  const old=(await getDoc(ref('tier-drawing'))).data();
+  const version=(await getDoc(doc(ref('tier-drawing'),'versiones','2'))).data();
+  const quota=(await getDoc(doc(db,'cuotas',uid))).data();
+  const batch=writeBatch(db);
+  batch.update(ref('tier-drawing'), {...old,revision:3,updatedAt:serverTimestamp()});
+  batch.set(doc(ref('tier-drawing'),'versiones','3'),{...version,revision:3,sketch:encodeSketch(changed),createdAt:serverTimestamp()});
+  batch.set(doc(db,'cuotas',uid),{...quota,revision:3,saveCount:quota.saveCount+1,updatedAt:serverTimestamp()});
+  await assertFails(batch.commit());
+  expect((await loadProject('tier-drawing')).revision).toBe(2);
+  // Full can make the exact operation rejected for Basic.
+  await setPlan('croquis');
+  await saveProject({...data,expectedRevision:2,sketch:changed});
+  await setPlan('presupuestos');
+});
+
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');
 });
