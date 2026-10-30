@@ -84,13 +84,25 @@ service cloud.firestore {
     match /cuentas/{uid}/proyectos/{projectId} {
       function access() { return verified() && request.auth.uid == uid; }
       function optionalId(value) { return value == null || (value is string && value.size() > 0 && value.size() <= 100); }
+      function validPaymentPlan(p) {
+        return p is map && p.keys().hasAll(['count', 'surchargePercent']) && p.keys().hasOnly(['count', 'surchargePercent']) &&
+          p.count in [3, 6, 12] && p.surchargePercent is number && p.surchargePercent >= 0 && p.surchargePercent <= 1000;
+      }
+      function validPaymentOptions(p) {
+        return p is map && p.keys().hasAll(['discountPercent', 'installments']) && p.keys().hasOnly(['discountPercent', 'installments']) &&
+          p.discountPercent is number && p.discountPercent >= 0 && p.discountPercent <= 100 && p.installments is list && p.installments.size() <= 3 &&
+          (p.installments.size() < 1 || validPaymentPlan(p.installments[0])) &&
+          (p.installments.size() < 2 || (validPaymentPlan(p.installments[1]) && p.installments[0].count != p.installments[1].count)) &&
+          (p.installments.size() < 3 || (validPaymentPlan(p.installments[2]) && p.installments[0].count != p.installments[2].count && p.installments[1].count != p.installments[2].count));
+      }
       function validBudget(b) {
         return b is map && b.keys().hasAll(['cliente', 'items', 'total', 'createdAt']) &&
-          b.keys().hasOnly(['cliente', 'items', 'total', 'createdAt', 'tipoInmueble']) &&
+          b.keys().hasOnly(['cliente', 'items', 'total', 'createdAt', 'tipoInmueble', 'paymentOptions']) &&
           b.cliente is string && b.cliente.size() > 0 && b.cliente.size() <= 120 &&
           b.items is list && b.items.size() > 0 && b.items.size() <= 200 &&
           b.total is number && b.total >= 0 && b.total <= 90071992547409 &&
           b.createdAt is string && b.createdAt.size() <= 40 &&
+          (!('paymentOptions' in b) || validPaymentOptions(b.paymentOptions)) &&
           (!('tipoInmueble' in b) || (b.tipoInmueble is string && b.tipoInmueble.size() <= 80));
       }
       function validProfile(p) {

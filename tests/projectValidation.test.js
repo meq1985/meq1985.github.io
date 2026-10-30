@@ -20,3 +20,11 @@ it('validates project identities and version boundaries', () => {
   expect(projectName('', 'Cliente')).toBe('Cliente');
   expect(() => validProjectId('../other/account')).toThrow(); expect(() => validRevision(0)).toThrow(); expect(() => validRevision(1.5)).toThrow();
 });
+
+it('keeps quoted payment alternatives independent from later account defaults',()=>{
+ const input=budget();input.paymentOptions={discountPercent:10,installments:[{count:3,surchargePercent:20}]};
+ const saved=projectBudget(input);input.paymentOptions.discountPercent=30;
+ expect(saved.total).toBe(2.5);expect(saved.paymentOptions.discountPercent).toBe(10);
+ expect(saved.paymentOptions.installments).toEqual([{count:3,surchargePercent:20}]);
+ expect(()=>projectBudget({...budget(),paymentOptions:{discountPercent:101,installments:[]}})).toThrow();
+});

@@ -1,10 +1,13 @@
 <script setup>
+import BudgetPromotions from '../components/BudgetPromotions.vue';
+import { defaultPromotionSettings, emptyPaymentOptions } from '../services/promotions';
+import { loadPromotionSettings } from '../services/promotionPersistence';
 import { computed, inject, provide, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { routerKey, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { loadBillingAccess } from '../services/billing';
 import { projectAccess } from '../services/billingPolicy';
 import { newProjectId, loadProject, saveProject } from '../services/projects';
-import { projectProfile } from '../services/projectValidation';
+import { projectProfile, projectBudget } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import NumberField from '../components/NumberField.vue';
 import BudgetHelp from '../components/BudgetHelp.vue';
@@ -28,8 +31,8 @@ const name = ref(''), revision = ref(0), cloudId = ref(props.projectId || newPro
 const access = ref(null), subscriptionBlocked = ref(false);
 const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
 const savedForm = ref(null), savedBudget = ref(null), requiresProfileReview = ref(false);
-const sketch = ref(null);
-const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value]));
+const sketch = ref(null), paymentOptions = ref(emptyPaymentOptions()), promotionDefaults = ref(defaultPromotionSettings());
+const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value, paymentOptions.value]));
 const dirty = computed(() => savedForm.value !== null && formSignature.value !== savedForm.value);
 
 if (router) {
@@ -78,9 +81,9 @@ async function outputBudget() {
       saving.value = true;
       if (!saved) return;
     }
-    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() };
-    const snapshot = { ...validateBudget(budget.cliente, budget.items, budget.tipoInmueble), createdAt: budget.createdAt };
-    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email));
+    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, createdAt: new Date().toISOString() };
+    const snapshot = projectBudget(budget);
+    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email), { sketch: sketch.value });
     assertCurrentUser(user);
     document.save('presupuesto.pdf'); message.value = 'PDF descargado.';
   } catch (cause) { error.value = cause.message; }
@@ -95,7 +98,7 @@ async function saveToAccount() {
     if (!pendingSave.value) pendingSave.value = {
       signature: formSignature.value,
       input: { id: cloudId.value, expectedRevision: revision.value, name: name.value || cliente.value,
-        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() },
+        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, createdAt: new Date().toISOString() },
         profile: selectedProfile.value ?? projectProfile(profileStore, user.email), sketch: sketch.value },
     };
     const result = await saveProject(pendingSave.value.input);
@@ -121,7 +124,7 @@ async function initialize() {
   const sequence = ++loadSequence;
   loading.value = true; ready.value = false; error.value = ''; message.value = ''; pendingSave.value = null;
   try {
-    const [user, , catalog, project, billing] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), props.projectId ? loadProject(props.projectId) : null, loadBillingAccess()]);
+    const [user, , catalog, project, billing, promotions] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), props.projectId ? loadProject(props.projectId) : null, loadBillingAccess(), loadPromotionSettings()]);
     if (sequence !== loadSequence) return;
     access.value = billing; subscriptionBlocked.value = !projectAccess(billing, props.projectId);
     entries.value = catalog; ownerUid.value = user.uid;
@@ -129,6 +132,7 @@ async function initialize() {
     name.value = project?.name ?? ''; cliente.value = project?.version.budget.cliente ?? '';
     tipoInmueble.value = project?.version.budget.tipoInmueble ?? '';
     sketch.value = project?.version.sketch ?? null;
+    promotionDefaults.value = promotions; paymentOptions.value = structuredClone(project?.version.budget.paymentOptions ?? emptyPaymentOptions());
     tabla.value = (project?.version.budget.items ?? []).map(item => ({ ...item, key: ++counter, unidad: item.unidad ?? 'ud.' }));
     selectedProfile.value = project?.version.profile ?? projectProfile(profileStore, user.email);
     requiresProfileReview.value = Boolean(project && !project.version.profile);
@@ -175,6 +179,7 @@ watch(() => props.projectId, initialize);
           <div class="catalog-actions"><button class="primary" :disabled="!selectedItem" @click="addItem">Agregar ítem</button><button @click="addCustom">Agregar ítem personalizado</button></div>
         </fieldset>
 <details><summary>Ver datos profesionales que figurarán en el PDF</summary><p>{{ selectedProfile?.nombre1 }} {{ selectedProfile?.apellido1 }}<br v-if="selectedProfile?.empresa1" /><span v-if="selectedProfile?.empresa1">{{ selectedProfile.empresa1 }}</span><br />CUIT: {{ selectedProfile?.cuit1 }} · Matrícula: {{ selectedProfile?.matricula1 }}<br />Teléfono: {{ selectedProfile?.telefono1 }} · Correo: {{ selectedProfile?.correo }}</p><button type="button" @click="useCurrentProfile">Usar mis datos profesionales actuales</button></details>
+        <BudgetPromotions v-model="paymentOptions" :defaults="promotionDefaults" :total="total" />
         <p v-if="!tabla.length" class="muted">Agregá trabajos del catálogo o creá un ítem personalizado.</p>
         <div v-else class="catalog-scroll"><table class="catalog-table catalog-budget"><thead><tr><th>Trabajo</th><th class="unit">Unidad</th><th class="quantity">Cantidad</th><th class="money">Precio unitario (AR$)</th><th class="money">Subtotal</th><th></th></tr></thead><tbody>
           <tr v-for="(row, index) in tabla" :key="row.key">

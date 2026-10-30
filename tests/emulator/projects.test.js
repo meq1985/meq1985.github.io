@@ -231,6 +231,32 @@ it('saves material networks with immutable budget versions using the existing ow
   expect((await loadProjectVersion('material-network', 1)).sketch.levels).toHaveLength(1);
   await assertFails(updateDoc(doc(ref('material-network'), 'versiones', '1'), { sketch: encodeSketch(next.sketch) }));
 });
+it('persists payment alternatives with each immutable budget version and rejects malformed raw alternatives',async()=>{
+ const data=input('promotions');data.budget.paymentOptions={discountPercent:10,installments:[{count:3,surchargePercent:20},{count:12,surchargePercent:60}]};
+ await saveProject(data);expect((await loadProject('promotions')).version.budget.paymentOptions).toEqual(data.budget.paymentOptions);
+ const updated=structuredClone(data);updated.expectedRevision=1;updated.budget.paymentOptions.discountPercent=15;await saveProject(updated);
+ expect((await loadProjectVersion('promotions',1)).budget.paymentOptions.discountPercent).toBe(10);
+ expect((await loadProject('promotions')).version.budget.total).toBe(114000);
+ const old=(await getDoc(ref('promotions'))).data(),version=(await getDoc(doc(ref('promotions'),'versiones','2'))).data();
+ await env.withSecurityRulesDisabled(async context=>{await setDoc(doc(context.firestore(),'administradores',uid),{enabled:true});});
+ try{
+  for(const paymentOptions of [{discountPercent:101,installments:[]},{discountPercent:10,installments:[{count:3,surchargePercent:-1}]},{discountPercent:0,installments:[{count:3,surchargePercent:0},{count:3,surchargePercent:20}]}]){
+   const batch=writeBatch(db),target=ref('bad-promotions');batch.set(target,{...old,revision:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+   batch.set(doc(target,'versiones','1'),{...version,revision:1,budget:{...version.budget,paymentOptions},createdAt:serverTimestamp()});await assertFails(batch.commit());
+  }
+ }finally{await env.withSecurityRulesDisabled(async context=>deleteDoc(doc(context.firestore(),'administradores',uid)));}
+});
+it('saves account promotion presets without changing prices and rejects a stale concurrent update',async()=>{
+ const {loadPromotionSettings,savePromotionSettings}=await import('../../src/services/promotionPersistence');
+ const costs=doc(db,'costos',email);
+ await env.withSecurityRulesDisabled(async context=>setDoc(doc(context.firestore(),'costos',email),{catalog:{prices:{example:123}}}));
+ const baseline=await loadPromotionSettings();const next=structuredClone(baseline);next.discountPercent=12;next.installments[0].surchargePercent=20;
+ await savePromotionSettings(next,baseline);expect(await loadPromotionSettings()).toEqual(next);
+ expect((await getDoc(costs)).data().catalog.prices.example).toBe(123);
+ await expect(savePromotionSettings(baseline,baseline)).rejects.toThrow('otra pestaña');
+ const intruder=env.authenticatedContext('promotions-intruder',{email:'other@example.invalid',email_verified:true}).firestore();
+ await assertFails(updateDoc(doc(intruder,'costos',email),{promotions:baseline}));
+});
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');
 });
