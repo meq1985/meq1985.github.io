@@ -253,7 +253,7 @@ it('selects account promotions for this quote, stores them with the budget and p
  expect(saveProject.mock.calls.at(-1)[0].budget.paymentOptions).toEqual({discountPercent:10,installments:[{count:3,surchargePercent:20}]});
  await button(w,'Descargar PDF').trigger('click');await flushPromises();
  expect(buildBudgetPdf.mock.calls.at(-1)[0]).toMatchObject({total:1000,paymentOptions:{discountPercent:10}});
- expect(buildBudgetPdf.mock.calls.at(-1)[2]).toEqual({sketch:null});w.unmount();
+ expect(buildBudgetPdf.mock.calls.at(-1)[2]).toEqual({sketch:null,revision:1});w.unmount();
 });
 
 it('hides sketch tools for Basic while retaining manual budgeting and an upgrade link', async () => {
@@ -272,4 +272,28 @@ it('enables drawing for paid Full and the free trial', async () => {
     const w=mount(Dashboard); await flushPromises();
     expect(button(w,'+ Ambiente')).toBeTruthy(); w.unmount();
   }
+});
+
+it('saves commercial terms, cash advance and stable issue date with the project', async () => {
+ const {saveProject}=await import('../src/services/projects');
+ saveProject.mockResolvedValue({id:'project-demo',revision:1});
+ const w=mount(Dashboard);await flushPromises();
+ const ref=w.get('.commercial-terms input[maxlength="40"]').element.value;
+ await w.get('#budget-client').setValue('Cliente comercial');await button(w,'Agregar ítem personalizado').trigger('click');
+ await w.get('[aria-label="Descripción del ítem 1"]').setValue('Trabajo');await w.get('[aria-label="Precio del ítem 1"]').setValue('1000');
+ await w.get('.commercial-terms input[type="date"]').setValue('2026-10-31');
+ await w.get('.commercial-terms input[maxlength="200"]').setValue('Obra de ejemplo');
+ await w.get('.commercial-advance input').setValue('30');
+ await button(w,'Guardar proyecto en mi cuenta').trigger('click');await flushPromises();
+ expect(saveProject.mock.calls[0][0].budget.commercialTerms).toMatchObject({reference:ref,issuedOn:'2026-10-31',advancePercent:30,workAddress:'Obra de ejemplo'});
+ await button(w,'Descargar PDF').trigger('click');await flushPromises();
+ expect(buildBudgetPdf.mock.calls.at(-1)[0].commercialTerms.issuedOn).toBe('2026-10-31');
+ expect(buildBudgetPdf.mock.calls.at(-1)[2].revision).toBe(1);w.unmount();
+});
+it('does not add commercial commitments when opening an old project', async () => {
+ const {loadProject}=await import('../src/services/projects');
+ loadProject.mockResolvedValueOnce({revision:2,name:'Anterior',version:{profile:{nombre1:'Demo'},budget:{cliente:'Cliente',createdAt:'2026-10-20T12:00:00Z',items:[{codigo:'1',descripcion:'Trabajo',unidad:'ud.',cantidad:1,precioUnitario:100}]}}});
+ const w=mount(Dashboard,{props:{projectId:'old'}});await flushPromises();
+ expect(w.get('[aria-label="Incluir condiciones comerciales"]').element.checked).toBe(false);
+ expect(w.find('.commercial-terms input[type="date"]').exists()).toBe(false);w.unmount();
 });

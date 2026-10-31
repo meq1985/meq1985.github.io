@@ -1,4 +1,6 @@
 <script setup>
+import CommercialTerms from '../components/CommercialTerms.vue';
+import { newCommercialTerms } from '../services/commercialTerms';
 import BudgetPromotions from '../components/BudgetPromotions.vue';
 import { defaultPromotionSettings, emptyPaymentOptions } from '../services/promotions';
 import { loadPromotionSettings } from '../services/promotionPersistence';
@@ -33,8 +35,9 @@ const canUseSketch = computed(() => access.value && sketchAccess(access.value));
 const activePlan = computed(() => paidPlan(access.value?.subscription));
 const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
 const savedForm = ref(null), savedBudget = ref(null), requiresProfileReview = ref(false);
+const commercialTerms = ref(null);
 const sketch = ref(null), paymentOptions = ref(emptyPaymentOptions()), promotionDefaults = ref(defaultPromotionSettings());
-const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value, paymentOptions.value]));
+const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value, paymentOptions.value, commercialTerms.value]));
 const dirty = computed(() => savedForm.value !== null && formSignature.value !== savedForm.value);
 
 if (router) {
@@ -82,9 +85,9 @@ async function outputBudget() {
       saving.value = true;
       if (!saved) return;
     }
-    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, createdAt: new Date().toISOString() };
+    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, commercialTerms: commercialTerms.value, createdAt: new Date().toISOString() };
     const snapshot = projectBudget(budget);
-    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email), { sketch: sketch.value });
+    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email), { sketch: sketch.value, revision: !dirty.value && cloudSaved.value ? revision.value : null });
     assertCurrentUser(user);
     document.save('presupuesto.pdf'); message.value = 'PDF descargado.';
   } catch (cause) { error.value = cause.message; }
@@ -99,7 +102,7 @@ async function saveToAccount() {
     if (!pendingSave.value) pendingSave.value = {
       signature: formSignature.value,
       input: { id: cloudId.value, expectedRevision: revision.value, name: name.value || cliente.value,
-        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, createdAt: new Date().toISOString() },
+        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, commercialTerms: commercialTerms.value, createdAt: new Date().toISOString() },
         profile: selectedProfile.value ?? projectProfile(profileStore, user.email), sketch: sketch.value },
     };
     const result = await saveProject(pendingSave.value.input);
@@ -133,6 +136,7 @@ async function initialize() {
     name.value = project?.name ?? ''; cliente.value = project?.version.budget.cliente ?? '';
     tipoInmueble.value = project?.version.budget.tipoInmueble ?? '';
     sketch.value = project?.version.sketch ?? null;
+    commercialTerms.value = project ? structuredClone(project.version.budget.commercialTerms ?? null) : newCommercialTerms(cloudId.value);
     promotionDefaults.value = promotions; paymentOptions.value = structuredClone(project?.version.budget.paymentOptions ?? emptyPaymentOptions());
     tabla.value = (project?.version.budget.items ?? []).map(item => ({ ...item, key: ++counter, unidad: item.unidad ?? 'ud.' }));
     selectedProfile.value = project?.version.profile ?? projectProfile(profileStore, user.email);
@@ -195,6 +199,7 @@ watch(() => props.projectId, initialize);
           </tr>
         </tbody></table></div>
         <div class="catalog-total">Total: {{ currency(total) }}</div>
+        <CommercialTerms :key="cloudId + '-terms'" v-model="commercialTerms" :project-id="cloudId" :total="total" :payment-options="paymentOptions" :issued-at="savedBudget?.createdAt" />
         <div class="catalog-actions"><button class="primary" :disabled="saving || loading || !tabla.length" @click="saveToAccount">Guardar proyecto en mi cuenta</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget()">Descargar PDF</button></div>
 
       </section>

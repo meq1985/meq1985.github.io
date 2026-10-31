@@ -63,3 +63,24 @@ it('starts materials on a separate page and preserves the labor total',async()=>
  expect(pdf.match(/TOTAL MANO DE OBRA/g)).toHaveLength(1);expect(pdf).toContain('250,50');
  expect((await buildBudgetPdf(budget(),profile,{sketch:{...sketch,rooms:[]}})).getNumberOfPages()).toBe(1);
 });
+
+it('prints commercial validity, scope, exclusions and an advance on discounted cash only', async () => {
+ const {newCommercialTerms}=await import('../src/services/commercialTerms');
+ const b={...budget(),paymentOptions:{discountPercent:10,installments:[{count:3,surchargePercent:20}]},commercialTerms:{...newCommercialTerms('demo','2026-10-31T12:00:00Z'),reference:'EX-2026-001',issuedOn:'2026-10-31',validityDays:15,workAddress:'Obra de ejemplo 123',scope:'Montaje y conexionado',exclusions:'Pintura y albañilería',executionPeriod:'5 días',paymentTerms:'Saldo contra entrega',advancePercent:30}};
+ const doc=await buildBudgetPdf(b,profile,{revision:2});const pdf=doc.output();
+ for(const value of ['EX-2026-001','Versión 2','31/10/2026','15/11/2026','CONDICIONES DEL PRESUPUESTO','Montaje y conexionado','Obra de ejemplo 123','Saldo contra entrega','67,64','157,81','300,60'])expect(pdf).toContain(value);
+ expect(doc.getNumberOfPages()).toBe(1);expect(pdf.match(/TOTAL MANO DE OBRA/g)).toHaveLength(1);
+});
+it('paginates extensive commercial conditions without losing content or the labor total', async () => {
+ const {newCommercialTerms}=await import('../src/services/commercialTerms');
+ const b={...budget(),items:Array.from({length:18},()=>budget().items[0]),commercialTerms:{...newCommercialTerms('long','2026-10-31T12:00:00Z'),scope:'Alcance detallado de los trabajos de instalación. '.repeat(16),exclusions:'Exclusión de tareas complementarias. '.repeat(20)}};
+ const doc=await buildBudgetPdf(b,profile,{revision:3});expect(doc.getNumberOfPages()).toBeGreaterThan(1);expect(doc.output()).toContain('CONDICIONES DEL PRESUPUESTO');expect(doc.output().match(/TOTAL MANO DE OBRA/g)).toHaveLength(1);
+ expect(doc.output()).toContain('Versión 3');
+});
+
+it('keeps eight lines, all commercial fields and financing alternatives on one labor page', async () => {
+ const {newCommercialTerms}=await import('../src/services/commercialTerms');
+ const rows=Array.from({length:8},(_,i)=>({codigo:'E-'+i,descripcion:'Instalación de canalización',unidad:'ud.',cantidad:1,precioUnitario:1000}));
+ const b={...validateBudget('Cliente',rows,'Vivienda'),createdAt:'2026-10-31T12:00:00Z',paymentOptions:{discountPercent:10,installments:[{count:3,surchargePercent:20},{count:6,surchargePercent:35},{count:12,surchargePercent:60}]},commercialTerms:{...newCommercialTerms('normal','2026-10-31T12:00:00Z'),workAddress:'Obra de ejemplo',scope:'Instalación de los puntos detallados.',exclusions:'Pintura y albañilería.',executionPeriod:'5 días',paymentTerms:'Saldo contra finalización.',advancePercent:30}};
+ const doc=await buildBudgetPdf(b,profile,{revision:1});expect(doc.getNumberOfPages()).toBe(1);expect(doc.output()).toContain('Anticipo: solo contado.');
+});
