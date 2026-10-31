@@ -167,6 +167,32 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     payment.status='rejected'; assert.equal(await webhook('fullinv'),200);
     assert.equal((await db.doc(`suscripciones/${uid}`).get()).data().status,'inactive');
   });
+  await t.test('cancelled subscriptions with a delayed paid webhook cannot create overlapping plans', async () => {
+    const uid='cancelled-unconfirmed';
+    await db.doc(`billingTesters/${uid}`).set({enabled:true,payerEmail:'buyer@testuser.com'});
+    await billing.createSubscription.run(request(uid,{planId:'croquis',consent:true}));
+    const id=`sub${posts}`, before=posts;
+    subscriptions.get(id).status='cancelled';
+    invoices.set('delayed-invoice',{id:'delayed-invoice',preapproval_id:id,payment:{id:'delayed-payment'},debit_date:debit,currency_id:'ARS',transaction_amount:25000});
+    payments.set('delayed-payment',{...payments.get('pay2'),id:'delayed-payment',transaction_amount:25000});
+    await assert.rejects(billing.createSubscription.run(request(uid)),/período abonado/);
+    assert.equal(posts,before);
+    const access=(await db.doc(`suscripciones/${uid}`).get()).data();
+    assert.equal(access.status,'active');assert.equal(access.planId,'croquis');
+  });
+  await t.test('a cancelled unpaid checkout can be replaced by the other plan without granting access', async () => {
+    const uid='switch-owner';
+    await db.doc(`billingTesters/${uid}`).set({enabled:true,payerEmail:'buyer@testuser.com'});
+    await billing.createSubscription.run(request(uid));
+    const basicId=`sub${posts}`, before=posts;
+    await billing.cancelSubscription.run(request(uid,{confirm:true}));
+    assert.equal(subscriptions.get(basicId).status,'cancelled');
+    await billing.createSubscription.run(request(uid,{planId:'croquis',consent:true}));
+    assert.equal(posts,before+1);
+    assert.equal(subscriptions.get(`sub${posts}`).auto_recurring.transaction_amount,25000);
+    const access=(await db.doc(`suscripciones/${uid}`).get()).data();
+    assert.equal(access.status,'inactive');assert.equal(access.pendingPlanId,'croquis');
+  });
   await t.test('live mode stays closed without both production activation flags', async () => {
     process.env.MP_MODE = 'live';
     await assert.rejects(billing.createSubscription.run(request('new-live-user')), /no está habilitada/);

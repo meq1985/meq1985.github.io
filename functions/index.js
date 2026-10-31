@@ -94,6 +94,11 @@ export const createSubscription = onCall(options, async request => {
       validateRemote(remote, existing);
       if (remote.status === 'pending') return { url: checkoutUrl(remote.init_point) };
       if (remote.status !== 'cancelled') throw new HttpsError('already-exists', 'Ya tenés una suscripción. Consultá o cancelá su renovación.');
+      // An approved payment may precede its webhook. Query the provider before
+      // replacing a cancelled subscription, so missing notifications cannot cause overlap.
+      if ((await reconcile(uid, existing, api)).status === 'active') {
+        throw new HttpsError('already-exists', 'Conservás un período abonado. Esperá su vencimiento antes de contratar otro plan.');
+      }
     } else if (existing) {
       // A POST timeout may have created a subscription. Never issue a second POST blindly.
       const found = await api(`/preapproval/search?external_reference=${encodeURIComponent(existing.reference)}`);
