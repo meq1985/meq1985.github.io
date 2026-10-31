@@ -39,7 +39,7 @@ globalThis.fetch = async (url, options) => {
   assert.ok(result, `Unexpected provider request: ${path}`);
   return { ok: true, json: async () => structuredClone(result) };
 };
-const request = (uid = 'billing-owner', data = { planId: 'presupuestos', consent: true }) => ({ auth: { uid, token: { email_verified: true, email: `${uid}@example.invalid` } }, data });
+const request = (uid = 'billing-owner', data = { planId: 'presupuestos', consent: true }) => ({ auth: { uid, token: { email_verified: true, email: `${uid}@example.invalid` } }, data: { acceptedAmount: data.planId === 'croquis' ? 19900 : 12000, ...data } });
 const webhook = async (id, type = 'subscription_authorized_payment', signed = true) => {
   const hash = createHmac('sha256', 'fake-signature').update(`id:${id};request-id:test-request;ts:123;`).digest('hex');
   const req = { method: 'POST', query: { 'data.id': id }, body: { type }, get: name => ({ 'x-signature': signed ? `ts=123,v1=${hash}` : '', 'x-request-id': 'test-request' })[name] };
@@ -142,9 +142,9 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     const req=()=>request(uid,{planId:'croquis',consent:true});
     await billing.createSubscription.run(req());
     const id=`sub${posts}`, before=posts;
-    assert.equal(subscriptions.get(id).auto_recurring.transaction_amount,25000);
+    assert.equal(subscriptions.get(id).auto_recurring.transaction_amount,19900);
     const stored=(await db.doc(`billingCheckouts/${uid}`).get()).data();
-    assert.equal(stored.planId,'croquis');assert.equal(stored.consent.amount,25000);assert.equal(stored.consent.currency,'ARS');assert.ok(stored.consent.acceptedAt.toMillis()>0);
+    assert.equal(stored.planId,'croquis');assert.equal(stored.consent.amount,19900);assert.equal(stored.consent.currency,'ARS');assert.ok(stored.consent.acceptedAt.toMillis()>0);
     await assert.rejects(billing.createSubscription.run(request(uid)),/Cancelá/);
     assert.equal(posts,before);
     const invoice={id:'fullinv',preapproval_id:id,payment:{id:'fullpay'},debit_date:debit,currency_id:'ARS',transaction_amount:12000};
@@ -152,7 +152,7 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     invoices.set('fullinv',invoice); payments.set('fullpay',payment);
     assert.equal(await webhook('fullinv'),200);
     assert.equal((await db.doc(`suscripciones/${uid}`).get()).data().status,'inactive');
-    invoice.transaction_amount=25000; payment.transaction_amount=25000;
+    invoice.transaction_amount=19900; payment.transaction_amount=19900;
     subscriptions.get(id).status='authorized';
     assert.equal(await webhook('fullinv'),200);
     let access=(await db.doc(`suscripciones/${uid}`).get()).data();
@@ -173,8 +173,8 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     await billing.createSubscription.run(request(uid,{planId:'croquis',consent:true}));
     const id=`sub${posts}`, before=posts;
     subscriptions.get(id).status='cancelled';
-    invoices.set('delayed-invoice',{id:'delayed-invoice',preapproval_id:id,payment:{id:'delayed-payment'},debit_date:debit,currency_id:'ARS',transaction_amount:25000});
-    payments.set('delayed-payment',{...payments.get('pay2'),id:'delayed-payment',transaction_amount:25000});
+    invoices.set('delayed-invoice',{id:'delayed-invoice',preapproval_id:id,payment:{id:'delayed-payment'},debit_date:debit,currency_id:'ARS',transaction_amount:19900});
+    payments.set('delayed-payment',{...payments.get('pay2'),id:'delayed-payment',transaction_amount:19900});
     await assert.rejects(billing.createSubscription.run(request(uid)),/período abonado/);
     assert.equal(posts,before);
     const access=(await db.doc(`suscripciones/${uid}`).get()).data();
@@ -189,9 +189,31 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     assert.equal(subscriptions.get(basicId).status,'cancelled');
     await billing.createSubscription.run(request(uid,{planId:'croquis',consent:true}));
     assert.equal(posts,before+1);
-    assert.equal(subscriptions.get(`sub${posts}`).auto_recurring.transaction_amount,25000);
+    assert.equal(subscriptions.get(`sub${posts}`).auto_recurring.transaction_amount,19900);
     const access=(await db.doc(`suscripciones/${uid}`).get()).data();
     assert.equal(access.status,'inactive');assert.equal(access.pendingPlanId,'croquis');
+  });
+  await t.test('requires consent to the current price before creating a checkout', async () => {
+    const before=posts;
+    await assert.rejects(billing.createSubscription.run(request('billing-owner',{planId:'croquis',consent:true,acceptedAmount:25000})),/mensualidad/);
+    await assert.rejects(billing.createSubscription.run(request('billing-owner',{planId:'croquis',consent:true,acceptedAmount:1})),/mensualidad/);
+    assert.equal(posts,before);
+  });
+  await t.test('legacy Full payments keep ARS 25000 but its pending checkout cannot be resumed at the advertised new price', async () => {
+    const uid='legacy-full',id='legacy-sub',reference='legacy-ref',before=posts;
+    await db.doc(`billingTesters/${uid}`).set({enabled:true,payerEmail:'buyer@testuser.com'});
+    const remote={id,external_reference:reference,collector_id:123,status:'pending',init_point:`https://www.mercadopago.com.ar/subscriptions/checkout?id=${id}`,auto_recurring:{frequency:1,frequency_type:'months',transaction_amount:25000,currency_id:'ARS'}};
+    subscriptions.set(id,remote);
+    await db.doc(`billingCheckouts/${uid}`).set({planId:'croquis',reference,mode:'test',providerId:id});
+    await db.doc(`billingBindings/${id}`).set({uid,reference,planId:'croquis'});
+    await assert.rejects(billing.createSubscription.run(request(uid,{planId:'croquis',consent:true})),/precio cambió/);
+    assert.equal(posts,before);
+    remote.status='authorized';
+    invoices.set('legacy-invoice',{id:'legacy-invoice',preapproval_id:id,payment:{id:'legacy-payment'},debit_date:debit,currency_id:'ARS',transaction_amount:25000});
+    payments.set('legacy-payment',{...payments.get('pay2'),id:'legacy-payment',transaction_amount:25000});
+    assert.equal(await webhook('legacy-invoice'),200);
+    const active=(await db.doc(`suscripciones/${uid}`).get()).data();
+    assert.equal(active.status,'active');assert.equal(active.planId,'croquis');assert.equal(active.amount,25000);
   });
   await t.test('live mode stays closed without both production activation flags', async () => {
     process.env.MP_MODE = 'live';

@@ -1,6 +1,6 @@
 export const PLANS = Object.freeze([
   Object.freeze({ id: 'presupuestos', name: 'Presupuestos', amount: 12000, currency: 'ARS', available: true }),
-  Object.freeze({ id: 'croquis', name: 'Presupuestos + croquis', amount: 25000, currency: 'ARS', available: true }),
+  Object.freeze({ id: 'croquis', name: 'Presupuestos + croquis', amount: 19900, previousAmount: 25000, currency: 'ARS', available: true }),
 ]);
 export const isAdministrator = (user, record) => user?.emailVerified === true && record?.enabled === true;
 export const TRIAL_MS = 30 * 86400000;

@@ -1,7 +1,7 @@
 # Separación de planes y contratación
 
 - Básico (`presupuestos`): ARS 12.000/mes, presupuesto manual, catálogo editable, proyectos/versiones, promociones y PDF.
-- Full (`croquis`): ARS 25.000/mes, todo lo anterior, editor de croquis, propuesta eléctrica y materiales.
+- Full (`croquis`): ARS 19.900/mes (referencia anterior ARS 25.000), todo lo anterior, editor de croquis, propuesta eléctrica y materiales.
 - Prueba: 30 días con Full, hasta 10 proyectos; sin tarjeta ni renovación automática. Los planes pagos permiten 100 proyectos; todos salvo administrador tienen 10 guardados por 24 horas.
 - Administrador: acceso completo sin suscripción.
 
@@ -35,3 +35,12 @@ Las auditorías detectaron GHSA-3g3m-2fjr-6pw4 (glob) y GHSA-g3hv-75wg-m249 (min
 Referencias del mantenedor: https://github.com/isaacs/node-glob/security/advisories/GHSA-3g3m-2fjr-6pw4 y https://github.com/isaacs/minimatch/security/advisories/GHSA-g3hv-75wg-m249.
 
 Validación tras el cambio: instalación reproducible del servidor bajo Node 22, auditorías sin vulnerabilidades conocidas, pruebas completas de aplicación y servidor, Auth/Firestore y pagos simulados, build/prerender. Se comprobó además la compatibilidad de formato HTML, patrones EditorConfig, glob y la eliminación con patrones de rimraf sobre archivos ficticios en una carpeta temporal verificada del espacio de trabajo. No se probaron patrones ni se borraron archivos de usuarios.
+
+
+## Actualización de precio Full
+
+Las nuevas contrataciones Full usan ARS 19.900/mes. Portada y Planes muestran ARS 25.000 tachado como precio anterior, sin inventar vencimiento de oferta ni un cobro distinto después de cierto plazo. Básico conserva ARS 12.000/mes.
+
+El servidor exige el consentimiento al importe actual y guarda el importe en checkout, binding y período; los registros históricos Full sin importe explícito se interpretan a ARS 25.000, y los de Básico a ARS 12.000. Se conservan esos importes para validar períodos ya contratados. Un checkout pendiente al precio anterior no se reanuda bajo una confirmación visual del nuevo precio: debe cancelarse y generarse otro. La vista de cuenta muestra el importe efectivamente contratado.
+
+La publicación de este cambio requiere funciones además de Hosting y las reglas del presupuesto comercial incluidas en el mismo PR. Mantener MP_MODE=test y los cobros reales deshabilitados.

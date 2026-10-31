@@ -5,7 +5,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret, defineString } from 'firebase-functions/params';
-import { createProvider, safeId, verifySignature, checkoutUrl, subscriptionBody, validSubscription, validMerchant, paidPeriod, BILLING_PLANS, billingPlan } from './mercadopago.js';
+import { createProvider, safeId, verifySignature, checkoutUrl, subscriptionBody, validSubscription, validMerchant, paidPeriod, BILLING_PLANS, billingPlan, contractAmount } from './mercadopago.js';
 
 initializeApp();
 const db = getFirestore();
@@ -62,22 +62,23 @@ async function withAccountLock(uid, operation) {
   }
 }
 function validateRemote(remote, stored) {
-  if (!validSubscription(remote, stored.reference, collectorId.value(), stored.planId)) throw new HttpsError('failed-precondition', 'La suscripción requiere revisión.');
+  if (!validSubscription(remote, stored.reference, collectorId.value(), stored.planId, contractAmount(stored))) throw new HttpsError('failed-precondition', 'La suscripción requiere revisión.');
 }
 async function bindCheckout(uid, stored, remote) {
   validateRemote(remote, stored);
   const id = safeId(remote.id), url = checkoutUrl(remote.init_point);
   const batch = db.batch();
   batch.set(checkoutRef(uid), { ...stored, providerId: id, url, state: 'ready' });
-  batch.set(db.doc(`billingBindings/${id}`), { uid, reference: stored.reference, planId: stored.planId ?? 'presupuestos' });
-  batch.set(subscriptionRef(uid), { pendingPlanId: stored.planId ?? 'presupuestos', providerStatus: remote.status, manageable: true }, { merge: true });
+  batch.set(db.doc(`billingBindings/${id}`), { uid, reference: stored.reference, planId: stored.planId ?? 'presupuestos', amount: contractAmount(stored) });
+  batch.set(subscriptionRef(uid), { pendingPlanId: stored.planId ?? 'presupuestos', pendingAmount: contractAmount(stored), providerStatus: remote.status, manageable: true }, { merge: true });
   await batch.commit();
+  if (contractAmount(stored) !== billingPlan(stored.planId).amount) throw new HttpsError('failed-precondition', 'El precio cambió. Cancelá la contratación pendiente y elegí el plan de nuevo.');
   return { url };
 }
 export const createSubscription = onCall(options, async request => {
   const { uid, email } = identity(request);
   const planId = request.data?.planId;
-  if (!Object.hasOwn(BILLING_PLANS, planId ?? '') || request.data?.consent !== true) throw new HttpsError('invalid-argument', 'Confirmá la mensualidad del plan elegido.');
+  if (!Object.hasOwn(BILLING_PLANS, planId ?? '') || request.data?.consent !== true || request.data?.acceptedAmount !== billingPlan(planId).amount) throw new HttpsError('invalid-argument', 'Confirmá la mensualidad del plan elegido.');
   const { payerEmail } = await permitted(uid, { purchase: true });
   return withAccountLock(uid, async () => {
     const api = await provider(), existing = (await checkoutRef(uid).get()).data();
@@ -92,7 +93,10 @@ export const createSubscription = onCall(options, async request => {
     if (existing?.providerId) {
       const remote = await api(`/preapproval/${safeId(existing.providerId)}`);
       validateRemote(remote, existing);
-      if (remote.status === 'pending') return { url: checkoutUrl(remote.init_point) };
+      if (remote.status === 'pending') {
+        if (contractAmount(existing) !== billingPlan(planId).amount) throw new HttpsError('failed-precondition', 'El precio cambió. Cancelá la contratación pendiente y elegí el plan de nuevo.');
+        return { url: checkoutUrl(remote.init_point) };
+      }
       if (remote.status !== 'cancelled') throw new HttpsError('already-exists', 'Ya tenés una suscripción. Consultá o cancelá su renovación.');
       // An approved payment may precede its webhook. Query the provider before
       // replacing a cancelled subscription, so missing notifications cannot cause overlap.
@@ -105,7 +109,7 @@ export const createSubscription = onCall(options, async request => {
       if (found.results?.length === 1) return bindCheckout(uid, existing, await api(`/preapproval/${safeId(found.results[0].id)}`));
       throw new HttpsError('failed-precondition', 'La contratación anterior requiere revisión para evitar cobros duplicados.');
     }
-    const stored = { planId, consent: { amount: billingPlan(planId).amount, currency: 'ARS', frequency: 'monthly', termsVersion: '2026-10-30', acceptedAt: FieldValue.serverTimestamp() }, reference: randomUUID(), mode: mode.value(), state: 'creating', createdAt: FieldValue.serverTimestamp() };
+    const stored = { planId, amount: billingPlan(planId).amount, consent: { amount: billingPlan(planId).amount, currency: 'ARS', frequency: 'monthly', termsVersion: '2026-10-31', acceptedAt: FieldValue.serverTimestamp() }, reference: randomUUID(), mode: mode.value(), state: 'creating', createdAt: FieldValue.serverTimestamp() };
     await checkoutRef(uid).set(stored);
     const remote = await api('/preapproval', { method: 'POST', key: stored.reference,
       body: subscriptionBody({ planId, email: payerEmail ?? email, reference: stored.reference, returnOrigin: returnOrigin.value(), webhook: webhookUrl.value() }) });
@@ -123,11 +127,11 @@ async function updateInvoice(uid, invoice, api) {
   const paymentId = safeId(invoice.payment?.id);
   const payment = await api(`/v1/payments/${paymentId}`);
   const testPayerEmail = mode.value() === 'test' ? (await db.doc(`billingTesters/${uid}`).get()).data()?.payerEmail : undefined;
-  const period = paidPeriod(invoice, payment, String(invoice.preapproval_id), collectorId.value(), mode.value() === 'live', testPayerEmail, binding.planId);
+  const period = paidPeriod(invoice, payment, String(invoice.preapproval_id), collectorId.value(), mode.value() === 'live', testPayerEmail, binding.planId, contractAmount(binding));
   const batch = db.batch();
   batch.set(db.doc(`billingPayments/${paymentId}`), { uid, invoiceId: safeId(invoice.id) });
   batch.set(db.doc(`billingAccounts/${uid}/periods/${safeId(invoice.id)}`), {
-    from: period?.from ?? 0, through: period?.through ?? 0, paymentId, planId: binding.planId ?? 'presupuestos',
+    from: period?.from ?? 0, through: period?.through ?? 0, paymentId, planId: binding.planId ?? 'presupuestos', amount: contractAmount(binding),
     providerStatus: payment.status, updatedAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();
@@ -140,7 +144,7 @@ async function publishAccess(uid, remote) {
   const eligible = full.length ? full : active.filter(p => !p.planId || p.planId === 'presupuestos');
   const through = Math.max(0, ...eligible.map(p => p.through));
   await subscriptionRef(uid).set({ planId: full.length ? 'croquis' : 'presupuestos', status: through > now ? 'active' : 'inactive',
-    paidThrough: Timestamp.fromMillis(through), providerStatus: remote.status, manageable: true,
+    amount: eligible.length ? contractAmount(eligible.reduce((a,b)=>a.through>b.through?a:b)) : billingPlan().amount, paidThrough: Timestamp.fromMillis(through), providerStatus: remote.status, manageable: true,
     updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return { status: through > now ? 'active' : 'inactive' };
 }

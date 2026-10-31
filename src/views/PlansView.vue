@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import PlanPrice from '../components/PlanPrice.vue';
+import PlanComparison from '../components/PlanComparison.vue';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import { PLANS, TRIAL_MS, paidPlan } from '../services/billingPolicy';
 import { PLAN_PRESENTATION } from '../data/planPresentation';
@@ -29,7 +31,9 @@ async function load() {
   finally { loading.value = false; }
 }
 const pendingPlan = computed(() => subscription.value?.pendingPlanId ?? subscription.value?.planId ?? 'presupuestos');
-const canChoose = planId => canSubscribe.value && (!pending.value || pendingPlan.value === planId);
+const pendingAmount = computed(() => subscription.value?.pendingAmount ?? (pendingPlan.value === 'croquis' ? 25000 : 12000));
+const priceChanged = computed(() => pending.value && !paid.value && PLANS.find(p => p.id === pendingPlan.value)?.amount !== pendingAmount.value);
+const canChoose = planId => canSubscribe.value && (!pending.value || (pendingPlan.value === planId && !priceChanged.value));
 function unavailableLabel(planId) {
   if (access.value?.admin) return 'Incluido en tu acceso';
   if (paid.value) return subscription.value.planId === planId ? 'Tu plan actual' : 'Cambiar al finalizar tu período';
@@ -68,7 +72,7 @@ onMounted(async () => {
     <main class="catalog-main">
       <header class="plans-heading">
         <div><p class="eyebrow">PLANES DE ELECTRICISTA XPRESS</p><h1>Tu forma de cotizar.<br><span>El plan que te acompaña.</span></h1>
-          <p class="intro">Básico para presupuestar desde el catálogo. Full para sumar el croquis de obra nueva y preparar un borrador de mano de obra.</p></div>
+          <p class="intro">Básico para presentar tus presupuestos. Full para dibujar la obra nueva, proponer circuitos y preparar mano de obra y materiales desde el croquis.</p></div>
         <div class="payment-note"><span aria-hidden="true">↗</span><div><strong>Mensualidad con Mercado Pago</strong><small>En pesos argentinos · Renovación mensual</small></div></div>
       </header>
 
@@ -77,12 +81,13 @@ onMounted(async () => {
         <button v-if="!access" :disabled="loading" @click="load">Reintentar consulta</button>
         <button v-else :disabled="!!busy" @click="act('refresh')">Actualizar estado del pago</button>
       </div>
+      <p v-if="priceChanged" class="catalog-notice">Tu contratación pendiente tiene un precio anterior. Cancelala más abajo y elegí el plan de nuevo para aceptar el importe actual.</p>
       <p v-if="notice" class="catalog-notice" role="status">{{ notice }}</p>
 
       <section v-if="access" class="account-banner" aria-labelledby="account-title">
         <div><p class="eyebrow">TU CUENTA</p><h2 id="account-title">{{ statusTitle }}</h2>
           <p v-if="access.admin">Acceso completo, sin mensualidad ni límite de proyectos.</p>
-          <p v-else-if="paid">Tu acceso está disponible hasta el {{ date(subscription.paidThrough) }}.</p>
+          <p v-else-if="paid">Tu acceso está disponible hasta el {{ date(subscription.paidThrough) }}. Mensualidad contratada: {{ currency(subscription.amount) }} ARS.</p>
           <p v-else-if="access.trialStartedAt != null && now < access.trialStartedAt + TRIAL_MS">Disponible hasta el {{ date(access.trialStartedAt + TRIAL_MS) }}. Sin tarjeta ni cobro automático.</p><p v-else>Podés consultar tus proyectos y descargar sus PDF. Elegí un plan para guardar cambios.</p>
         </div>
         <RouterLink class="secondary-link" to="/proyectos">Ver mis proyectos →</RouterLink>
@@ -99,7 +104,7 @@ onMounted(async () => {
         <article v-for="plan in PLANS" :key="plan.id" class="plan-card" :class="{ featured: plan.id === 'croquis' }">
           <p class="plan-tag">{{ PLAN_PRESENTATION[plan.id].tag }}</p><h2>{{ PLAN_PRESENTATION[plan.id].title }}</h2>
           <p class="plan-description">{{ PLAN_PRESENTATION[plan.id].description }}</p>
-          <p class="price">{{ currency(plan.amount) }} <small>ARS / mes</small></p>
+          <PlanPrice :plan="plan" class="price" />
           <ul><li>Hasta 100 proyectos · 10 guardados diarios</li><li v-for="feature in PLAN_PRESENTATION[plan.id].features" :key="feature">{{ feature }}</li></ul>
           <template v-if="plan.available && canChoose(plan.id)">
             <label class="check-label"><input v-model="consent[plan.id]" type="checkbox" :disabled="!!busy" data-testid="renewal-consent"><span>Acepto {{ currency(plan.amount) }} ARS por mes, con renovación automática hasta cancelarla.</span></label>
@@ -113,6 +118,7 @@ onMounted(async () => {
         </article>
       </section>
 
+      <PlanComparison />
       <section v-if="subscription?.manageable && !access?.admin" class="management" aria-labelledby="manage-title">
         <div><p class="eyebrow">SIEMPRE BAJO TU CONTROL</p><h2 id="manage-title">Gestioná tu suscripción</h2>
           <p>Renovación: <strong>{{ cancelled ? 'cancelada' : subscription.providerStatus === 'authorized' ? 'automática mensual' : 'pendiente de confirmación' }}</strong>.</p>
@@ -130,7 +136,7 @@ onMounted(async () => {
         <details><summary>¿Cómo funciona la prueba gratuita?</summary><p>Tenés 30 días desde tu primer acceso verificado a Presupuestar o Planes. Podés crear hasta 10 proyectos durante la prueba y realizar hasta 10 guardados diarios, guardar versiones y descargar sus PDF. No requiere tarjeta ni se convierte en un cobro automático.</p></details>
         <details><summary>¿Cuándo empieza mi acceso pago?</summary><p>Cuando nuestro servidor confirma un pago aprobado. Si volvés de Mercado Pago y todavía está pendiente, podés actualizar el estado desde esta página.</p></details>
         <details><summary>¿Qué pasa cuando cancelo?</summary><p>Se detienen las próximas renovaciones. Conservás el período ya abonado. Tus proyectos guardados se pueden consultar y descargar; guardar cambios o crear otros requiere una suscripción activa. Una devolución puede retirar el acceso correspondiente al pago devuelto.</p></details>
-        <details><summary>¿Qué incluye el Full con croquis?</summary><p>Suma ambientes, niveles y puntos eléctricos, medidor, tableros, jabalinas y recorridos medidos. Prepara un borrador de mano de obra que revisás antes de aplicar.</p></details><details><summary>¿Calcula materiales y secciones de cables?</summary><p>El croquis estima materiales, circuitos, secciones y caída de tensión a partir de los recorridos dibujados. El profesional debe revisar las hipótesis y validar la instalación.</p></details>
+        <details><summary>¿Qué incluye el Full con croquis?</summary><p>Suma croquis de ambientes y plantas, conexiones dibujadas entre puntos, medidor, tableros y jabalinas. Mide recorridos con alturas y propone mano de obra, circuitos, cables y materiales para revisar. La lista de materiales acompaña al presupuesto en otra hoja del PDF.</p></details><details><summary>¿Calcula materiales y secciones de cables?</summary><p>El croquis estima materiales, circuitos, secciones y caída de tensión a partir de los recorridos dibujados. El profesional debe revisar las hipótesis y validar la instalación.</p></details>
       </section>
       <footer class="plans-footer"><RouterLink to="/proyectos">← Volver a Mis proyectos</RouterLink><RouterLink to="/aviso-legal">Aviso legal</RouterLink><RouterLink to="/seguridad">Seguridad y confianza</RouterLink><RouterLink to="/gestiones#baja">Botón de baja</RouterLink><RouterLink to="/gestiones#arrepentimiento">Botón de arrepentimiento</RouterLink><RouterLink to="/condiciones">Condiciones</RouterLink><RouterLink to="/privacidad">Privacidad</RouterLink><a href="mailto:meq1985@hotmail.com">¿Necesitás ayuda? Contactanos</a></footer>
     </main>

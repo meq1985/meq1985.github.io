@@ -28,6 +28,10 @@ describe('professional landing and access', () => {
     expect(wrapper.findAll('.home-plan')).toHaveLength(3);
     expect(wrapper.get('#planes').text()).toContain('12.000');
     expect(wrapper.get('#planes').text()).toContain('25.000');
+    expect(wrapper.get('.home-plan-full s').text()).toContain('25.000');
+    expect(wrapper.get('.home-plan-full .current-price').text()).toContain('19.900');
+    expect(wrapper.get('.plan-comparison').text()).toContain('PDF comercial, promociones y anticipo al contado');
+    expect(wrapper.get('.plan-comparison').text()).toContain('Croquis por plantas');
     expect(wrapper.text()).not.toMatch(/próximamente|en pruebas|en desarrollo|precio previsto|en preparación/i);
     expect(wrapper.get('.actions a').text()).toContain('Empezar mi mes gratis');
     expect(wrapper.get('.lead').text()).toContain('desde el celular o la computadora');
