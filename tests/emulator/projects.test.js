@@ -307,6 +307,23 @@ it('versions commercial terms and rejects malformed raw commercial conditions', 
  } finally {await env.withSecurityRulesDisabled(async c=>deleteDoc(doc(c.firestore(),'administradores',uid)));}
 });
 
+it('saves reused versions as new projects with normal quotas and cannot copy a sketch into Basic', async () => {
+ const {reusableBudget}=await import('../../src/services/reuseBudget');
+ const original=await loadProjectVersion('commercial',1), drawing=await loadProjectVersion('drawing',2);
+ const before=(await getDoc(doc(db,'cuotas',uid))).data();
+ const copy=reusableBudget(original,'reused-commercial');
+ const data={...input('reused-commercial'),budget:copy.budget,sketch:copy.sketch};
+ await saveProject(data);await saveProject(data);
+ expect((await loadProject('reused-commercial')).revision).toBe(1);
+ expect((await loadProject('reused-commercial')).version.budget.commercialTerms.reference).toBe('EX-REUSEDCOMMER');
+ expect((await loadProjectVersion('commercial',1)).budget).toEqual(original.budget);
+ const noSketch=reusableBudget(drawing,'reused-basic',{includeSketch:false});
+ await saveProject({...input('reused-basic'),budget:noSketch.budget,sketch:noSketch.sketch});
+ await expect(saveProject({...input('blocked-copy'),budget:drawing.budget,sketch:drawing.sketch})).rejects.toThrow('Full');
+ const after=(await getDoc(doc(db,'cuotas',uid))).data();
+ expect(after.totalProjects).toBe(before.totalProjects+2);expect(after.saveCount).toBe(before.saveCount+2);
+});
+
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');
 });

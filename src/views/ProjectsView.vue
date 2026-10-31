@@ -1,10 +1,15 @@
 <script setup>
 import { onMounted, ref } from 'vue';
+import BudgetShare from '../components/BudgetShare.vue';
+import { sharePayload } from '../services/budgetSharing';
+import { duplicateLocation } from '../services/reuseBudget';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import { listProjects, listProjectVersions, loadProjectVersion } from '../services/projects';
-import { requireUser } from '../firebase/session';
+import { requireUser, assertCurrentUser } from '../firebase/session';
 import { buildBudgetPdf } from '../services/budgetPdf';
 import { currency } from '../data/laborCatalog';
+const sharing = ref(null);
+const authorizeShare = () => assertCurrentUser({uid:sharing.value?.ownerUid});
 const items = ref([]), loading = ref(false), busy = ref(false), error = ref('');
 const cursor = ref(null), hasMore = ref(false), selected = ref(null), versions = ref([]);
 const versionCursor = ref(null), moreVersions = ref(false), ownerUid = ref('');
@@ -32,7 +37,7 @@ async function showVersions(project, append = false) {
   } catch (cause) { error.value = cause.message; }
   finally { busy.value = false; }
 }
-async function download(project, version = null) {
+async function download(project, version = null, mode = 'download') {
   if (busy.value) return;
   busy.value = true; error.value = '';
   try {
@@ -43,7 +48,8 @@ async function download(project, version = null) {
     const document = await buildBudgetPdf(stored.budget, stored.profile, { sketch: stored.sketch, revision: stored.revision });
     if ((await requireUser()).uid !== user.uid) throw new Error('La sesión cambió. Volvé a abrir Mis proyectos.');
     const filename = project.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
-    document.save(`presupuesto-${filename}-v${stored.revision}.pdf`);
+    if (mode === 'share') sharing.value = {...sharePayload(document,stored.budget,stored.profile,{name:project.name,revision:stored.revision}),ownerUid:user.uid};
+    else document.save(`presupuesto-${filename}-v${stored.revision}.pdf`);
   } catch (cause) { error.value = cause.message; }
   finally { busy.value = false; }
 }
@@ -52,6 +58,7 @@ onMounted(more);
 <template>
   <div class="catalog-page">
     <CatalogHeader />
+    <BudgetShare v-if="sharing" :payload="sharing" :authorize="authorizeShare" @close="sharing = null" />
     <div class="catalog-main">
       <div class="project-heading"><div><p class="eyebrow">DISPONIBLES DONDE TRABAJES</p><h1>Mis proyectos</h1><p class="muted">Guardados en tu cuenta, con sus datos, precios y versiones.</p></div><RouterLink class="project-link" to="/dashboard">+ Crear proyecto</RouterLink></div>
       <p class="catalog-notice">Podés continuar desde otro dispositivo al ingresar con la misma cuenta. Cada guardado crea una versión; los cambios de precios no modifican las anteriores.</p>
@@ -62,12 +69,12 @@ onMounted(more);
         <article v-for="project in items" :key="project.id" class="catalog-panel project-card">
           <span class="project-version">VERSIÓN {{ project.revision }}</span><h2>{{ project.name }}</h2><p class="muted">{{ project.cliente }}<span v-if="project.tipoInmueble"> · {{ project.tipoInmueble }}</span></p>
           <small>Último guardado: {{ date(project.updatedAt) }}</small><p class="project-total">{{ currency(project.total) }}</p>
-          <div class="catalog-actions"><RouterLink class="project-link" :to="'/proyectos/' + project.id + '/editar'">Abrir proyecto</RouterLink><button :disabled="busy" @click="download(project)" :aria-label="'Descargar PDF de ' + project.name">Descargar PDF</button><button :disabled="busy" @click="showVersions(project)" :aria-label="'Ver versiones de ' + project.name">Ver versiones</button></div>
+          <div class="catalog-actions"><RouterLink class="project-link" :to="'/proyectos/' + project.id + '/editar'">Abrir proyecto</RouterLink><button :disabled="busy" @click="download(project)" :aria-label="'Descargar PDF de ' + project.name">Descargar PDF</button><button :disabled="busy" @click="download(project, null, 'share')" :aria-label="'Compartir PDF de ' + project.name">Compartir</button><RouterLink class="project-link" :to="duplicateLocation(project.id, project.revision)" :aria-label="'Duplicar ' + project.name">Duplicar</RouterLink><button :disabled="busy" @click="showVersions(project)" :aria-label="'Ver versiones de ' + project.name">Ver versiones</button></div>
         </article>
       </div>
       <button v-if="hasMore" :disabled="loading" @click="more">Cargar más proyectos</button><button v-if="error && !items.length" :disabled="loading" @click="more">Reintentar carga</button>
       <section v-if="selected" class="catalog-panel" aria-labelledby="versions-title"><h2 id="versions-title">Versiones de {{ selected.name }}</h2><p class="muted">Cada versión conserva el detalle y los datos profesionales de ese momento.</p><p v-if="busy" role="status">Procesando…</p>
-        <div class="catalog-scroll"><table class="catalog-table"><thead><tr><th>Versión</th><th>Guardado</th><th>Cliente</th><th>Total mano de obra</th><th>PDF</th></tr></thead><tbody><tr v-for="version in versions" :key="version.revision"><td>{{ version.revision }}</td><td>{{ date(version.createdAt) }}</td><td>{{ version.budget.cliente }}</td><td class="money">{{ currency(version.budget.total) }}</td><td><button :disabled="busy" @click="download(selected, version)" :aria-label="'Descargar versión ' + version.revision">Descargar</button></td></tr></tbody></table></div>
+        <div class="catalog-scroll"><table class="catalog-table"><thead><tr><th>Versión</th><th>Guardado</th><th>Cliente</th><th>Total mano de obra</th><th>PDF</th></tr></thead><tbody><tr v-for="version in versions" :key="version.revision"><td>{{ version.revision }}</td><td>{{ date(version.createdAt) }}</td><td>{{ version.budget.cliente }}</td><td class="money">{{ currency(version.budget.total) }}</td><td><button :disabled="busy" @click="download(selected, version)" :aria-label="'Descargar versión ' + version.revision">Descargar</button><button :disabled="busy" @click="download(selected, version, 'share')" :aria-label="'Compartir versión ' + version.revision">Compartir</button><RouterLink :to="duplicateLocation(selected.id, version.revision)">Reutilizar versión</RouterLink></td></tr></tbody></table></div>
         <div class="catalog-actions"><button v-if="moreVersions" :disabled="busy" @click="showVersions(selected, true)">Cargar versiones anteriores</button><button :disabled="busy" @click="selected = null">Cerrar versiones</button></div>
       </section>
     </div>

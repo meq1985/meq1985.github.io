@@ -7,7 +7,7 @@ vi.mock('../src/services/promotionPersistence', () => ({ loadPromotionSettings: 
 vi.mock('../src/services/catalogPersistence', () => ({ loadCatalog: vi.fn(), loadSuggestedCatalog: vi.fn(), saveCatalogPrices: vi.fn() }));
 vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(async () => ({ uid: 'demo', email: 'demo@example.invalid' })), assertCurrentUser: vi.fn() }));
 vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(async () => ({ enabled: false, admin: true })) }));
-vi.mock('../src/services/projects', () => ({ newProjectId: () => 'project-demo', loadProject: vi.fn(), saveProject: vi.fn() }));
+vi.mock('../src/services/projects', () => ({ newProjectId: () => 'project-demo', loadProject: vi.fn(), loadProjectVersion: vi.fn(), saveProject: vi.fn() }));
 vi.mock('../src/services/budgetPdf', () => ({ buildBudgetPdf: vi.fn(async () => ({ output: () => new Blob(['pdf']), save: vi.fn() })) }));
 import { loadCatalog, loadSuggestedCatalog, saveCatalogPrices } from '../src/services/catalogPersistence';
 import { buildBudgetPdf } from '../src/services/budgetPdf';
@@ -296,4 +296,21 @@ it('does not add commercial commitments when opening an old project', async () =
  const w=mount(Dashboard,{props:{projectId:'old'}});await flushPromises();
  expect(w.get('[aria-label="Incluir condiciones comerciales"]').element.checked).toBe(false);
  expect(w.find('.commercial-terms input[type="date"]').exists()).toBe(false);w.unmount();
+});
+
+it('opens a duplicate as an unsaved new quote with fresh dates, current profile and original prices', async () => {
+ const {loadProjectVersion,saveProject}=await import('../src/services/projects');
+ const {newCommercialTerms,localDate}=await import('../src/services/commercialTerms');
+ const original={name:'Original',revision:7,profile:{nombre1:'Nombre antiguo'},budget:{cliente:'Cliente repetido',createdAt:'2026-01-01T12:00:00Z',commercialTerms:newCommercialTerms('old','2026-01-01T12:00:00Z'),items:[{codigo:'1',descripcion:'Trabajo repetido',unidad:'ud.',cantidad:3,precioUnitario:123}]},sketch:null};
+ loadProjectVersion.mockResolvedValueOnce(original);
+ const w=mount(Dashboard,{props:{duplicateProjectId:'old',duplicateRevision:'7'}});await flushPromises();
+ expect(loadProjectVersion).toHaveBeenCalledWith('old',7);expect(saveProject).not.toHaveBeenCalled();
+ expect(w.get('#project-name').element.value).toBe('Original (copia)');expect(w.get('#budget-client').element.value).toBe('Cliente repetido');
+ expect(w.get('[aria-label="Precio del ítem 1"]').element.value).toBe('123');
+ expect(w.get('.commercial-terms input[type="date"]').element.value).toBe(localDate());
+ expect(w.text()).toContain('Copia preparada sin guardar');expect(w.text()).not.toContain('Nombre antiguo');
+ saveProject.mockResolvedValueOnce({id:'project-demo',revision:1});
+ await button(w,'Guardar proyecto en mi cuenta').trigger('click');await flushPromises();
+ expect(saveProject.mock.calls[0][0]).toMatchObject({id:'project-demo',expectedRevision:0,budget:{total:369,commercialTerms:{reference:'EX-PROJECTDEMO'}}});
+ expect(original.budget.commercialTerms.reference).toBe('EX-OLD');w.unmount();
 });
