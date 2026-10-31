@@ -5,8 +5,10 @@ import vue from '@vitejs/plugin-vue'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [vue()],
+  // The prerenderer and client build must share scoped CSS identifiers.
+  plugins: [vue({ features: { componentIdGenerator: 'filepath' } })],
   build: {
+    manifest: true,
     rolldownOptions: {
       output: {
         codeSplitting: {

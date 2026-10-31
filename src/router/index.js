@@ -41,6 +41,7 @@ const router = createRouter({
       }
     },
     { path: "/mispresupuestos", redirect: "/proyectos" },
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFoundView.vue') },
   ],
 });
 

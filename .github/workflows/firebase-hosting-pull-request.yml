@@ -44,3 +44,5 @@ jobs:
       - run: '"$RUNNER_TEMP/firebase-cli/node_modules/.bin/firebase" emulators:exec --project demo-presupuesto-electrico --config firebase.emulators.json --only auth,firestore "npm run test:emulator"'
       - run: npm audit --audit-level=low
       - run: npm run build
+      - name: Verify Hosting routes and real 404 responses
+        run: '"$RUNNER_TEMP/firebase-cli/node_modules/.bin/firebase" emulators:exec --project demo-presupuesto-electrico --only hosting "node scripts/check-hosting.mjs"'

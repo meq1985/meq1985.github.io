@@ -25,7 +25,39 @@
     ],
     "rewrites": [
       {
-        "source": "**",
+        "source": "/ingresar",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/registrarse",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/recuperar",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/planes",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/proyectos",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/proyectos/*/editar",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/config",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/dashboard",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/mispresupuestos",
         "destination": "/index.html"
       }
     ],

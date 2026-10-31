@@ -1,6 +1,11 @@
 export const SITE_URL = 'https://electricistaxpress.com.ar';
 export const HOME_TITLE = 'Presupuestos eléctricos con tus precios | Electricista Xpress';
-export const HOME_DESCRIPTION = 'Organizá tus trabajos, actualizá la mano de obra y prepará presupuestos eléctricos en PDF desde el celular o la computadora. Probá 30 días gratis, sin tarjeta.';
+export const HOME_DESCRIPTION = 'Creá presupuestos eléctricos con tus precios, organizá proyectos y descargá un PDF profesional desde el celular o la PC. Probá 30 días gratis, sin tarjeta.';
+export const HOME_SCHEMA = Object.freeze({
+  '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Electricista Xpress',
+  url: SITE_URL + '/', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', inLanguage: 'es-AR',
+  description: 'Aplicación para electricistas independientes: presupuestos de mano de obra, precios editables, proyectos guardados, PDF profesional y croquis de obra nueva.',
+});
 const pages = {
   '/': [HOME_TITLE, HOME_DESCRIPTION],
   '/condiciones': ['Condiciones de uso | Electricista Xpress', 'Conocé los planes, la renovación, la cancelación y el acceso a tus proyectos de Electricista Xpress.'],
@@ -11,8 +16,15 @@ const pages = {
 };
 export function updateSeo(route) {
   const page = pages[route.path];
-  const [title, description] = page ?? ['Mi cuenta | Electricista Xpress', 'Accedé a tu cuenta de Electricista Xpress.'];
+  const [title, description] = page ?? (route.name === 'not-found'
+    ? ['Página no encontrada | Electricista Xpress', 'El enlace no existe. Volvé al inicio de Electricista Xpress o ingresá a tus proyectos.']
+    : ['Mi cuenta | Electricista Xpress', 'Accedé a tu cuenta de Electricista Xpress.']);
   document.title = title;
+  let schema = document.head.querySelector('script[type="application/ld+json"]');
+  if (route.path === '/') {
+    if (!schema) { schema = document.createElement('script'); schema.type = 'application/ld+json'; document.head.append(schema); }
+    schema.textContent = JSON.stringify(HOME_SCHEMA);
+  } else schema?.remove();
   function meta(selector, attributes) {
     let element = document.head.querySelector(selector);
     if (!element) { element = document.createElement('meta'); document.head.append(element); }
