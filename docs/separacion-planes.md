@@ -26,3 +26,12 @@ Los cobros reales siguen apagados: este cambio no modifica `configuracion/factur
 Las pruebas usan `demo-presupuesto-electrico` y un proveedor simulado: no crean usuarios de producción ni hacen pagos o devoluciones reales. La validación en el checkout externo de Mercado Pago para Full queda para una prueba privada autorizada con comprador ficticio antes de habilitar cobros reales.
 
 Validación local: 213 pruebas de aplicación, 25 de Auth/Firestore, 14 unitarias de servidor y 18 escenarios de integración de facturación (19 entradas contando el grupo padre), todos correctos. Build y prerender de seis páginas correctos. Se verificó solo en lectura que `billingEnabled=false` y `checkoutAvailable=false` en producción.
+
+
+## Dependencias revisadas el 31 de octubre de 2026
+
+Las auditorías detectaron GHSA-3g3m-2fjr-6pw4 (glob) y GHSA-g3hv-75wg-m249 (minimatch), publicadas en la base de GitHub el 30 de octubre. Se fijan resoluciones mínimas de glob 14.0.2 y minimatch 11.0.1 en ambos árboles mediante `overrides`, conservando las versiones directas de Firebase y Vue. Son saltos mayores de dependencias indirectas: revisar y retirar estas resoluciones cuando sus consumidores actualicen sus propios rangos.
+
+Referencias del mantenedor: https://github.com/isaacs/node-glob/security/advisories/GHSA-3g3m-2fjr-6pw4 y https://github.com/isaacs/minimatch/security/advisories/GHSA-g3hv-75wg-m249.
+
+Validación tras el cambio: instalación reproducible del servidor bajo Node 22, auditorías sin vulnerabilidades conocidas, pruebas completas de aplicación y servidor, Auth/Firestore y pagos simulados, build/prerender. Se comprobó además la compatibilidad de formato HTML, patrones EditorConfig, glob y la eliminación con patrones de rimraf sobre archivos ficticios en una carpeta temporal verificada del espacio de trabajo. No se probaron patrones ni se borraron archivos de usuarios.

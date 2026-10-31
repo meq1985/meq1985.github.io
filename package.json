@@ -31,6 +31,8 @@
   },
   "type": "module",
   "overrides": {
-    "@grpc/grpc-js": "^1.13.6"
+    "@grpc/grpc-js": "^1.13.6",
+    "glob": "^14.0.2",
+    "minimatch": "^11.0.1"
   }
 }
