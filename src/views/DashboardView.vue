@@ -1,10 +1,13 @@
 <script setup>
+import BudgetPromotions from '../components/BudgetPromotions.vue';
+import { defaultPromotionSettings, emptyPaymentOptions } from '../services/promotions';
+import { loadPromotionSettings } from '../services/promotionPersistence';
 import { computed, inject, provide, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { routerKey, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { loadBillingAccess } from '../services/billing';
-import { projectAccess } from '../services/billingPolicy';
+import { projectAccess, sketchAccess, paidPlan } from '../services/billingPolicy';
 import { newProjectId, loadProject, saveProject } from '../services/projects';
-import { projectProfile } from '../services/projectValidation';
+import { projectProfile, projectBudget } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import NumberField from '../components/NumberField.vue';
 import BudgetHelp from '../components/BudgetHelp.vue';
@@ -26,10 +29,12 @@ const showHelp = (topic, detail) => help.value?.show(topic, detail);
 provide('budgetHelp', showHelp);
 const name = ref(''), revision = ref(0), cloudId = ref(props.projectId || newProjectId()), selectedProfile = ref(null);
 const access = ref(null), subscriptionBlocked = ref(false);
+const canUseSketch = computed(() => access.value && sketchAccess(access.value));
+const activePlan = computed(() => paidPlan(access.value?.subscription));
 const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
 const savedForm = ref(null), savedBudget = ref(null), requiresProfileReview = ref(false);
-const sketch = ref(null);
-const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value]));
+const sketch = ref(null), paymentOptions = ref(emptyPaymentOptions()), promotionDefaults = ref(defaultPromotionSettings());
+const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value, paymentOptions.value]));
 const dirty = computed(() => savedForm.value !== null && formSignature.value !== savedForm.value);
 
 if (router) {
@@ -41,12 +46,11 @@ const warnBeforeClose = event => { if (dirty.value) { event.preventDefault(); ev
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeClose));
 const tipoInmueble = ref('');
 const propertyTypes = ['Vivienda unifamiliar', 'Departamento', 'Local', 'Depósito', 'Oficina', 'Edificio', 'Taller', 'Galpón'];
-const cliente = ref(''), tabla = ref([]), entries = ref([]), search = ref(''), selected = ref('');
+const cliente = ref(''), tabla = ref([]), entries = ref([]), selected = ref('');
 const loading = ref(true), saving = ref(false), error = ref(''), message = ref('');
 watch(formSignature, () => { if (pendingSave.value && pendingSave.value.signature !== formSignature.value) pendingSave.value = null; });
-const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const groups = computed(() => [...CATALOG_GROUPS, { id: 'anteriores', label: 'Mis ítems anteriores' }].map(group => ({ ...group,
-  items: entries.value.filter(item => item.category === group.id && normalize(item.description + ' ' + item.unit).includes(normalize(search.value))) })).filter(group => group.items.length));
+  items: entries.value.filter(item => item.category === group.id) })).filter(group => group.items.length));
 const selectedItem = computed(() => entries.value.find(item => item.id === selected.value));
 const subtotal = row => { const value = Math.round(Number(row.cantidad) * Number(row.precioUnitario) * 100) / 100; return Number.isFinite(value) ? value : 0; };
 const total = computed(() => Math.round(tabla.value.reduce((sum, row) => sum + subtotal(row), 0) * 100) / 100);
@@ -59,7 +63,7 @@ function addItem() {
 }
 function addCustom() { tabla.value.push({ key: ++counter, codigo: `P-${counter}`, descripcion: '', unidad: 'ud.', cantidad: 1, precioUnitario: 0 }); }
 function applySketchQuote(rows) {
-  if (!ready.value || loading.value || saving.value || subscriptionBlocked.value) return;
+  if (!ready.value || loading.value || saving.value || subscriptionBlocked.value || !canUseSketch.value) return;
   tabla.value = rows.map(row => ({ ...row, key: ++counter }));
   message.value = 'Borrador del croquis aplicado. Revisá el detalle y guardá el proyecto en tu cuenta.';
 }
@@ -70,7 +74,7 @@ async function outputBudget() {
     const user = await requireUser();
     if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Recargá el proyecto.');
     if (requiresProfileReview.value) throw new Error('Revisá los datos profesionales y guardá una nueva versión en tu cuenta antes de generar el PDF.');
-    const currentAccess = await loadBillingAccess();
+    const currentAccess = await loadBillingAccess(); access.value = currentAccess;
     if (!projectAccess(currentAccess, cloudId.value)) { subscriptionBlocked.value = true; throw new Error('Tu prueba gratuita terminó. Para crear proyectos o guardar cambios necesitás una suscripción.'); }
     if (!currentAccess.admin && (dirty.value || !cloudSaved.value)) {
       saving.value = false;
@@ -78,9 +82,9 @@ async function outputBudget() {
       saving.value = true;
       if (!saved) return;
     }
-    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() };
-    const snapshot = { ...validateBudget(budget.cliente, budget.items, budget.tipoInmueble), createdAt: budget.createdAt };
-    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email));
+    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, createdAt: new Date().toISOString() };
+    const snapshot = projectBudget(budget);
+    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email), { sketch: sketch.value });
     assertCurrentUser(user);
     document.save('presupuesto.pdf'); message.value = 'PDF descargado.';
   } catch (cause) { error.value = cause.message; }
@@ -95,7 +99,7 @@ async function saveToAccount() {
     if (!pendingSave.value) pendingSave.value = {
       signature: formSignature.value,
       input: { id: cloudId.value, expectedRevision: revision.value, name: name.value || cliente.value,
-        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), createdAt: new Date().toISOString() },
+        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, createdAt: new Date().toISOString() },
         profile: selectedProfile.value ?? projectProfile(profileStore, user.email), sketch: sketch.value },
     };
     const result = await saveProject(pendingSave.value.input);
@@ -121,7 +125,7 @@ async function initialize() {
   const sequence = ++loadSequence;
   loading.value = true; ready.value = false; error.value = ''; message.value = ''; pendingSave.value = null;
   try {
-    const [user, , catalog, project, billing] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), props.projectId ? loadProject(props.projectId) : null, loadBillingAccess()]);
+    const [user, , catalog, project, billing, promotions] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), props.projectId ? loadProject(props.projectId) : null, loadBillingAccess(), loadPromotionSettings()]);
     if (sequence !== loadSequence) return;
     access.value = billing; subscriptionBlocked.value = !projectAccess(billing, props.projectId);
     entries.value = catalog; ownerUid.value = user.uid;
@@ -129,6 +133,7 @@ async function initialize() {
     name.value = project?.name ?? ''; cliente.value = project?.version.budget.cliente ?? '';
     tipoInmueble.value = project?.version.budget.tipoInmueble ?? '';
     sketch.value = project?.version.sketch ?? null;
+    promotionDefaults.value = promotions; paymentOptions.value = structuredClone(project?.version.budget.paymentOptions ?? emptyPaymentOptions());
     tabla.value = (project?.version.budget.items ?? []).map(item => ({ ...item, key: ++counter, unidad: item.unidad ?? 'ud.' }));
     selectedProfile.value = project?.version.profile ?? projectProfile(profileStore, user.email);
     requiresProfileReview.value = Boolean(project && !project.version.profile);
@@ -147,6 +152,7 @@ watch(() => props.projectId, initialize);
     <div class="catalog-main">
       <div class="budget-heading"><h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><button type="button" @click="showHelp('inicio')">Ayuda para presupuestar</button></div><BudgetHelp ref="help" :ready="ready" /><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
       <p v-if="access?.admin" class="catalog-notice">Cuenta administradora: acceso completo sin suscripción.</p>
+      <p v-else-if="activePlan" class="catalog-notice">Plan {{ activePlan === 'croquis' ? 'Full' : 'Básico' }} activo. <RouterLink to="/planes">Gestionar suscripción</RouterLink></p>
       <p v-else-if="access && !access.admin" class="catalog-notice">Tu cuenta incluye una prueba gratuita de 30 días, sin tarjeta. <RouterLink to="/planes">Ver planes</RouterLink></p>
       <p v-if="subscriptionBlocked" class="catalog-notice" role="status">Tu prueba gratuita terminó. Para crear proyectos o guardar cambios necesitás una suscripción. <RouterLink to="/planes">Ver suscripción →</RouterLink></p>
       <p v-if="error" class="catalog-notice error" role="alert">{{ error }}</p>
@@ -161,20 +167,23 @@ watch(() => props.projectId, initialize);
 
 
       </section>
+      <template v-if="canUseSketch">
       <SketchEditor :key="cloudId" v-model="sketch" :entries="entries" :disabled="subscriptionBlocked || loading || saving || !ready" />
       <SketchQuote :key="cloudId + '-quote'" v-model="sketch" :entries="entries" :existing-count="tabla.length" :disabled="subscriptionBlocked || loading || saving || !ready" @apply="applySketchQuote" />
+      </template>
+      <section v-else-if="ready && !subscriptionBlocked" class="catalog-panel"><h2>Croquis incluido en Full</h2><p>Tu plan Básico permite presupuestar desde el catálogo. Con Full podés dibujar la obra y calcular mano de obra, circuitos y materiales.</p><p v-if="sketch">El croquis guardado se conserva y sus materiales siguen incluidos al descargar el PDF.</p><RouterLink to="/planes">Ver plan Full →</RouterLink></section>
       <section class="catalog-panel">
         <div class="budget-heading"><h2>Detalle del presupuesto</h2><button type="button" @click="showHelp('presupuesto')">Ayuda del presupuesto</button></div>
         <fieldset :disabled="subscriptionBlocked || loading || saving">
           <h3>Agregar trabajos</h3>
           <div class="catalog-fields">
-            <label>Buscar ítem<input v-model="search" type="search" placeholder="Ej.: boca, tablero, bandeja…" /></label>
             <label>Seleccionar ítem<select id="budget-catalog-item" v-model="selected" aria-label="Seleccionar ítem"><option disabled value="">Elegí un trabajo</option><optgroup v-for="group in groups" :key="group.id" :label="group.label"><option v-for="item in group.items" :key="item.id" :value="item.id">{{ item.description }} / {{ item.unit }} — {{ currency(item.price) }}</option></optgroup></select></label>
           </div>
           <button v-if="selectedItem?.note" type="button" @click="showHelp('trabajo', selectedItem.note)">Nota del trabajo</button>
           <div class="catalog-actions"><button class="primary" :disabled="!selectedItem" @click="addItem">Agregar ítem</button><button @click="addCustom">Agregar ítem personalizado</button></div>
         </fieldset>
 <details><summary>Ver datos profesionales que figurarán en el PDF</summary><p>{{ selectedProfile?.nombre1 }} {{ selectedProfile?.apellido1 }}<br v-if="selectedProfile?.empresa1" /><span v-if="selectedProfile?.empresa1">{{ selectedProfile.empresa1 }}</span><br />CUIT: {{ selectedProfile?.cuit1 }} · Matrícula: {{ selectedProfile?.matricula1 }}<br />Teléfono: {{ selectedProfile?.telefono1 }} · Correo: {{ selectedProfile?.correo }}</p><button type="button" @click="useCurrentProfile">Usar mis datos profesionales actuales</button></details>
+        <BudgetPromotions v-model="paymentOptions" :defaults="promotionDefaults" :total="total" />
         <p v-if="!tabla.length" class="muted">Agregá trabajos del catálogo o creá un ítem personalizado.</p>
         <div v-else class="catalog-scroll"><table class="catalog-table catalog-budget"><thead><tr><th>Trabajo</th><th class="unit">Unidad</th><th class="quantity">Cantidad</th><th class="money">Precio unitario (AR$)</th><th class="money">Subtotal</th><th></th></tr></thead><tbody>
           <tr v-for="(row, index) in tabla" :key="row.key">

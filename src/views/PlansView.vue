@@ -1,23 +1,23 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import CatalogHeader from '../components/CatalogHeader.vue';
-import { PLANS, TRIAL_MS } from '../services/billingPolicy';
+import { PLANS, TRIAL_MS, paidPlan } from '../services/billingPolicy';
 import { PLAN_PRESENTATION } from '../data/planPresentation';
 import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription } from '../services/billing';
 import { currency } from '../data/laborCatalog';
 
 const access = ref(null), error = ref(''), loading = ref(true), busy = ref('');
-const consent = ref(false), cancelConfirm = ref(false), notice = ref(''), uncertain = ref(false);
+const consent = ref({}), cancelConfirm = ref(false), notice = ref(''), uncertain = ref(false);
 const now = ref(Date.now());
 const subscription = computed(() => access.value?.subscription);
-const paid = computed(() => subscription.value?.planId === 'presupuestos' && subscription.value.status === 'active' && subscription.value.paidThrough > now.value);
+const paid = computed(() => !!paidPlan(subscription.value, now.value));
 const cancelled = computed(() => subscription.value?.providerStatus === 'cancelled');
 const pending = computed(() => subscription.value?.providerStatus === 'pending');
 const canSubscribe = computed(() => !loading.value && !uncertain.value && access.value?.checkoutAvailable && !access.value.admin && !paid.value &&
   (!subscription.value?.manageable || cancelled.value || pending.value));
 const statusTitle = computed(() => {
   if (access.value?.admin) return 'Acceso administrador';
-  if (paid.value) return cancelled.value ? 'Plan activo · renovación cancelada' : 'Plan Presupuestos activo';
+  if (paid.value) return cancelled.value ? 'Plan activo · renovación cancelada' : `Plan ${subscription.value.planId === 'croquis' ? 'Full' : 'Básico'} activo`;
   if (pending.value) return 'Suscripción pendiente de pago';
   return access.value?.trialStartedAt != null && now.value < access.value.trialStartedAt + TRIAL_MS ? 'Tu prueba gratuita está activa' : 'Tu prueba gratuita terminó';
 });
@@ -28,13 +28,22 @@ async function load() {
   catch { access.value = null; error.value = 'No pudimos consultar tu cuenta. Revisá tu conexión y volvé a intentar.'; }
   finally { loading.value = false; }
 }
-async function act(action) {
+const pendingPlan = computed(() => subscription.value?.pendingPlanId ?? subscription.value?.planId ?? 'presupuestos');
+const canChoose = planId => canSubscribe.value && (!pending.value || pendingPlan.value === planId);
+function unavailableLabel(planId) {
+  if (access.value?.admin) return 'Incluido en tu acceso';
+  if (paid.value) return subscription.value.planId === planId ? 'Tu plan actual' : 'Cambiar al finalizar tu período';
+  if (loading.value) return 'Consultando cuenta…';
+  if (subscription.value?.manageable && !cancelled.value) return pending.value ? 'Cancelá la contratación pendiente para cambiar' : 'Suscripción registrada';
+  return planId === 'croquis' ? 'Elegir Full' : 'Elegir Básico';
+}
+async function act(action, planId) {
   if (busy.value || loading.value) return;
-  if (action === 'subscribe' && (!canSubscribe.value || !consent.value)) return;
+  if (action === 'subscribe' && (!canChoose(planId) || !consent.value[planId])) return;
   if (action === 'cancel' && !cancelConfirm.value) return;
   busy.value = action; error.value = ''; notice.value = '';
   try {
-    if (action === 'subscribe') window.location.assign(await startSubscription());
+    if (action === 'subscribe') window.location.assign(await startSubscription(planId));
     else {
       await (action === 'cancel' ? cancelSubscription() : refreshSubscription());
       access.value = await loadBillingAccess(); now.value = Date.now(); uncertain.value = false;
@@ -83,22 +92,22 @@ onMounted(async () => {
         <article class="plan-card free-plan">
           <p class="plan-tag">PARA EMPEZAR</p><h2>Un mes gratis</h2><p class="plan-description">Conocé la herramienta con un trabajo real.</p>
           <p class="price">$0 <small>30 días · sin tarjeta</small></p>
-          <ul><li>Hasta 10 proyectos durante los 30 días</li><li>Catálogo de mano de obra editable</li><li>Historial de versiones</li><li>PDF con tus datos profesionales</li></ul>
+          <ul><li>Hasta 10 proyectos durante los 30 días</li><li>Catálogo de mano de obra editable</li><li>Historial de versiones</li><li>PDF con tus datos profesionales</li><li>Croquis, circuitos y lista de materiales del Full</li></ul>
           <RouterLink class="plan-link" to="/proyectos">Ir a mis proyectos →</RouterLink>
           <small>Sin tarjeta. No se transforma en un plan pago.</small>
         </article>
-        <article v-for="plan in PLANS" :key="plan.id" class="plan-card" :class="{ featured: plan.available, upcoming: !plan.available }">
+        <article v-for="plan in PLANS" :key="plan.id" class="plan-card" :class="{ featured: plan.id === 'croquis' }">
           <p class="plan-tag">{{ PLAN_PRESENTATION[plan.id].tag }}</p><h2>{{ PLAN_PRESENTATION[plan.id].title }}</h2>
           <p class="plan-description">{{ PLAN_PRESENTATION[plan.id].description }}</p>
           <p class="price">{{ currency(plan.amount) }} <small>ARS / mes</small></p>
           <ul><li>Hasta 100 proyectos · 10 guardados diarios</li><li v-for="feature in PLAN_PRESENTATION[plan.id].features" :key="feature">{{ feature }}</li></ul>
-          <template v-if="plan.available && canSubscribe">
-            <label class="check-label"><input v-model="consent" type="checkbox" :disabled="!!busy" data-testid="renewal-consent"><span>Acepto $12.000 ARS por mes, con renovación automática hasta cancelarla.</span></label>
-            <button class="primary subscribe-button" :disabled="!!busy || !consent" @click="act('subscribe')">{{ busy === 'subscribe' ? 'Abriendo Mercado Pago…' : pending ? 'Retomar en Mercado Pago' : 'Elegir Presupuestos' }} <span aria-hidden="true">↗</span></button>
+          <template v-if="plan.available && canChoose(plan.id)">
+            <label class="check-label"><input v-model="consent[plan.id]" type="checkbox" :disabled="!!busy" data-testid="renewal-consent"><span>Acepto {{ currency(plan.amount) }} ARS por mes, con renovación automática hasta cancelarla.</span></label>
+            <button class="primary subscribe-button" :disabled="!!busy || !consent[plan.id]" @click="act('subscribe', plan.id)">{{ busy === 'subscribe' ? 'Abriendo Mercado Pago…' : pending ? 'Retomar en Mercado Pago' : plan.id === 'croquis' ? 'Elegir Full' : 'Elegir Presupuestos' }} <span aria-hidden="true">↗</span></button>
             <small>Completás el pago de forma segura en Mercado Pago.</small>
           </template>
           <template v-else>
-            <button disabled class="subscribe-button">{{ !plan.available ? 'Elegir Full' : access?.admin ? 'Incluido en tu acceso' : paid ? 'Tu plan actual' : loading ? 'Consultando cuenta…' : subscription?.manageable && !cancelled ? 'Suscripción registrada' : 'Elegir Básico' }}</button>
+            <button disabled class="subscribe-button">{{ unavailableLabel(plan.id) }}</button>
             <small>{{ !plan.available ? 'Ambientes, puntos eléctricos y presupuesto de mano de obra.' : paid ? 'Podés gestionar tu renovación más abajo.' : 'Sin cobros hasta que confirmes la contratación.' }}</small>
           </template>
         </article>
@@ -116,6 +125,7 @@ onMounted(async () => {
         </div>
       </section>
 
+      <p class="catalog-notice">Para cambiar de plan, cancelá la renovación actual y elegí el nuevo al finalizar el período abonado. Conservás tus proyectos y sus PDF; el Básico conserva los croquis anteriores sin permitir editarlos.</p>
       <section class="plans-faq" aria-labelledby="plans-faq-title"><p class="eyebrow">ANTES DE ELEGIR</p><h2 id="plans-faq-title">Sin sorpresas.</h2>
         <details><summary>¿Cómo funciona la prueba gratuita?</summary><p>Tenés 30 días desde tu primer acceso verificado a Presupuestar o Planes. Podés crear hasta 10 proyectos durante la prueba y realizar hasta 10 guardados diarios, guardar versiones y descargar sus PDF. No requiere tarjeta ni se convierte en un cobro automático.</p></details>
         <details><summary>¿Cuándo empieza mi acceso pago?</summary><p>Cuando nuestro servidor confirma un pago aprobado. Si volvés de Mercado Pago y todavía está pendiente, podés actualizar el estado desde esta página.</p></details>

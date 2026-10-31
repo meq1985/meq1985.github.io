@@ -40,7 +40,7 @@ async function download(project, version = null) {
     if (user.uid !== ownerUid.value) throw new Error('La sesión cambió. Volvé a abrir Mis proyectos.');
     const stored = version ?? await loadProjectVersion(project.id, project.revision);
     if (!stored.profile) throw new Error('Este proyecto no incluía datos profesionales. Abrí el proyecto, revisá tus datos y guardá una nueva versión para generar su PDF.');
-    const document = await buildBudgetPdf(stored.budget, stored.profile);
+    const document = await buildBudgetPdf(stored.budget, stored.profile, { sketch: stored.sketch });
     if ((await requireUser()).uid !== user.uid) throw new Error('La sesión cambió. Volvé a abrir Mis proyectos.');
     const filename = project.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
     document.save(`presupuesto-${filename}-v${stored.revision}.pdf`);

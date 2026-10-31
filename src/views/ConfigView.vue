@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import PromotionSettings from '../components/PromotionSettings.vue';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import { PostStore } from '../stores/dbUsers';
 import { CATALOG_NOTES, CATALOG_GROUPS, currency } from '../data/laborCatalog';
@@ -137,6 +138,7 @@ onMounted(async () => {
               <div class="catalog-actions"><button class="primary" @click="applyPreview">Aplicar y guardar {{ previewRows.length }} precios</button><button @click="preview = null">Cancelar</button></div>
             </div>
           </div>
+          <PromotionSettings />
           <div class="catalog-fields">
             <label>Buscar ítem<input v-model="search" type="search" placeholder="Ej.: toma doble, bandeja, medidor…" /></label>
             <label>Categoría<select v-model="category"><option value="">Todas las categorías</option><option v-for="group in groups" :key="group.id" :value="group.id">{{ group.label }}</option></select></label>

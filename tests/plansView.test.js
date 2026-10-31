@@ -16,6 +16,7 @@ it('compares the free project and both plans with finished-product copy while re
   expect(w.findAll('.plan-card')).toHaveLength(3);
   expect(w.text()).toContain('$0'); expect(w.text()).toContain('12.000'); expect(w.text()).toContain('25.000');
   expect(button(w, 'Elegir Full').element.disabled).toBe(true);
+  expect(w.findAll('[data-testid="renewal-consent"]')).toHaveLength(2);
   expect(w.findAll('.plan-card')[1].text()).toContain('Básico · Presupuestos');
   const full = w.findAll('.plan-card')[2];
   expect(full.text()).toContain('Full · Presupuestos + croquis');
@@ -28,9 +29,9 @@ it('requires renewal consent and prevents blind repeated checkouts after failure
   startSubscription.mockRejectedValue(new Error('private provider error'));
   const w = render(); await flushPromises();
   expect(button(w, 'Elegir Presupuestos').element.disabled).toBe(true);
-  await w.get('[data-testid="renewal-consent"]').setValue(true);
+  await w.findAll('[data-testid="renewal-consent"]')[0].setValue(true);
   await button(w, 'Elegir Presupuestos').trigger('click'); await flushPromises();
-  expect(startSubscription).toHaveBeenCalledTimes(1); expect(w.text()).not.toContain('private provider error');
+  expect(startSubscription).toHaveBeenCalledExactlyOnceWith('presupuestos'); expect(w.text()).not.toContain('private provider error');
   expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false);
   await button(w, 'Actualizar estado del pago').trigger('click'); await flushPromises();
   expect(refreshSubscription).toHaveBeenCalledTimes(1); w.unmount();
@@ -80,4 +81,25 @@ it('shows an expired trial without losing access to project consultation', async
   expect(w.text()).toContain('Tu prueba gratuita terminó');
   expect(w.text()).toContain('consultar tus proyectos');
   expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false); w.unmount();
+});
+
+it('contracts Full only after its own price and renewal consent', async () => {
+  startSubscription.mockRejectedValue(new Error('stop navigation'));
+  const w = render(); await flushPromises();
+  const full = w.findAll('.plan-card')[2];
+  expect(full.text()).toContain('25.000');
+  await full.get('input[type="checkbox"]').setValue(true);
+  expect(button(w, 'Elegir Presupuestos').element.disabled).toBe(true);
+  await button(w, 'Elegir Full').trigger('click'); await flushPromises();
+  expect(startSubscription).toHaveBeenCalledExactlyOnceWith('croquis'); w.unmount();
+});
+it('recognizes paid Full and never offers a different plan for a pending checkout', async () => {
+  loadBillingAccess.mockResolvedValue({ ...base, subscription: subscription({planId: 'croquis'}) });
+  const w = render(); await flushPromises();
+  expect(w.text()).toContain('Plan Full activo');
+  expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false); w.unmount();
+  loadBillingAccess.mockResolvedValue({ ...base, subscription: subscription({status: 'inactive', paidThrough: 0, providerStatus: 'pending', pendingPlanId: 'croquis'}) });
+  const pending = render(); await flushPromises();
+  expect(pending.findAll('[data-testid="renewal-consent"]')).toHaveLength(1);
+  expect(pending.findAll('.plan-card')[2].text()).toContain('Retomar en Mercado Pago'); pending.unmount();
 });

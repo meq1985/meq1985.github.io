@@ -143,3 +143,19 @@ it('drags a room as one undoable edit, supports keyboard movement and cancels un
   await pointer(svg,'pointermove',{pointerId:2,clientX:120,clientY:120});await pointer(svg,'pointercancel',{pointerId:2});
   expect(w.vm.sketch.rooms[0].x).toBe(0.1);w.unmount();
 });
+
+it('moves internal route bends in the live drag preview, commits once and restores geometry with undo',async()=>{
+ const w=editor(),svg=w.get('.sketch-canvas');
+ w.vm.sketch.schema=2;w.vm.sketch.materials={schema:1,circuits:[],junctions:[],extras:[],reservePercent:0,routes:[]};
+ w.vm.sketch.materials.routes=[{id:'inside-move',fromId:'light',toId:'outlet',feederId:null,bends:[{x:2,y:1}],verticalMeters:0,conduit:'',assignments:[]}];await w.vm.$nextTick();
+ const pointer=async(target,type,props)=>{const event=new MouseEvent(type,{bubbles:true,...props});Object.defineProperty(event,'pointerId',{value:props.pointerId});target.element.dispatchEvent(event);await w.vm.$nextTick();};
+ svg.element.getBoundingClientRect=()=>({left:0,top:0,width:360,height:270});
+ await pointer(w.get('.sketch-room'),'pointerdown',{pointerId:1,button:0,clientX:30,clientY:30});
+ await pointer(svg,'pointermove',{pointerId:1,clientX:90,clientY:60});
+ expect(w.vm.sketch.materials.routes[0].bends[0]).toEqual({x:2,y:1});
+ expect(w.get('[data-material-route="inside-move"] polyline').attributes('points')).toContain('120,60');
+ await pointer(svg,'pointerup',{pointerId:1,clientX:90,clientY:60});
+ expect(w.vm.sketch.materials.routes[0].bends[0]).toEqual({x:4,y:2});
+ await button(w,'Deshacer').trigger('click');expect(w.vm.sketch.materials.routes[0].bends[0]).toEqual({x:2,y:1});
+ await button(w,'Rehacer').trigger('click');expect(w.vm.sketch.materials.routes[0].bends[0]).toEqual({x:4,y:2});w.unmount();
+});

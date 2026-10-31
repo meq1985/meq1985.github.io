@@ -8,6 +8,6 @@ export const PLAN_PRESENTATION = Object.freeze({
   croquis: {
     title: 'Full · Presupuestos + croquis', tag: 'PRESUPUESTO CON CROQUIS',
     description: 'Todo lo del Básico, más el dibujo de tu obra nueva.',
-    features: ['Todas las funciones del Básico', 'Ambientes, niveles y puntos eléctricos', 'Medidor, tableros y jabalinas', 'Recorridos medidos entre principal y general', 'Borrador de mano de obra desde el croquis'],
+    features: ['Todas las funciones del Básico', 'Ambientes, niveles y puntos eléctricos', 'Medidor, tableros y jabalinas', 'Recorridos medidos entre principal y general', 'Borrador de mano de obra desde el croquis', 'Cálculo de circuitos, secciones y caída de tensión', 'Lista de materiales y PDF con materiales'],
   },
 });

@@ -50,3 +50,16 @@ it('prints the optional property type separately from the client name', async ()
   expect(pdf).toContain('Cliente Demo');
   expect((await buildBudgetPdf(budget(), profile)).output()).not.toContain('Tipo de inmueble:');
 });
+
+it('fits a normal 18-line budget and all three payment alternatives on one labor page',async()=>{
+ const b={...validateBudget('Cliente de prueba',Array.from({length:18},(_,i)=>({codigo:'P-'+i,descripcion:['Boca completa en ambiente','Instalación de canalización','Montaje y conexionado de tablero'][i%3],unidad:'ud.',cantidad:1,precioUnitario:1000}))),createdAt:'2026-10-30T12:00:00Z',paymentOptions:{discountPercent:10,installments:[{count:3,surchargePercent:20},{count:6,surchargePercent:30},{count:12,surchargePercent:50}]}};
+ const doc=await buildBudgetPdf(b,profile);expect(doc.getNumberOfPages()).toBe(1);
+ const pdf=doc.output();for(const value of ['16.200,00','21.600,00','23.400,00','27.000,00','ALTERNATIVAS DE PAGO'])expect(pdf).toContain(value);
+});
+it('starts materials on a separate page and preserves the labor total',async()=>{
+ const sketch={schema:1,levels:[{id:'ground',name:'Baja'}],rooms:[{id:'room',levelId:'ground',name:'Cocina',x:0,y:0,width:4,depth:3,points:[{id:'light',type:'luminaria',x:0.5,y:0.5}]}]};
+ const doc=await buildBudgetPdf(budget(),profile,{sketch});expect(doc.getNumberOfPages()).toBe(2);
+ const pdf=doc.output();expect(pdf).toContain('LISTA DE MATERIALES');expect(pdf).toContain('Caja para luminaria');
+ expect(pdf.match(/TOTAL MANO DE OBRA/g)).toHaveLength(1);expect(pdf).toContain('250,50');
+ expect((await buildBudgetPdf(budget(),profile,{sketch:{...sketch,rooms:[]}})).getNumberOfPages()).toBe(1);
+});

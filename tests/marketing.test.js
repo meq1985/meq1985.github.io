@@ -4,13 +4,32 @@ import { mount } from '@vue/test-utils';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import LegalView from '../src/views/LegalView.vue';
-import { HOME_TITLE, SITE_URL, updateSeo } from '../src/services/seo';
+import { HOME_TITLE, HOME_DESCRIPTION, HOME_SCHEMA, SITE_URL, updateSeo } from '../src/services/seo';
+import NotFoundView from '../src/views/NotFoundView.vue';
 afterEach(() => { document.head.innerHTML = ''; });
+it('provides a useful not-found page with navigation and no indexable canonical', () => {
+  const w = mount(NotFoundView);
+  expect(w.get('h1').text()).toContain('ninguna página');
+  expect(w.get('a[href="/"]').exists()).toBe(true);
+  expect(w.get('a[href="/proyectos"]').exists()).toBe(true);
+  updateSeo({ path: '/enlace-inexistente', name: 'not-found' });
+  expect(document.title).toContain('Página no encontrada');
+  expect(document.querySelector('meta[name="robots"]').content).toBe('noindex,follow');
+  expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+  w.unmount();
+});
+it('keeps the home description concise and consistent before JavaScript runs', () => {
+  const html = readFileSync(resolve('index.html'), 'utf8');
+  expect(HOME_DESCRIPTION.length).toBeLessThanOrEqual(160);
+  expect(html.match(/<meta name="description" content="([^"]*)"/)[1]).toBe(HOME_DESCRIPTION);
+});
 it('uses clean canonical URLs for public pages and noindex for account routes', () => {
   updateSeo({ path: '/', query: { utm_source: 'demo' } });
   expect(document.title).toBe(HOME_TITLE);
+  expect(JSON.parse(document.querySelector('script[type="application/ld+json"]').textContent)).toEqual(HOME_SCHEMA);
   expect(document.querySelector('link[rel="canonical"]').href).toBe(SITE_URL + '/');
   updateSeo({ path: '/privacidad' });
+  expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
   expect(document.title).toContain('Privacidad');
   expect(document.querySelector('meta[property="og:url"]').content).toBe(SITE_URL + '/privacidad');
   updateSeo({ path: '/proyectos/private-id/editar' });
@@ -18,6 +37,7 @@ it('uses clean canonical URLs for public pages and noindex for account routes', 
   expect(document.querySelector('link[rel="canonical"]')).toBeNull();
   expect(document.head.innerHTML).not.toContain('private-id');
   updateSeo({ path: '/' });
+  expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(1);
   expect(document.querySelector('meta[name="robots"]').content).toBe('index,follow');
   expect(document.querySelectorAll('meta[name="description"]')).toHaveLength(1);
 });
@@ -29,6 +49,7 @@ it('ships static social metadata, valid structured data and a public-only sitema
   expect(html).toContain(`<link rel="canonical" href="${SITE_URL}/"`);
   expect(html).toContain(`<meta property="og:url" content="${SITE_URL}/"`);
   expect(data['@type']).toBe('SoftwareApplication');
+  expect(data).toEqual(HOME_SCHEMA);
   expect(data).not.toHaveProperty('aggregateRating');
   expect(html).toContain('og:description');
   const sitemap = readFileSync(resolve('public/sitemap.xml'), 'utf8');

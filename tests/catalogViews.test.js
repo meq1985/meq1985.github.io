@@ -3,6 +3,7 @@ import { beforeEach, it, expect, vi } from 'vitest';
 import { mount, flushPromises, config } from '@vue/test-utils';
 vi.mock('../src/components/CatalogHeader.vue', () => ({ default: { template: '<div />' } }));
 vi.mock('../src/stores/dbUsers', () => ({ PostStore: () => ({ obtenerDato: vi.fn(), updateItem: vi.fn(), nombre1: 'Demo' }) }));
+vi.mock('../src/services/promotionPersistence', () => ({ loadPromotionSettings: vi.fn(async () => ({discountPercent: 0, installments: [{count:3,surchargePercent:0},{count:6,surchargePercent:0},{count:12,surchargePercent:0}]})), savePromotionSettings: vi.fn(async input => JSON.parse(JSON.stringify(input))) }));
 vi.mock('../src/services/catalogPersistence', () => ({ loadCatalog: vi.fn(), loadSuggestedCatalog: vi.fn(), saveCatalogPrices: vi.fn() }));
 vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(async () => ({ uid: 'demo', email: 'demo@example.invalid' })), assertCurrentUser: vi.fn() }));
 vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(async () => ({ enabled: false, admin: true })) }));
@@ -224,4 +225,51 @@ it('saves a trial project before generating its PDF and blocks saving after expi
   await button(wrapper, 'Descargar PDF').trigger('click'); await flushPromises();
   expect(buildBudgetPdf).toHaveBeenCalledOnce(); expect(wrapper.text()).toContain('Ver suscripción');
   expect(wrapper.get('#budget-client').element.value).toBe('Primer cliente'); wrapper.unmount();
+});
+
+it('saves promotion presets beneath the percentage adjustment without altering catalog prices',async()=>{
+ const {savePromotionSettings}=await import('../src/services/promotionPersistence');
+ const w=mount(Config);await flushPromises();
+ expect(w.text().indexOf('Promociones y formas de pago')).toBeGreaterThan(w.text().indexOf('Ajustar precios por porcentaje'));
+ await w.get('[aria-label="Descuento al contado configurado"]').setValue('12.5');
+ await w.get('[aria-label="Recargo configurado 3 cuotas"]').setValue('20');
+ await button(w,'Guardar promociones').trigger('click');await flushPromises();
+ expect(savePromotionSettings).toHaveBeenCalledOnce();expect(savePromotionSettings.mock.calls[0][0]).toMatchObject({discountPercent:12.5,installments:[{count:3,surchargePercent:20},{count:6,surchargePercent:0},{count:12,surchargePercent:0}]});
+ expect(saveCatalogPrices).not.toHaveBeenCalled();expect(w.text()).toContain('Promociones guardadas');w.unmount();
+});
+it('selects account promotions for this quote, stores them with the budget and passes the sketch to the PDF',async()=>{
+ const {loadPromotionSettings}=await import('../src/services/promotionPersistence');
+ const {saveProject}=await import('../src/services/projects');
+ loadPromotionSettings.mockResolvedValueOnce({discountPercent:10,installments:[{count:3,surchargePercent:20},{count:6,surchargePercent:30},{count:12,surchargePercent:50}]});
+ const w=mount(Dashboard);await flushPromises();
+ await w.get('#budget-client').setValue('Cliente con promoción');await button(w,'Agregar ítem personalizado').trigger('click');
+ await w.get('[aria-label="Descripción del ítem 1"]').setValue('Mano de obra');await w.get('[aria-label="Precio del ítem 1"]').setValue('1000');
+ expect(w.get('.budget-promotions h3').text()).toBe('Promociones');
+ expect(w.find('[aria-label="Descuento al contado del presupuesto"]').exists()).toBe(false);
+ expect(w.get('.budget-promotions').findAll('input[type="number"]')).toHaveLength(0);
+ await w.get('[aria-label="Aplicar descuento al contado"]').setValue(true);await w.get('[aria-label="Incluir 3 cuotas"]').setValue(true);
+ expect(w.get('.budget-promotions').text()).toContain('900');expect(w.get('.budget-promotions').text()).toContain('1.200');
+ await button(w,'Guardar proyecto en mi cuenta').trigger('click');await flushPromises();
+ expect(saveProject.mock.calls.at(-1)[0].budget.paymentOptions).toEqual({discountPercent:10,installments:[{count:3,surchargePercent:20}]});
+ await button(w,'Descargar PDF').trigger('click');await flushPromises();
+ expect(buildBudgetPdf.mock.calls.at(-1)[0]).toMatchObject({total:1000,paymentOptions:{discountPercent:10}});
+ expect(buildBudgetPdf.mock.calls.at(-1)[2]).toEqual({sketch:null});w.unmount();
+});
+
+it('hides sketch tools for Basic while retaining manual budgeting and an upgrade link', async () => {
+  const {loadBillingAccess}=await import('../src/services/billing');
+  loadBillingAccess.mockResolvedValue({admin:false,trialStartedAt:Date.now(),subscription:{planId:'presupuestos',status:'active',paidThrough:Date.now()+86400000}});
+  const w=mount(Dashboard); await flushPromises();
+  expect(w.text()).toContain('Plan Básico activo');
+  expect(w.text()).toContain('Croquis incluido en Full');
+  expect(button(w,'+ Ambiente')).toBeUndefined();
+  expect(w.find('#budget-catalog-item').exists()).toBe(true); w.unmount();
+});
+it('enables drawing for paid Full and the free trial', async () => {
+  const {loadBillingAccess}=await import('../src/services/billing');
+  for (const access of [{admin:false,trialStartedAt:Date.now()}, {admin:false,subscription:{planId:'croquis',status:'active',paidThrough:Date.now()+86400000}}]) {
+    loadBillingAccess.mockResolvedValue(access);
+    const w=mount(Dashboard); await flushPromises();
+    expect(button(w,'+ Ambiente')).toBeTruthy(); w.unmount();
+  }
 });

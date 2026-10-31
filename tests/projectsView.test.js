@@ -16,7 +16,7 @@ it('renders cloud projects and downloads old source snapshots using their origin
   const wrapper = render(); await flushPromises();
   await wrapper.get('[aria-label="Ver versiones de Proyecto"]').trigger('click'); await flushPromises();
   await wrapper.get('[aria-label="Descargar versión 1"]').trigger('click'); await flushPromises();
-  expect(buildBudgetPdf).toHaveBeenCalledExactlyOnceWith(revision.budget, revision.profile);
+  expect(buildBudgetPdf).toHaveBeenCalledExactlyOnceWith(revision.budget, revision.profile, { sketch: revision.sketch });
   expect(download).toHaveBeenCalledWith('presupuesto-Proyecto-v1.pdf'); wrapper.unmount();
 });
 it('does not silently assign present-day professional data to an imported old quote', async () => {

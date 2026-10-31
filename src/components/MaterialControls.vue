@@ -1,10 +1,11 @@
 <script setup>
+import { sketchMaterials } from '../services/sketchMaterials';
 import { computed, ref, watch } from 'vue';
 import NumberField from './NumberField.vue';
 import AutomaticDesign from './AutomaticDesign.vue';
-import { calculatedRouteLength, proposeElectrical, withAutomaticConductors } from '../services/automaticDesign';
+import { calculatedRouteLength, proposeElectrical } from '../services/automaticDesign';
 import { EQUIPMENT_TYPES, EQUIPMENT_ITEMS, FEEDER_ITEMS, FEEDER_EXTRA_METERS } from '../services/sketchInfrastructure';
-import { emptyMaterialNetwork, materialAnchors, materialRouteLength, materialsFromSketch, materialsCsv, WIRE_ROLES } from '../services/materialNetwork';
+import { emptyMaterialNetwork, materialAnchors, materialRouteLength, materialsCsv, WIRE_ROLES } from '../services/materialNetwork';
 const props = defineProps({ sketch: Object, levelId: String, disabled: Boolean, selectedRouteId: String, view: String, entries: { type: Array, default: () => [] } });
 const emit = defineEmits(['edit', 'select', 'trace', 'close']);
 const network = computed(() => props.sketch.materials ?? emptyMaterialNetwork());
@@ -13,12 +14,7 @@ const anchors = computed(() => materialAnchors(props.sketch).filter(a => a.level
 const circuitId = ref('');
 const route = computed(() => network.value.routes.find(r => r.id === props.selectedRouteId));
 const design = computed(() => proposeElectrical(props.sketch));
-const result = computed(() => {
-  const result = materialsFromSketch(withAutomaticConductors(props.sketch));
-  if (design.value) for (const row of result.rows) if (row.description.startsWith('Conductor ')) row.description = row.description.replace('familia a confirmar', 'cobre unipolar PVC · propuesta');
-  if (design.value) result.warnings = [...result.warnings.filter(w => !w.startsWith('Las medidas incluyen')), 'Se incluyen las verticales calculadas según alturas; revisar los tramos pendientes.', ...design.value.warnings];
-  return result;
-});
+const result = computed(() => sketchMaterials(props.sketch));
 const role = ref('phase'), section = ref(null), count = ref(1);
 const extraText = ref(''), extraQuantity = ref(1), extraUnit = ref('ud.');
 const error = ref('');

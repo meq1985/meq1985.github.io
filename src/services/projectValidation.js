@@ -1,3 +1,4 @@
+import { validatePaymentOptions, paymentSummary } from './promotions';
 import { validateBudget } from './budgetValidation';
 
 const text = (value, max, label) => {
@@ -18,7 +19,10 @@ export function projectBudget(input) {
   const budget = validateBudget(input.cliente, input.items, input.tipoInmueble);
   const issued = new Date(input.createdAt);
   if (Number.isNaN(issued.getTime())) throw new Error('La fecha del presupuesto no es válida.');
-  return { ...budget, items: budget.items.map(item => ({ ...item, codigo: String(item.codigo) })), createdAt: issued.toISOString() };
+  const selectedOptions = input.paymentOptions === undefined ? null : validatePaymentOptions(input.paymentOptions);
+  const paymentOptions = selectedOptions && (selectedOptions.discountPercent > 0 || selectedOptions.installments.length) ? selectedOptions : null;
+  if (paymentOptions) paymentSummary(budget.total, paymentOptions);
+  return { ...budget, ...(paymentOptions ? { paymentOptions } : {}), items: budget.items.map(item => ({ ...item, codigo: String(item.codigo) })), createdAt: issued.toISOString() };
 }
 export function projectName(value, fallback) {
   const name = text(value || fallback, 120, 'Nombre del proyecto');

@@ -1,4 +1,5 @@
 <script setup>
+import { moveRoom } from '../services/roomMovement';
 import { computed, ref, watch, useId, inject } from 'vue';
 import { emptySketch, validateSketch, encodeSketch, sketchSummary, overlapsRoom, POINT_TYPES, SKETCH_LIMITS } from '../services/sketch';
 import { EQUIPMENT_TYPES, feederPoints, feederLength } from '../services/sketchInfrastructure';
@@ -23,12 +24,12 @@ const canvas = ref(null), roomDrag = ref(null), suppressClick = ref(false);
 const drawingSketch = computed(() => {
   if (!roomDrag.value) return sketch.value;
   const next = clone(sketch.value), r = next.rooms.find(r => r.id === roomDrag.value.id);
-  if (r) { r.x = roomDrag.value.x; r.y = roomDrag.value.y; } return next;
+  if (r) moveRoom(next, r.id, roomDrag.value.x, roomDrag.value.y); return next;
 });
 const switches = computed(() => switchTopology(sketch.value).switches);
 const switchLabel = id => switches.value.find(s => s.id === id)?.label ?? '';
 const shortSwitchLabel = id => { const s = switches.value.find(s => s.id === id); return !s ? '' : s.gangs === 1 ? s.combined ? 'Combinada' : 'Simple' : (s.gangs === 2 ? 'Doble' : s.gangs === 3 ? 'Triple' : `${s.gangs} teclas`) + (s.combined ? ' + comb.' : ''); };
-const planePoints = r => materialRoutePlanePoints(drawingSketch.value, r, levelId.value);
+const planePoints = r => materialRoutePlanePoints(drawingSketch.value, drawingSketch.value.materials?.routes.find(item => item.id === r.id) ?? r, levelId.value);
 const riserPosition = r => materialRoutePoints(sketch.value,r)[0].levelId === levelId.value ? planePoints(r).at(-1) : planePoints(r)[0];
 const routeLabel = r => {
   const points = materialRoutePoints(sketch.value,r), levels = [...new Set(points.map(p => p.levelId ?? points[0].levelId))];
@@ -193,7 +194,7 @@ function finishRoomDrag(event) {
   if (canvas.value.hasPointerCapture?.(event.pointerId)) canvas.value.releasePointerCapture(event.pointerId);
   if (drag.x === drag.originX && drag.y === drag.originY) return;
   suppressClick.value = true;
-  change(next => { const r = next.rooms.find(r => r.id === drag.id); if (r) { r.x = drag.x; r.y = drag.y; } });
+  change(next => moveRoom(next, drag.id, drag.x, drag.y));
 }
 function canvasClick(event) { if (suppressClick.value) { suppressClick.value = false; return; } placeInfrastructure(event); }
 function cancelDrawing() { cancelConnection(); roomDrag.value = null; }
@@ -202,7 +203,7 @@ function moveRoomKey(event, target) {
   const delta = { ArrowLeft: [-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1] }[event.key];
   if (!delta) return; event.preventDefault();
   const step = event.shiftKey ? 1 : 0.1;
-  change(next => { const r = next.rooms.find(r => r.id === target.id); r.x = Math.max(0,Math.min(100,Math.round((r.x+delta[0]*step)*10)/10)); r.y = Math.max(0,Math.min(100,Math.round((r.y+delta[1]*step)*10)/10)); });
+  change(next => { const r = next.rooms.find(r => r.id === target.id); moveRoom(next, r.id, Math.max(0,Math.min(100,Math.round((r.x+delta[0]*step)*10)/10)), Math.max(0,Math.min(100,Math.round((r.y+delta[1]*step)*10)/10))); });
 }
 </script>
 <template>
