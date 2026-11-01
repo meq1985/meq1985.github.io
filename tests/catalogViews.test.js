@@ -7,7 +7,7 @@ vi.mock('../src/services/promotionPersistence', () => ({ loadPromotionSettings: 
 vi.mock('../src/services/catalogPersistence', () => ({ loadCatalog: vi.fn(), loadSuggestedCatalog: vi.fn(), saveCatalogPrices: vi.fn() }));
 vi.mock('../src/firebase/session', () => ({ requireUser: vi.fn(async () => ({ uid: 'demo', email: 'demo@example.invalid' })), assertCurrentUser: vi.fn() }));
 vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(async () => ({ enabled: false, admin: true })) }));
-vi.mock('../src/services/projects', () => ({ newProjectId: () => 'project-demo', loadProject: vi.fn(), saveProject: vi.fn() }));
+vi.mock('../src/services/projects', () => ({ newProjectId: () => 'project-demo', loadProject: vi.fn(), loadProjectVersion: vi.fn(), saveProject: vi.fn() }));
 vi.mock('../src/services/budgetPdf', () => ({ buildBudgetPdf: vi.fn(async () => ({ output: () => new Blob(['pdf']), save: vi.fn() })) }));
 import { loadCatalog, loadSuggestedCatalog, saveCatalogPrices } from '../src/services/catalogPersistence';
 import { buildBudgetPdf } from '../src/services/budgetPdf';
@@ -253,7 +253,7 @@ it('selects account promotions for this quote, stores them with the budget and p
  expect(saveProject.mock.calls.at(-1)[0].budget.paymentOptions).toEqual({discountPercent:10,installments:[{count:3,surchargePercent:20}]});
  await button(w,'Descargar PDF').trigger('click');await flushPromises();
  expect(buildBudgetPdf.mock.calls.at(-1)[0]).toMatchObject({total:1000,paymentOptions:{discountPercent:10}});
- expect(buildBudgetPdf.mock.calls.at(-1)[2]).toEqual({sketch:null});w.unmount();
+ expect(buildBudgetPdf.mock.calls.at(-1)[2]).toEqual({sketch:null,revision:1});w.unmount();
 });
 
 it('hides sketch tools for Basic while retaining manual budgeting and an upgrade link', async () => {
@@ -272,4 +272,45 @@ it('enables drawing for paid Full and the free trial', async () => {
     const w=mount(Dashboard); await flushPromises();
     expect(button(w,'+ Ambiente')).toBeTruthy(); w.unmount();
   }
+});
+
+it('saves commercial terms, cash advance and stable issue date with the project', async () => {
+ const {saveProject}=await import('../src/services/projects');
+ saveProject.mockResolvedValue({id:'project-demo',revision:1});
+ const w=mount(Dashboard);await flushPromises();
+ const ref=w.get('.commercial-terms input[maxlength="40"]').element.value;
+ await w.get('#budget-client').setValue('Cliente comercial');await button(w,'Agregar ítem personalizado').trigger('click');
+ await w.get('[aria-label="Descripción del ítem 1"]').setValue('Trabajo');await w.get('[aria-label="Precio del ítem 1"]').setValue('1000');
+ await w.get('.commercial-terms input[type="date"]').setValue('2026-10-31');
+ await w.get('.commercial-terms input[maxlength="200"]').setValue('Obra de ejemplo');
+ await w.get('.commercial-advance input').setValue('30');
+ await button(w,'Guardar proyecto en mi cuenta').trigger('click');await flushPromises();
+ expect(saveProject.mock.calls[0][0].budget.commercialTerms).toMatchObject({reference:ref,issuedOn:'2026-10-31',advancePercent:30,workAddress:'Obra de ejemplo'});
+ await button(w,'Descargar PDF').trigger('click');await flushPromises();
+ expect(buildBudgetPdf.mock.calls.at(-1)[0].commercialTerms.issuedOn).toBe('2026-10-31');
+ expect(buildBudgetPdf.mock.calls.at(-1)[2].revision).toBe(1);w.unmount();
+});
+it('does not add commercial commitments when opening an old project', async () => {
+ const {loadProject}=await import('../src/services/projects');
+ loadProject.mockResolvedValueOnce({revision:2,name:'Anterior',version:{profile:{nombre1:'Demo'},budget:{cliente:'Cliente',createdAt:'2026-10-20T12:00:00Z',items:[{codigo:'1',descripcion:'Trabajo',unidad:'ud.',cantidad:1,precioUnitario:100}]}}});
+ const w=mount(Dashboard,{props:{projectId:'old'}});await flushPromises();
+ expect(w.get('[aria-label="Incluir condiciones comerciales"]').element.checked).toBe(false);
+ expect(w.find('.commercial-terms input[type="date"]').exists()).toBe(false);w.unmount();
+});
+
+it('opens a duplicate as an unsaved new quote with fresh dates, current profile and original prices', async () => {
+ const {loadProjectVersion,saveProject}=await import('../src/services/projects');
+ const {newCommercialTerms,localDate}=await import('../src/services/commercialTerms');
+ const original={name:'Original',revision:7,profile:{nombre1:'Nombre antiguo'},budget:{cliente:'Cliente repetido',createdAt:'2026-01-01T12:00:00Z',commercialTerms:newCommercialTerms('old','2026-01-01T12:00:00Z'),items:[{codigo:'1',descripcion:'Trabajo repetido',unidad:'ud.',cantidad:3,precioUnitario:123}]},sketch:null};
+ loadProjectVersion.mockResolvedValueOnce(original);
+ const w=mount(Dashboard,{props:{duplicateProjectId:'old',duplicateRevision:'7'}});await flushPromises();
+ expect(loadProjectVersion).toHaveBeenCalledWith('old',7);expect(saveProject).not.toHaveBeenCalled();
+ expect(w.get('#project-name').element.value).toBe('Original (copia)');expect(w.get('#budget-client').element.value).toBe('Cliente repetido');
+ expect(w.get('[aria-label="Precio del ítem 1"]').element.value).toBe('123');
+ expect(w.get('.commercial-terms input[type="date"]').element.value).toBe(localDate());
+ expect(w.text()).toContain('Copia preparada sin guardar');expect(w.text()).not.toContain('Nombre antiguo');
+ saveProject.mockResolvedValueOnce({id:'project-demo',revision:1});
+ await button(w,'Guardar proyecto en mi cuenta').trigger('click');await flushPromises();
+ expect(saveProject.mock.calls[0][0]).toMatchObject({id:'project-demo',expectedRevision:0,budget:{total:369,commercialTerms:{reference:'EX-PROJECTDEMO'}}});
+ expect(original.budget.commercialTerms.reference).toBe('EX-OLD');w.unmount();
 });

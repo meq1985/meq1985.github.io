@@ -14,7 +14,7 @@ beforeEach(() => { vi.resetAllMocks(); window.history.replaceState({}, '', '/pla
 it('compares the free project and both plans with finished-product copy while retaining checkout gates', async () => {
   const w = render(); await flushPromises();
   expect(w.findAll('.plan-card')).toHaveLength(3);
-  expect(w.text()).toContain('$0'); expect(w.text()).toContain('12.000'); expect(w.text()).toContain('25.000');
+  expect(w.text()).toContain('$0'); expect(w.text()).toContain('12.000'); expect(w.text()).toContain('25.000'); expect(w.text()).toContain('19.900');
   expect(button(w, 'Elegir Full').element.disabled).toBe(true);
   expect(w.findAll('[data-testid="renewal-consent"]')).toHaveLength(2);
   expect(w.findAll('.plan-card')[1].text()).toContain('Básico · Presupuestos');
@@ -87,7 +87,7 @@ it('contracts Full only after its own price and renewal consent', async () => {
   startSubscription.mockRejectedValue(new Error('stop navigation'));
   const w = render(); await flushPromises();
   const full = w.findAll('.plan-card')[2];
-  expect(full.text()).toContain('25.000');
+  expect(full.get('s').text()).toContain('25.000'); expect(full.get('.current-price').text()).toContain('19.900');
   await full.get('input[type="checkbox"]').setValue(true);
   expect(button(w, 'Elegir Presupuestos').element.disabled).toBe(true);
   await button(w, 'Elegir Full').trigger('click'); await flushPromises();
@@ -98,8 +98,23 @@ it('recognizes paid Full and never offers a different plan for a pending checkou
   const w = render(); await flushPromises();
   expect(w.text()).toContain('Plan Full activo');
   expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false); w.unmount();
-  loadBillingAccess.mockResolvedValue({ ...base, subscription: subscription({status: 'inactive', paidThrough: 0, providerStatus: 'pending', pendingPlanId: 'croquis'}) });
+  loadBillingAccess.mockResolvedValue({ ...base, subscription: subscription({status: 'inactive', paidThrough: 0, providerStatus: 'pending', pendingPlanId: 'croquis', pendingAmount:19900}) });
   const pending = render(); await flushPromises();
   expect(pending.findAll('[data-testid="renewal-consent"]')).toHaveLength(1);
   expect(pending.findAll('.plan-card')[2].text()).toContain('Retomar en Mercado Pago'); pending.unmount();
+});
+
+it('requires cancelling a pending old-price Full checkout before accepting the new amount', async () => {
+ loadBillingAccess.mockResolvedValue({...base,subscription:subscription({planId:'croquis',status:'inactive',providerStatus:'pending',paidThrough:0,pendingPlanId:'croquis',pendingAmount:25000})});
+ const w=render();await flushPromises();
+ expect(w.text()).toContain('precio anterior');expect(w.find('[data-testid="renewal-consent"]').exists()).toBe(false);
+ expect(w.find('[data-testid="cancel-consent"]').exists()).toBe(true);w.unmount();
+});
+
+it('shows an active historical monthly price without treating it as an unpaid old checkout', async () => {
+ loadBillingAccess.mockResolvedValue({...base,subscription:subscription({planId:'croquis',amount:25000,providerStatus:'pending',pendingPlanId:'croquis',pendingAmount:25000})});
+ const w=render();await flushPromises();
+ expect(w.get('.account-banner h2').text()).toContain('Plan Full activo');
+ expect(w.text()).toContain('Mensualidad contratada: $');
+ expect(w.text()).not.toContain('Tu contratación pendiente tiene un precio anterior');w.unmount();
 });

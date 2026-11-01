@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { verifySignature, checkoutUrl, subscriptionBody, validSubscription, validMerchant, paidPeriod, createProvider, periodEnd, safeId } from '../mercadopago.js';
+import { verifySignature, checkoutUrl, subscriptionBody, validSubscription, validMerchant, paidPeriod, createProvider, periodEnd, safeId, contractAmount } from '../mercadopago.js';
 
 test('signatures reject missing, forged, wrong-resource and malformed notifications', () => {
   const fields = { id: 'ABC123', secret: 'test-secret', requestId: 'request' };
@@ -52,7 +52,7 @@ test('only exact confirmed, unreversed payments for this subscription/merchant/e
   const payment = { id: 100, status: 'approved', currency_id: 'ARS', transaction_amount: 12000, collector_id: 123, live_mode: false, payer: { email: 'buyer@testuser.com' } };
   const args = ['sub', '123', false, 'buyer@testuser.com'];
   assert.equal(paidPeriod(invoice, payment, ...args).through, Date.parse('2026-11-20T10:00:00Z'));
-  for (const patch of [{ status: 'pending' }, { status: 'rejected' }, { status: 'charged_back' }, { transaction_amount_refunded: 1 }, { collector_id: 456 }, { transaction_amount: 25000 }, { live_mode: undefined }, { payer: { email: 'other@testuser.com' } }, { currency_id: 'USD' }, { id: 200 }]) assert.equal(paidPeriod(invoice, { ...payment, ...patch }, ...args), null);
+  for (const patch of [{ status: 'pending' }, { status: 'rejected' }, { status: 'charged_back' }, { transaction_amount_refunded: 1 }, { collector_id: 456 }, { transaction_amount: 19900 }, { live_mode: undefined }, { payer: { email: 'other@testuser.com' } }, { currency_id: 'USD' }, { id: 200 }]) assert.equal(paidPeriod(invoice, { ...payment, ...patch }, ...args), null);
   assert.ok(paidPeriod(invoice, { ...payment, live_mode: true }, ...args));
   assert.equal(paidPeriod(invoice, payment, 'sub', '123', false), null);
   assert.equal(paidPeriod(invoice, payment, 'sub', '123', true), null);
@@ -66,16 +66,26 @@ test('provider never follows redirects or exposes financial error bodies', async
   assert.equal(options.redirect, 'error');
 });
 
-test('Full checkout and confirmed payments must match the server-owned ARS 25000 plan', () => {
+test('Full checkout and confirmed payments must match the server-owned ARS 19900 plan', () => {
  const body=subscriptionBody({planId:'croquis',email:'buyer@testuser.com',reference:'full',returnOrigin:'https://electricistaxpress.com.ar',webhook:'https://fixed.example.invalid'});
- assert.equal(body.auto_recurring.transaction_amount,25000);
+ assert.equal(body.auto_recurring.transaction_amount,19900);
  assert.match(body.reason,/croquis/);
  const remote={...body,collector_id:123};
  assert.equal(validSubscription(remote,'full','123','croquis'),true);
  assert.equal(validSubscription(remote,'full','123','presupuestos'),false);
- const invoice={preapproval_id:'full',payment:{id:1},debit_date:'2026-10-20T10:00:00Z',currency_id:'ARS',transaction_amount:25000};
- const payment={id:1,status:'approved',currency_id:'ARS',transaction_amount:25000,collector_id:123,live_mode:false,payer:{email:'buyer@testuser.com'}};
+ const invoice={preapproval_id:'full',payment:{id:1},debit_date:'2026-10-20T10:00:00Z',currency_id:'ARS',transaction_amount:19900};
+ const payment={id:1,status:'approved',currency_id:'ARS',transaction_amount:19900,collector_id:123,live_mode:false,payer:{email:'buyer@testuser.com'}};
  assert.ok(paidPeriod(invoice,payment,'full','123',false,'buyer@testuser.com','croquis'));
  assert.equal(paidPeriod({...invoice,transaction_amount:12000},{...payment,transaction_amount:12000},'full','123',false,'buyer@testuser.com','croquis'),null);
  assert.throws(()=>subscriptionBody({planId:'forged'}),/invalid-plan/);
+});
+
+test('historical Full contracts retain their server-recorded price without accepting arbitrary amounts', () => {
+ const legacy={planId:'croquis'}, current={planId:'croquis',amount:19900};
+ assert.equal(contractAmount(legacy),25000);assert.equal(contractAmount(current),19900);
+ assert.equal(contractAmount({planId:'croquis',consent:{amount:25000}}),25000);
+ assert.throws(()=>contractAmount({planId:'croquis',amount:1}),/invalid-contract/);
+ const remote={external_reference:'old',collector_id:123,auto_recurring:{frequency:1,frequency_type:'months',transaction_amount:25000,currency_id:'ARS'}};
+ assert.equal(validSubscription(remote,'old','123','croquis'),false);
+ assert.equal(validSubscription(remote,'old','123','croquis',contractAmount(legacy)),true);
 });

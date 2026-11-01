@@ -1,17 +1,20 @@
 import { paymentSummary } from './promotions';
 import { sketchMaterials } from './sketchMaterials';
+import { validateCommercialTerms, validityEnd, displayDate, advanceSummary } from './commercialTerms';
 const clean = value => value == null ? '' : String(value).trim().replaceAll('→', ' a ').replaceAll('↔', ' / ').replaceAll('–', '-').replaceAll('—', '-');
 const money = value => '$ ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 const NAVY = [32, 48, 68], BLUE = [36, 117, 185], MUTED = [85, 101, 120];
-export async function buildBudgetPdf(budget, profile, { example = false, sketch = null } = {}) {
+export async function buildBudgetPdf(budget, profile, { example = false, sketch = null, revision = null } = {}) {
   // Validate all financial alternatives before drawing: no hidden discount on financed options.
   const payment = paymentSummary(budget.total, budget.paymentOptions);
+  const terms = budget.commercialTerms == null ? null : validateCommercialTerms(budget.commercialTerms);
+  if (revision !== null && (!Number.isSafeInteger(revision) || revision < 1 || revision > 1000000)) throw new Error('La versión del presupuesto no es válida.');
   const materials = sketchMaterials(sketch);
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF(), left = 16, right = 194, width = right - left;
   const timestamp = new Date(budget.createdAt ?? Date.now());
   if (Number.isNaN(timestamp.getTime())) throw new Error('La fecha del presupuesto no es válida.');
-  const issued = timestamp.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+  const issued = terms ? displayDate(terms.issuedOn) : timestamp.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
   doc.setProperties({ title: `Presupuesto - ${clean(budget.cliente)}`, subject: 'Mano de obra eléctrica y materiales del croquis', creator: 'Electricista Xpress' });
   function text(value, x, y, size = 10, color = NAVY, weight = 'normal', options) {
     doc.setFont('helvetica', weight); doc.setFontSize(size); doc.setTextColor(...color);
@@ -22,10 +25,12 @@ export async function buildBudgetPdf(budget, profile, { example = false, sketch 
     const lines = doc.splitTextToSize(clean(value), maxWidth); text(lines, x, y, size, color, weight);
     return y + lines.length * size * 0.405;
   }
+  const reference = [terms?.reference ? `Ref.: ${terms.reference}` : '', revision ? `Versión ${revision}` : ''].filter(Boolean).join(' | ');
   function continuation(title = 'PRESUPUESTO') {
     text(title, left, 18, 14, NAVY, 'bold');
     text(`Fecha: ${issued}`, right, 18, 9, MUTED, 'normal', { align: 'right' });
-    doc.setDrawColor(...BLUE); doc.setLineWidth(.6); doc.line(left, 24, right, 24);
+    if (reference) text(reference, right, 22, 7, MUTED, 'normal', { align: 'right', maxWidth: 78 });
+    doc.setDrawColor(...BLUE); doc.setLineWidth(.6); doc.line(left, 27, right, 27);
   }
   doc.setFillColor(...BLUE); doc.roundedRect(left, 12, 10, 12, 2, 2, 'F');
   doc.setDrawColor(255,255,255); doc.setLineWidth(.8);
@@ -33,6 +38,7 @@ export async function buildBudgetPdf(budget, profile, { example = false, sketch 
   text('PRESUPUESTO', 31, 19, 19, NAVY, 'bold');
   text('Instalación eléctrica | Mano de obra', 31, 25, 8, MUTED);
   text(`Fecha: ${issued}`, right, 18, 10, NAVY, 'bold', { align: 'right' });
+  if (reference) text(reference, right, 24, 7, MUTED, 'normal', { align: 'right', maxWidth: 78 });
   doc.setDrawColor(...NAVY); doc.setLineWidth(.5); doc.line(left, 29, right, 29);
   // Compact two-column identity: preserve every field without a large fixed-height card.
   const name = [clean(profile.nombre1), clean(profile.apellido1)].filter(Boolean).join(' ') || 'Electricista';
@@ -78,7 +84,22 @@ export async function buildBudgetPdf(budget, profile, { example = false, sketch 
     if(y+24>269){doc.addPage();continuation();y=32;}
     text('ALTERNATIVAS DE PAGO',left,y,8,NAVY,'bold');
     autoTable(doc,{head:[['Forma de pago','Condición','Importe de las cuotas','Total a pagar']],body:alternatives,startY:y+3,margin:{left,right:left,top:30,bottom:28},theme:'plain',rowPageBreak:'avoid',styles:{font:'helvetica',fontSize:7.5,cellPadding:1.6,textColor:NAVY},headStyles:{fillColor:[232,240,248],fontStyle:'bold'},columnStyles:{0:{cellWidth:25},1:{cellWidth:37},2:{cellWidth:78},3:{cellWidth:38,halign:'right',fontStyle:'bold'}},willDrawPage:data=>{if(data.pageNumber>1)continuation();}});
-
+    y = doc.lastAutoTable.finalY + 7;
+  }
+  if (terms) {
+    const conditions = [];
+    const end = validityEnd(terms);
+    if (end) conditions.push(['Vigencia', `${terms.validityDays} días. Válido hasta el ${displayDate(end)}.`]);
+    for (const [label, value] of [['Obra',terms.workAddress],['Alcance',terms.scope],['Exclusiones',terms.exclusions],['Plazo estimado',terms.executionPeriod],['Pago',terms.paymentTerms]]) if(value) conditions.push([label,value]);
+    if (terms.advancePercent > 0) {
+      const advance = advanceSummary(budget.total, budget.paymentOptions, terms);
+      conditions.push(['Anticipo al contado', `${advance.percent} % sobre ${money(advance.cashTotal)}: ${money(advance.advance)}. Saldo restante: ${money(advance.balance)}.`]);
+    }
+    if (conditions.length) {
+      if (y + 18 > 269) { doc.addPage(); continuation(); y = 32; }
+      text('CONDICIONES DEL PRESUPUESTO',left,y,8,NAVY,'bold');
+      autoTable(doc,{body:conditions.map(([label,value])=>[label,clean(value)]),startY:y+3,margin:{left,right:left,top:30,bottom:28},theme:'plain',rowPageBreak:'avoid',styles:{font:'helvetica',fontSize:8,cellPadding:1.7,textColor:NAVY,overflow:'linebreak'},alternateRowStyles:{fillColor:[247,249,252]},columnStyles:{0:{cellWidth:34,fontStyle:'bold',textColor:MUTED},1:{cellWidth:144}},willDrawPage:data=>{if(data.pageNumber>1)continuation();}});
+    }
   }
   const laborPages = doc.getNumberOfPages();
   if(materials?.rows.length) {
@@ -93,7 +114,7 @@ export async function buildBudgetPdf(budget, profile, { example = false, sketch 
   const pages=doc.getNumberOfPages();
   for(let page=1;page<=pages;page++){
     doc.setPage(page);
-    if (alternatives.length && page <= laborPages) text('Contado: descuento sobre el total. Cuotas: recargo sobre el total original. Alternativas no acumulables.',left,275,7,MUTED);
+    if (alternatives.length && page <= laborPages) text('Contado: descuento sobre el total. Cuotas: recargo sobre el total original. Alternativas no acumulables.' + (terms?.advancePercent > 0 && payment.plans.length ? ' Anticipo: solo contado.' : ''),left,275,7,MUTED);
     doc.setDrawColor(218,225,233);doc.setLineWidth(.2);doc.line(left,280,right,280);
     text(example?'EJEMPLO | DATOS FICTICIOS | VALORES ILUSTRATIVOS':page>laborPages?'MATERIALES | ESTIMACIÓN PARA REVISAR':'PRESUPUESTO | MANO DE OBRA',left,286,7,MUTED);
     text(`Página ${page} de ${pages}`,right,286,8,MUTED,'normal',{align:'right'});

@@ -28,7 +28,16 @@ try {
     const component = kind === 'not-found' ? 'NotFoundView' : kind ? 'LegalView' : 'HomeView';
     const chunk = manifest[`src/views/${component}.vue`];
     if (!chunk?.file || !chunk.css?.length) throw new Error('Missing public page assets');
-    const links = chunk.css.map(css => `<link rel="stylesheet" href="/${css}">`).join('');
+    const styles = new Set(), visited = new Set();
+    function collectStyles(key) {
+      if (visited.has(key)) return;
+      visited.add(key);
+      const asset = manifest[key];
+      for (const dependency of asset?.imports ?? []) collectStyles(dependency);
+      for (const css of asset?.css ?? []) if (!html.includes(`href="/${css}"`)) styles.add(css);
+    }
+    collectStyles(`src/views/${component}.vue`);
+    const links = [...styles].map(css => `<link rel="stylesheet" href="/${css}">`).join('');
     html = html.replace('</head>', `${links}</head>`);
     if (kind === 'not-found') {
       // Unknown URLs must work without booting Auth or the application bundle.

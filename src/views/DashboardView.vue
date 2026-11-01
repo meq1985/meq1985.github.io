@@ -1,4 +1,9 @@
 <script setup>
+import BudgetShare from '../components/BudgetShare.vue';
+import { sharePayload } from '../services/budgetSharing';
+import { reusableBudget } from '../services/reuseBudget';
+import CommercialTerms from '../components/CommercialTerms.vue';
+import { newCommercialTerms } from '../services/commercialTerms';
 import BudgetPromotions from '../components/BudgetPromotions.vue';
 import { defaultPromotionSettings, emptyPaymentOptions } from '../services/promotions';
 import { loadPromotionSettings } from '../services/promotionPersistence';
@@ -6,8 +11,8 @@ import { computed, inject, provide, onMounted, onBeforeUnmount, ref, watch } fro
 import { routerKey, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { loadBillingAccess } from '../services/billing';
 import { projectAccess, sketchAccess, paidPlan } from '../services/billingPolicy';
-import { newProjectId, loadProject, saveProject } from '../services/projects';
-import { projectProfile, projectBudget } from '../services/projectValidation';
+import { newProjectId, loadProject, loadProjectVersion, saveProject } from '../services/projects';
+import { projectProfile, projectBudget, validRevision } from '../services/projectValidation';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import NumberField from '../components/NumberField.vue';
 import BudgetHelp from '../components/BudgetHelp.vue';
@@ -21,26 +26,29 @@ import { buildBudgetPdf } from '../services/budgetPdf';
 import { loadCatalog } from '../services/catalogPersistence';
 import { CATALOG_GROUPS, currency } from '../data/laborCatalog';
 
-const props = defineProps({ projectId: String });
+const props = defineProps({ projectId: String, duplicateProjectId: String, duplicateRevision: String });
 const router = inject(routerKey, null);
 const profileStore = PostStore();
 const help = ref(null);
 const showHelp = (topic, detail) => help.value?.show(topic, detail);
 provide('budgetHelp', showHelp);
 const name = ref(''), revision = ref(0), cloudId = ref(props.projectId || newProjectId()), selectedProfile = ref(null);
+const sharing = ref(null);
+const authorizeShare = () => assertCurrentUser({uid: sharing.value?.ownerUid});
 const access = ref(null), subscriptionBlocked = ref(false);
 const canUseSketch = computed(() => access.value && sketchAccess(access.value));
 const activePlan = computed(() => paidPlan(access.value?.subscription));
 const ready = ref(false), cloudSaved = ref(false), ownerUid = ref(''), pendingSave = ref(null);
 const savedForm = ref(null), savedBudget = ref(null), requiresProfileReview = ref(false);
+const commercialTerms = ref(null);
 const sketch = ref(null), paymentOptions = ref(emptyPaymentOptions()), promotionDefaults = ref(defaultPromotionSettings());
-const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value, paymentOptions.value]));
+const formSignature = computed(() => JSON.stringify([name.value, cliente.value, tipoInmueble.value, tabla.value, selectedProfile.value, sketch.value, paymentOptions.value, commercialTerms.value]));
 const dirty = computed(() => savedForm.value !== null && formSignature.value !== savedForm.value);
 
 if (router) {
   const leave = () => !dirty.value || window.confirm('Hay cambios sin guardar. ¿Salir del proyecto?');
   onBeforeRouteLeave(leave);
-  onBeforeRouteUpdate((to, from) => to.params.projectId === from.params.projectId || leave());
+  onBeforeRouteUpdate((to, from) => (to.params.projectId === from.params.projectId && to.query.duplicar === from.query.duplicar && to.query.version === from.query.version) || leave());
 }
 const warnBeforeClose = event => { if (dirty.value) { event.preventDefault(); event.returnValue = ''; } };
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeClose));
@@ -48,7 +56,7 @@ const tipoInmueble = ref('');
 const propertyTypes = ['Vivienda unifamiliar', 'Departamento', 'Local', 'Depósito', 'Oficina', 'Edificio', 'Taller', 'Galpón'];
 const cliente = ref(''), tabla = ref([]), entries = ref([]), selected = ref('');
 const loading = ref(true), saving = ref(false), error = ref(''), message = ref('');
-watch(formSignature, () => { if (pendingSave.value && pendingSave.value.signature !== formSignature.value) pendingSave.value = null; });
+watch(formSignature, () => { sharing.value = null; if (pendingSave.value && pendingSave.value.signature !== formSignature.value) pendingSave.value = null; });
 const groups = computed(() => [...CATALOG_GROUPS, { id: 'anteriores', label: 'Mis ítems anteriores' }].map(group => ({ ...group,
   items: entries.value.filter(item => item.category === group.id) })).filter(group => group.items.length));
 const selectedItem = computed(() => entries.value.find(item => item.id === selected.value));
@@ -67,7 +75,7 @@ function applySketchQuote(rows) {
   tabla.value = rows.map(row => ({ ...row, key: ++counter }));
   message.value = 'Borrador del croquis aplicado. Revisá el detalle y guardá el proyecto en tu cuenta.';
 }
-async function outputBudget() {
+async function outputBudget(mode = 'download') {
   if (saving.value) return;
   saving.value = true; error.value = ''; message.value = '';
   try {
@@ -82,11 +90,12 @@ async function outputBudget() {
       saving.value = true;
       if (!saved) return;
     }
-    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, createdAt: new Date().toISOString() };
+    const budget = !dirty.value && savedBudget.value ? savedBudget.value : { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, commercialTerms: commercialTerms.value, createdAt: new Date().toISOString() };
     const snapshot = projectBudget(budget);
-    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email), { sketch: sketch.value });
+    const document = await buildBudgetPdf(snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email), { sketch: sketch.value, revision: !dirty.value && cloudSaved.value ? revision.value : null });
     assertCurrentUser(user);
-    document.save('presupuesto.pdf'); message.value = 'PDF descargado.';
+    if (mode === 'share') sharing.value = { ...sharePayload(document, snapshot, selectedProfile.value ?? projectProfile(profileStore, user.email), {name:name.value,revision:!dirty.value && cloudSaved.value ? revision.value : null}), ownerUid:user.uid };
+    else { document.save('presupuesto.pdf'); message.value = 'PDF descargado.'; }
   } catch (cause) { error.value = cause.message; }
   finally { saving.value = false; }
 }
@@ -99,7 +108,7 @@ async function saveToAccount() {
     if (!pendingSave.value) pendingSave.value = {
       signature: formSignature.value,
       input: { id: cloudId.value, expectedRevision: revision.value, name: name.value || cliente.value,
-        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, createdAt: new Date().toISOString() },
+        budget: { ...validateBudget(cliente.value, tabla.value, tipoInmueble.value), paymentOptions: paymentOptions.value, commercialTerms: commercialTerms.value, createdAt: new Date().toISOString() },
         profile: selectedProfile.value ?? projectProfile(profileStore, user.email), sketch: sketch.value },
     };
     const result = await saveProject(pendingSave.value.input);
@@ -120,35 +129,49 @@ async function useCurrentProfile() {
   selectedProfile.value = projectProfile(profileStore, user.email);
   } catch (cause) { error.value = cause.message; }
 }
+async function projectSource() {
+  if (props.projectId) return loadProject(props.projectId);
+  if (!props.duplicateProjectId) return null;
+  if (!props.duplicateRevision) return loadProject(props.duplicateProjectId);
+  const version = await loadProjectVersion(props.duplicateProjectId, validRevision(Number(props.duplicateRevision)));
+  return { name: version.name, version };
+}
 let loadSequence = 0;
 async function initialize() {
   const sequence = ++loadSequence;
-  loading.value = true; ready.value = false; error.value = ''; message.value = ''; pendingSave.value = null;
+  sharing.value = null; loading.value = true; ready.value = false; error.value = ''; message.value = ''; pendingSave.value = null;
   try {
-    const [user, , catalog, project, billing, promotions] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), props.projectId ? loadProject(props.projectId) : null, loadBillingAccess(), loadPromotionSettings()]);
+    const [user, , catalog, project, billing, promotions] = await Promise.all([requireUser(), profileStore.obtenerDato(), loadCatalog(), projectSource(), loadBillingAccess(), loadPromotionSettings()]);
     if (sequence !== loadSequence) return;
+    assertCurrentUser(user);
+    const duplicate = !props.projectId && Boolean(props.duplicateProjectId);
     access.value = billing; subscriptionBlocked.value = !projectAccess(billing, props.projectId);
     entries.value = catalog; ownerUid.value = user.uid;
-    cloudId.value = props.projectId || newProjectId(); revision.value = project?.revision ?? 0;
-    name.value = project?.name ?? ''; cliente.value = project?.version.budget.cliente ?? '';
-    tipoInmueble.value = project?.version.budget.tipoInmueble ?? '';
-    sketch.value = project?.version.sketch ?? null;
-    promotionDefaults.value = promotions; paymentOptions.value = structuredClone(project?.version.budget.paymentOptions ?? emptyPaymentOptions());
-    tabla.value = (project?.version.budget.items ?? []).map(item => ({ ...item, key: ++counter, unidad: item.unidad ?? 'ud.' }));
-    selectedProfile.value = project?.version.profile ?? projectProfile(profileStore, user.email);
-    requiresProfileReview.value = Boolean(project && !project.version.profile);
-    cloudSaved.value = Boolean(project); savedBudget.value = project?.version.budget ?? null;
-    if (project && !project.version.profile) message.value = 'Este proyecto no incluye una copia de tus datos profesionales. Se usarán los datos actuales: revisalos y guardá una nueva versión antes de compartir el PDF.';
+    cloudId.value = props.projectId || newProjectId(); revision.value = duplicate ? 0 : project?.revision ?? 0;
+    const copy = duplicate ? reusableBudget(project.version, cloudId.value, {includeSketch:sketchAccess(billing)}) : null;
+    const version = duplicate ? copy : project?.version;
+    name.value = duplicate ? (project.name || project.version.budget.cliente).slice(0,112) + ' (copia)' : project?.name ?? ''; cliente.value = version?.budget.cliente ?? '';
+    tipoInmueble.value = version?.budget.tipoInmueble ?? '';
+    sketch.value = version?.sketch ?? null;
+    commercialTerms.value = project ? structuredClone(version.budget.commercialTerms ?? null) : newCommercialTerms(cloudId.value);
+    promotionDefaults.value = promotions; paymentOptions.value = structuredClone(version?.budget.paymentOptions ?? emptyPaymentOptions());
+    tabla.value = (version?.budget.items ?? []).map(item => ({ ...item, key: ++counter, unidad: item.unidad ?? 'ud.' }));
+    selectedProfile.value = (duplicate ? null : project?.version.profile) ?? projectProfile(profileStore, user.email);
+    requiresProfileReview.value = Boolean(!duplicate && project && !project.version.profile);
+    cloudSaved.value = !duplicate && Boolean(project); savedBudget.value = duplicate ? null : version?.budget ?? null;
+    if (!duplicate && project && !project.version.profile) message.value = 'Este proyecto no incluye una copia de tus datos profesionales. Se usarán los datos actuales: revisalos y guardá una nueva versión antes de compartir el PDF.';
+    if (duplicate) message.value = 'Copia preparada sin guardar. Revisá cliente, condiciones y precios antes de guardarla como otro proyecto.' + (project.version.sketch && !sketchAccess(billing) ? ' Se copiaron los trabajos sin el croquis; crear otro dibujo requiere Full.' : '');
     savedForm.value = formSignature.value; ready.value = true;
   } catch (cause) { if (sequence === loadSequence) error.value = 'No se pudo cargar el proyecto: ' + cause.message; }
   finally { if (sequence === loadSequence) loading.value = false; }
 }
 onMounted(() => { window.addEventListener('beforeunload', warnBeforeClose); initialize(); });
-watch(() => props.projectId, initialize);
+watch(() => [props.projectId, props.duplicateProjectId, props.duplicateRevision], initialize);
 </script>
 <template>
   <div class="catalog-page">
     <CatalogHeader />
+    <BudgetShare v-if="sharing" :payload="sharing" :authorize="authorizeShare" @close="sharing = null" />
     <div class="catalog-main">
       <div class="budget-heading"><h1>{{ revision ? 'Editar proyecto' : 'Nuevo proyecto' }}</h1><button type="button" @click="showHelp('inicio')">Ayuda para presupuestar</button></div><BudgetHelp ref="help" :ready="ready" /><p v-if="revision" class="muted">Versión guardada: {{ revision }}. Guardar cambios crea una nueva versión.</p>
       <p v-if="access?.admin" class="catalog-notice">Cuenta administradora: acceso completo sin suscripción.</p>
@@ -195,7 +218,8 @@ watch(() => props.projectId, initialize);
           </tr>
         </tbody></table></div>
         <div class="catalog-total">Total: {{ currency(total) }}</div>
-        <div class="catalog-actions"><button class="primary" :disabled="saving || loading || !tabla.length" @click="saveToAccount">Guardar proyecto en mi cuenta</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget()">Descargar PDF</button></div>
+        <CommercialTerms :key="cloudId + '-terms'" v-model="commercialTerms" :project-id="cloudId" :total="total" :payment-options="paymentOptions" :issued-at="savedBudget?.createdAt" />
+        <div class="catalog-actions"><button class="primary" :disabled="saving || loading || !tabla.length" @click="saveToAccount">Guardar proyecto en mi cuenta</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget()">Descargar PDF</button><button :disabled="saving || loading || !tabla.length" @click="outputBudget('share')">Compartir presupuesto</button></div>
 
       </section>
       </fieldset>

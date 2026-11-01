@@ -286,6 +286,44 @@ it('enforces sketch entitlement in raw Firestore writes and preserves Full drawi
   await setPlan('presupuestos');
 });
 
+it('versions commercial terms and rejects malformed raw commercial conditions', async () => {
+ const {newCommercialTerms}=await import('../../src/services/commercialTerms');
+ const data=input('commercial');data.budget.commercialTerms={...newCommercialTerms('commercial','2026-10-31T12:00:00Z'),scope:'Alcance original',advancePercent:30};
+ data.budget.paymentOptions={discountPercent:10,installments:[]};
+ await saveProject(data);
+ const next=structuredClone(data);next.expectedRevision=1;next.budget.commercialTerms.scope='Alcance revisado';next.budget.commercialTerms.advancePercent=20;await saveProject(next);
+ expect((await loadProjectVersion('commercial',1)).budget.commercialTerms).toMatchObject({scope:'Alcance original',advancePercent:30,issuedOn:'2026-10-31'});
+ expect((await loadProject('commercial')).version.budget.commercialTerms).toMatchObject({scope:'Alcance revisado',advancePercent:20});
+ expect((await loadProject('commercial')).version.budget.total).toBe(114000);
+ const metadata=(await getDoc(ref('commercial'))).data();const version=(await getDoc(doc(ref('commercial'),'versiones','2'))).data();
+ await env.withSecurityRulesDisabled(async c=>setDoc(doc(c.firestore(),'administradores',uid),{enabled:true}));
+ try {
+  for(const patch of [{advancePercent:101},{validityDays:366},{issuedOn:'2026-13-01'},{scope:'x'.repeat(801)},{paid:true}]) {
+   const target=ref('bad-commercial'),batch=writeBatch(db);
+   batch.set(target,{...metadata,revision:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+   batch.set(doc(target,'versiones','1'),{...version,revision:1,createdAt:serverTimestamp(),budget:{...version.budget,commercialTerms:{...version.budget.commercialTerms,...patch}}});
+   await assertFails(batch.commit());
+  }
+ } finally {await env.withSecurityRulesDisabled(async c=>deleteDoc(doc(c.firestore(),'administradores',uid)));}
+});
+
+it('saves reused versions as new projects with normal quotas and cannot copy a sketch into Basic', async () => {
+ const {reusableBudget}=await import('../../src/services/reuseBudget');
+ const original=await loadProjectVersion('commercial',1), drawing=await loadProjectVersion('drawing',2);
+ const before=(await getDoc(doc(db,'cuotas',uid))).data();
+ const copy=reusableBudget(original,'reused-commercial');
+ const data={...input('reused-commercial'),budget:copy.budget,sketch:copy.sketch};
+ await saveProject(data);await saveProject(data);
+ expect((await loadProject('reused-commercial')).revision).toBe(1);
+ expect((await loadProject('reused-commercial')).version.budget.commercialTerms.reference).toBe('EX-REUSEDCOMMER');
+ expect((await loadProjectVersion('commercial',1)).budget).toEqual(original.budget);
+ const noSketch=reusableBudget(drawing,'reused-basic',{includeSketch:false});
+ await saveProject({...input('reused-basic'),budget:noSketch.budget,sketch:noSketch.sketch});
+ await expect(saveProject({...input('blocked-copy'),budget:drawing.budget,sketch:drawing.sketch})).rejects.toThrow('Full');
+ const after=(await getDoc(doc(db,'cuotas',uid))).data();
+ expect(after.totalProjects).toBe(before.totalProjects+2);expect(after.saveCount).toBe(before.saveCount+2);
+});
+
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');
 });

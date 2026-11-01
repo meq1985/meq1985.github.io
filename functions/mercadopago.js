@@ -1,10 +1,17 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const PRICE = 12000; // Legacy Basic subscriptions.
-export const BILLING_PLANS = Object.freeze({ presupuestos: { amount: 12000, name: 'Presupuestos' }, croquis: { amount: 25000, name: 'Presupuestos + croquis' } });
+export const BILLING_PLANS = Object.freeze({ presupuestos: { amount: 12000, name: 'Presupuestos' }, croquis: { amount: 19900, legacyAmount: 25000, name: 'Presupuestos + croquis' } });
 export function billingPlan(planId = 'presupuestos') {
   if (!Object.hasOwn(BILLING_PLANS, planId)) throw new Error('invalid-plan');
   return BILLING_PLANS[planId];
+}
+// Amounts come only from private, server-created checkout/binding/period records.
+export function contractAmount(record) {
+  const plan = billingPlan(record?.planId);
+  const amount = record?.amount ?? record?.consent?.amount ?? plan.legacyAmount ?? plan.amount;
+  if (![plan.amount, plan.legacyAmount].includes(amount)) throw new Error('invalid-contract-amount');
+  return amount;
 }
 export function validMerchant(merchant, collectorId, mode) {
   if (String(merchant.id) !== String(collectorId) || merchant.site_id !== 'MLA' || !Array.isArray(merchant.tags)) return false;
@@ -52,10 +59,10 @@ export function subscriptionBody({ email, reference, returnOrigin, webhook, plan
     auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: billingPlan(planId).amount, currency_id: 'ARS' },
   };
 }
-export function validSubscription(subscription, reference, collectorId, planId = 'presupuestos') {
+export function validSubscription(subscription, reference, collectorId, planId = 'presupuestos', amount = billingPlan(planId).amount) {
   return subscription.external_reference === reference && String(subscription.collector_id) === String(collectorId) &&
     subscription.auto_recurring?.frequency === 1 && subscription.auto_recurring?.frequency_type === 'months' &&
-    Number(subscription.auto_recurring?.transaction_amount) === billingPlan(planId).amount && subscription.auto_recurring?.currency_id === 'ARS';
+    Number(subscription.auto_recurring?.transaction_amount) === amount && subscription.auto_recurring?.currency_id === 'ARS';
 }
 // Calendar month from the provider's scheduled debit, retaining its timezone offset.
 // A delayed approval or repeated webhook cannot extend the same billing period.
@@ -67,7 +74,7 @@ export function periodEnd(debitDate) {
   const day = Math.min(Number(match[3]), new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate());
   return Date.parse(`${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}T${match[4]}${match[5]}`);
 }
-export function paidPeriod(invoice, payment, subscriptionId, collectorId, liveMode, testPayerEmail, planId = 'presupuestos') {
+export function paidPeriod(invoice, payment, subscriptionId, collectorId, liveMode, testPayerEmail, planId = 'presupuestos', amount = billingPlan(planId).amount) {
   // Hosted subscriptions from verified test merchants also return live_mode=true.
   // Test access additionally requires the privately configured fictitious buyer.
   const environmentMatches = liveMode ? payment.live_mode === true :
@@ -75,8 +82,8 @@ export function paidPeriod(invoice, payment, subscriptionId, collectorId, liveMo
     String(payment.payer?.email ?? '').toLowerCase() === testPayerEmail.toLowerCase();
   if (String(invoice.preapproval_id) !== subscriptionId || String(invoice.payment?.id) !== String(payment.id) ||
       String(payment.collector_id) !== String(collectorId) || !environmentMatches ||
-      invoice.currency_id !== 'ARS' || Number(invoice.transaction_amount) !== billingPlan(planId).amount ||
-      payment.currency_id !== 'ARS' || Number(payment.transaction_amount) !== billingPlan(planId).amount ||
+      invoice.currency_id !== 'ARS' || Number(invoice.transaction_amount) !== amount ||
+      payment.currency_id !== 'ARS' || Number(payment.transaction_amount) !== amount ||
       payment.status !== 'approved' || Number(payment.transaction_amount_refunded ?? 0) !== 0) return null;
   return { from: Date.parse(invoice.debit_date), through: periodEnd(invoice.debit_date) };
 }

@@ -101,13 +101,25 @@ service cloud.firestore {
           (p.installments.size() < 2 || (validPaymentPlan(p.installments[1]) && p.installments[0].count != p.installments[1].count)) &&
           (p.installments.size() < 3 || (validPaymentPlan(p.installments[2]) && p.installments[0].count != p.installments[2].count && p.installments[1].count != p.installments[2].count));
       }
+      function validCommercialTerms(t) {
+        return t is map && t.keys().hasAll(['reference', 'issuedOn', 'validityDays', 'workAddress', 'scope', 'exclusions', 'paymentTerms', 'executionPeriod', 'advancePercent']) &&
+          t.keys().hasOnly(['reference', 'issuedOn', 'validityDays', 'workAddress', 'scope', 'exclusions', 'paymentTerms', 'executionPeriod', 'advancePercent']) &&
+          t.reference is string && t.reference.size() <= 40 &&
+          t.issuedOn is string && t.issuedOn.matches('^[12][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$') &&
+          t.validityDays is int && t.validityDays >= 0 && t.validityDays <= 365 &&
+          t.workAddress is string && t.workAddress.size() <= 200 &&
+          t.scope is string && t.scope.size() <= 800 && t.exclusions is string && t.exclusions.size() <= 800 &&
+          t.paymentTerms is string && t.paymentTerms.size() <= 400 && t.executionPeriod is string && t.executionPeriod.size() <= 120 &&
+          t.advancePercent is number && t.advancePercent >= 0 && t.advancePercent <= 100;
+      }
       function validBudget(b) {
         return b is map && b.keys().hasAll(['cliente', 'items', 'total', 'createdAt']) &&
-          b.keys().hasOnly(['cliente', 'items', 'total', 'createdAt', 'tipoInmueble', 'paymentOptions']) &&
+          b.keys().hasOnly(['cliente', 'items', 'total', 'createdAt', 'tipoInmueble', 'paymentOptions', 'commercialTerms']) &&
           b.cliente is string && b.cliente.size() > 0 && b.cliente.size() <= 120 &&
           b.items is list && b.items.size() > 0 && b.items.size() <= 200 &&
           b.total is number && b.total >= 0 && b.total <= 90071992547409 &&
           b.createdAt is string && b.createdAt.size() <= 40 &&
+          (!('commercialTerms' in b) || validCommercialTerms(b.commercialTerms)) &&
           (!('paymentOptions' in b) || validPaymentOptions(b.paymentOptions)) &&
           (!('tipoInmueble' in b) || (b.tipoInmueble is string && b.tipoInmueble.size() <= 80));
       }

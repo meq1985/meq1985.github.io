@@ -1,7 +1,7 @@
 import { doc, getDocFromServer, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { requireUser, assertCurrentUser } from '../firebase/session';
-import { isAdministrator } from './billingPolicy';
+import { isAdministrator, PLANS } from './billingPolicy';
 export const billingConfigRef = () => doc(db, 'configuracion', 'facturacion');
 export const allowanceRef = uid => doc(db, 'accesos', uid);
 export const subscriptionRef = uid => doc(db, 'suscripciones', uid);
@@ -23,7 +23,7 @@ export async function loadBillingAccess() {
   const stored = subscription.data();
   return { enabled, admin: false, trialStartedAt: allowance.data()?.claimedAt?.toMillis?.() ?? null,
     subscription: stored ? { planId: stored.planId, status: stored.status, paidThrough: stored.paidThrough?.toMillis?.() ?? null,
-      pendingPlanId: stored.pendingPlanId, providerStatus: stored.providerStatus, manageable: stored.manageable === true } : null,
+      amount: stored.amount ?? (stored.planId === 'croquis' ? 25000 : 12000), pendingAmount: stored.pendingAmount ?? ((stored.pendingPlanId ?? stored.planId) === 'croquis' ? 25000 : 12000), pendingPlanId: stored.pendingPlanId, providerStatus: stored.providerStatus, manageable: stored.manageable === true } : null,
     checkoutAvailable: enabled && config.data()?.checkoutAvailable === true };
 }
 async function billingCall(name, data) {
@@ -41,7 +41,7 @@ async function billingCall(name, data) {
 }
 export async function startSubscription(planId) {
   if (!['presupuestos', 'croquis'].includes(planId)) throw new Error('Elegí un plan válido.');
-  const result = await billingCall('createSubscription', { planId, consent: true });
+  const result = await billingCall('createSubscription', { planId, consent: true, acceptedAmount: PLANS.find(plan => plan.id === planId).amount });
   const url = new URL(result.url);
   if (url.protocol !== 'https:' || url.hostname !== 'www.mercadopago.com.ar' || url.username || url.password) throw new Error('La dirección de pago no es válida.');
   return url.href;

@@ -35,6 +35,7 @@ const router = createRouter({
     {
       path: "/dashboard",
       name: "dashboard",
+      props: route => ({ duplicateProjectId: typeof route.query.duplicar === 'string' ? route.query.duplicar : undefined, duplicateRevision: typeof route.query.version === 'string' ? route.query.version : undefined }),
       component: () => import("../views/DashboardView.vue"),
       meta: {
         auth: true,

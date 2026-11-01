@@ -1,3 +1,4 @@
+import { BILLING_PLANS } from '../functions/mercadopago';
 import { it, expect } from 'vitest';
 import { PLANS, isAdministrator, projectAccess, sketchAccess } from '../src/services/billingPolicy';
 it('reserves administration for the verified existing account, never a profile flag', () => {
@@ -25,7 +26,7 @@ it('requires a paid known subscription that has not expired; an authorized check
   }
 });
 it('offers both ARS monthly plans behind the separate checkout activation gate', () => {
-  expect(PLANS.map(p => [p.amount, p.currency, p.available])).toEqual([[12000, 'ARS', true], [25000, 'ARS', true]]);
+  expect(PLANS.map(p => [p.amount, p.currency, p.available])).toEqual([[12000, 'ARS', true], [19900, 'ARS', true]]);
 });
 
 it('separates Full, Basic, trial and expired access without trusting a profile flag', () => {
@@ -39,4 +40,9 @@ it('separates Full, Basic, trial and expired access without trusting a profile f
   expect(sketchAccess({ subscription: full }, 2000)).toBe(false);
   expect(sketchAccess({ admin: true }, now)).toBe(true);
   expect(sketchAccess({ full: true }, now)).toBe(false);
+});
+
+it('keeps advertised amounts identical to server checkout prices',()=>{
+ for(const plan of PLANS)expect(plan.amount).toBe(BILLING_PLANS[plan.id].amount);
+ expect(PLANS.find(p=>p.id==='croquis').previousAmount).toBe(25000);
 });
