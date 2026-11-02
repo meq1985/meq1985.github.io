@@ -324,6 +324,30 @@ it('saves reused versions as new projects with normal quotas and cannot copy a s
  expect(after.totalProjects).toBe(before.totalProjects+2);expect(after.saveCount).toBe(before.saveCount+2);
 });
 
+it('stores the advanced electrical inputs in a version and keeps them protected after changing to Basic', async () => {
+ const setPlan=planId=>env.withSecurityRulesDisabled(async c=>setDoc(doc(c.firestore(),'suscripciones',uid),{planId,status:'active',paidThrough:Timestamp.fromMillis(Date.now()+86400000)}));
+ const {DEFAULT_CALCULATION}=await import('../../src/services/automaticDesign');
+ const {TECHNICAL_DEFAULTS}=await import('../../src/services/electricalReview');
+ await setPlan('croquis');
+ await env.withSecurityRulesDisabled(async c=>{
+   const quota=doc(c.firestore(),'cuotas',uid);const prior=(await getDoc(quota)).data();await setDoc(quota,{...prior,saveCount:0});
+ });
+ const data=input('electrical-review');
+ data.sketch={schema:2,levels:[{id:'pb',name:'PB'}],rooms:[{id:'room',levelId:'pb',name:'Sala',x:0,y:0,width:4,depth:3,points:[{id:'load',type:'toma',x:1,y:1,load:{kind:'TUE',name:'Climatización',powerW:2800,powerFactor:0.8}}]}],
+ equipment:[{id:'tg',type:'general',name:'TG',levelId:'pb',x:0,y:0,itemId:''}],feeders:[],materials:{schema:1,circuits:[],junctions:[],extras:[],reservePercent:0,
+ routes:[{id:'route',fromId:'tg',toId:'load',feederId:null,bends:[],verticalMeters:0,conduit:'PVC',innerDiameter:13,assignments:[]}],
+ calculation:{...DEFAULT_CALCULATION,profile:'cu-pvc-iram-40-v2',technical:{...structuredClone(TECHNICAL_DEFAULTS),boards:[{id:'tg',ikMaxKA:6,ikMinA:500,sourceNote:'Informe ficticio',enclosureModules:18}]}}}};
+ await saveProject(data);
+ const saved=(await loadProject('electrical-review')).version.sketch;
+ expect(saved.rooms[0].points[0].load).toMatchObject({powerW:2800,powerFactor:0.8});expect(saved.materials.routes[0].innerDiameter).toBe(13);
+ expect(saved.materials.calculation.technical.boards[0].ikMaxKA).toBe(6);
+ await setPlan('presupuestos');const changed=structuredClone(saved);changed.rooms[0].points[0].load.powerW=3000;
+ await expect(saveProject({...data,expectedRevision:1,sketch:changed})).rejects.toThrow('Full');
+ await saveProject({...data,expectedRevision:1,sketch:saved,budget:{...data.budget,cliente:'Solo presupuesto manual'}});
+ expect((await loadProjectVersion('electrical-review',1)).sketch).toEqual(saved);
+ expect((await loadProject('electrical-review')).version.sketch).toEqual(saved);
+});
+
 it('refuses writes and reads after logout', async () => {
   await signOut(auth); await expect(saveProject(input('no-session'))).rejects.toThrow('sesión'); await expect(listProjects()).rejects.toThrow('sesión');
 });

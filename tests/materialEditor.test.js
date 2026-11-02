@@ -85,7 +85,7 @@ it('calculates circuits from drawn board connections and exposes equipment speci
     await button(w, 'Trazar conexión').trigger('click'); await w.get('[data-anchor=tg]').trigger('click'); await w.get(`[data-anchor=${point}]`).trigger('click');
   }
   await button(w, 'Calcular instalación').trigger('click'); await button(w, 'Calcular circuitos y cables').trigger('click');
-  expect(w.vm.sketch.materials.calculation.profile).toBe('cu-pvc-b1-v1');
+  expect(w.vm.sketch.materials.calculation.profile).toBe('cu-pvc-iram-40-v2');
   expect(w.vm.sketch.materials.calculation.tugDemandMode).toBe('per-point-150');
   expect(w.get('.auto-design').text()).toContain('IUG 1'); expect(w.get('.auto-design').text()).toContain('TUG 1');
   expect(w.get('.auto-design').text()).toContain('mm²');

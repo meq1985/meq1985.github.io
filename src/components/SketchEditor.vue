@@ -5,6 +5,7 @@ import { emptySketch, validateSketch, encodeSketch, sketchSummary, overlapsRoom,
 import { EQUIPMENT_TYPES, feederPoints, feederLength } from '../services/sketchInfrastructure';
 import NumberField from './NumberField.vue';
 import MaterialControls from './MaterialControls.vue';
+import PointLoadEditor from './PointLoadEditor.vue';
 import { emptyMaterialNetwork, materialAnchors, materialRoutePoints, materialRoutePlanePoints, levelElevation, materialRouteLength, pruneMaterialNetwork } from '../services/materialNetwork';
 import { calculatedRouteLength } from '../services/automaticDesign';
 import { switchTopology } from '../services/switchTopology';
@@ -36,14 +37,17 @@ const routeLabel = r => {
   return levels.length > 1 ? levels.map(id => sketch.value.levels.find(l => l.id === id)?.name).join(' ↔ ') : '';
 };
 const equipmentId = ref(''), routeId = ref(''), infraTool = ref(''), materialRouteId = ref('');
+const selectedPointId=ref('');
+const selectedPoint=computed(()=>sketch.value.rooms.flatMap(r=>r.points).find(p=>p.id===selectedPointId.value));
+function editPointLoad(load){const pointId=selectedPointId.value;change(next=>{const p=next.rooms.flatMap(r=>r.points).find(p=>p.id===pointId);if(p){if(load)p.load=load;else delete p.load;}});}
 const connectionMode = ref(''), connectionStart = ref(''), draftBends = ref([]), materialView = ref('');
 const startAnchor = computed(() => materialAnchors(sketch.value).find(a => a.id === connectionStart.value));
 const draftPoints = computed(() => startAnchor.value ? [startAnchor.value.levelId === levelId.value ? startAnchor.value : draftBends.value.filter(p => p.levelId !== levelId.value).at(-1) ?? startAnchor.value, ...draftBends.value.filter(p => p.levelId === levelId.value)].map(p => `${p.x * 30},${p.y * 30}`).join(' ') : '');
 function cancelConnection() { connectionMode.value = ''; connectionStart.value = ''; draftBends.value = []; }
-function beginConnection() { if (props.disabled) return; cancelConnection(); connectionMode.value = 'trace'; tool.value = 'select'; infraTool.value = ''; materialView.value = ''; }
+function beginConnection() { if (props.disabled) return; cancelConnection(); connectionMode.value = 'trace'; selectedPointId.value = ''; tool.value = 'select'; infraTool.value = ''; materialView.value = ''; }
 function selectAnchor(id) {
   if (props.disabled) return;
-  if (!connectionMode.value) { equipmentId.value = id; if (sketch.value.equipment?.some(e => e.id === id)) materialView.value = 'list'; return; }
+  if (!connectionMode.value) { selectedPointId.value = sketch.value.rooms.flatMap(r=>r.points).some(p=>p.id===id) ? id : ''; equipmentId.value = id; if (sketch.value.equipment?.some(e => e.id === id)) materialView.value = 'list'; return; }
   if (!connectionStart.value) { connectionStart.value = id; return; }
   if (connectionStart.value === id) return;
   const anchors = materialAnchors(sketch.value), from = anchors.find(a => a.id === connectionStart.value), to = anchors.find(a => a.id === id);
@@ -63,10 +67,10 @@ function selectAnchor(id) {
     next.materials.routes.push({ id: newId, fromId, toId, kind: [from.type, to.type].includes('llave') && [from.type, to.type].includes('luminaria') ? 'control' : 'physical', feederId, bends, verticalMeters: 0, conduit: '', assignments: [] });
   })) { cancelConnection(); materialRouteId.value = newId; materialView.value = 'route'; }
 }
-function selectMaterialRoute(id) { if (props.disabled) return; cancelConnection(); materialRouteId.value = id; materialView.value = 'route'; }
+function selectMaterialRoute(id) { if (props.disabled) return; cancelConnection(); selectedPointId.value = ''; materialRouteId.value = id; materialView.value = 'route'; }
 const materialRoutes = computed(() => (sketch.value.materials?.routes ?? []).filter(r => materialRoutePlanePoints(sketch.value,r,levelId.value).length));
 const junctions = computed(() => (sketch.value.materials?.junctions ?? []).filter(j => j.levelId === levelId.value));
-watch(levelId, () => { roomDrag.value = null; materialView.value = ''; materialRouteId.value = ''; if (infraTool.value === 'material-route') infraTool.value = ''; });
+watch(levelId, () => { selectedPointId.value = ''; roomDrag.value = null; materialView.value = ''; materialRouteId.value = ''; if (infraTool.value === 'material-route') infraTool.value = ''; });
 watch(() => props.disabled, disabled => { if (disabled) { cancelConnection(); roomDrag.value = null; } });
 const equipment = computed(() => (sketch.value.equipment ?? []).filter(e => e.levelId === levelId.value));
 const feeders = computed(() => (sketch.value.feeders ?? []).filter(f => equipment.value.some(e => e.id === f.fromId)));
@@ -171,7 +175,7 @@ function placeInfrastructure(event) {
 const equipmentCode = type => ({ medidor_tp: 'M+TP', principal: 'TP', general: 'TG', seccional: 'TS', jabalina: 'PAT' })[type];
 function beginInfrastructureTool(type) {
   if (props.disabled) return;
-  cancelConnection();
+  cancelConnection(); selectedPointId.value = '';
   infraTool.value = type; canvas.value?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
 }
 function startRoomDrag(event, target) {
@@ -240,7 +244,7 @@ function moveRoomKey(event, target) {
               <rect :x="item.x * 30" :y="item.y * 30" :width="item.width * 30" :height="item.depth * 30" fill="#1a3044" stroke-width="2" />
               <text :x="item.x * 30 + 7" :y="item.y * 30 + 16" fill="#dcecff" font-size="11">{{ item.name }}</text>
               <text :x="item.x * 30 + 7" :y="item.y * 30 + 30" fill="#a9bfd3" font-size="9">{{ item.width }} × {{ item.depth }} m</text>
-              <g v-for="point in item.points" :key="point.id" :transform="`translate(${(item.x + point.x * item.width) * 30}, ${(item.y + point.y * item.depth) * 30})`" class="sketch-symbol" ><circle r="14" fill="transparent" /><title>{{ POINT_TYPES[point.type] }} · {{ item.name }}</title><circle r="7" fill="#101e2c" stroke="#f8ce76" stroke-width="1.5" /><path v-if="point.type === 'luminaria'" d="M-4-4 4 4 M-4 4 4-4" stroke="#f8ce76" /><path v-else-if="point.type === 'toma'" d="M-2-3 V3 M2-3 V3" stroke="#f8ce76" /><path v-else d="M-3 3 3-3" stroke="#f8ce76" /><text v-if="point.type === 'llave'" x="11" y="-10" fill="#dcecff" font-size="8">{{ shortSwitchLabel(point.id) }}</text></g>
+              <g v-for="point in item.points" :key="point.id" :transform="`translate(${(item.x + point.x * item.width) * 30}, ${(item.y + point.y * item.depth) * 30})`" class="sketch-symbol" ><circle r="14" fill="transparent" /><title>{{ point.load?.name || POINT_TYPES[point.type] }} · {{ item.name }}</title><circle r="7" fill="#101e2c" stroke="#f8ce76" stroke-width="1.5" /><path v-if="point.type === 'luminaria'" d="M-4-4 4 4 M-4 4 4-4" stroke="#f8ce76" /><path v-else-if="point.type === 'toma'" d="M-2-3 V3 M2-3 V3" stroke="#f8ce76" /><path v-else d="M-3 3 3-3" stroke="#f8ce76" /><text v-if="point.load" x="11" y="-10" fill="#cbacff" font-size="8">{{ point.load.kind === 'TUE' ? 'TUE' : 'CE' }}</text><text v-if="point.type === 'llave'" x="11" y="-10" fill="#dcecff" font-size="8">{{ shortSwitchLabel(point.id) }}</text></g>
             </g>
             <g class="material-route-lines"><g v-for="r in materialRoutes" :key="r.id" :data-material-route="r.id" role="button" tabindex="0" :aria-label="`Seleccionar conexión ${r.id}`" @click.stop="selectMaterialRoute(r.id)" @keydown.enter.stop.prevent="selectMaterialRoute(r.id)" @keydown.space.stop.prevent="selectMaterialRoute(r.id)"><polyline :points="planePoints(r).map(p => `${p.x * 30},${p.y * 30}`).join(' ')" fill="none" stroke="transparent" stroke-width="14" /><polyline :points="planePoints(r).map(p => `${p.x * 30},${p.y * 30}`).join(' ')" fill="none" :stroke="r.id === materialRouteId ? '#ffda8a' : '#cbacff'" stroke-width="2.5" /><text v-if="r.id === materialRouteId" :x="planePoints(r)[0].x * 30 + 10" :y="planePoints(r)[0].y * 30 - 14" fill="#cbacff" font-size="9">{{ (sketch.materials?.calculation ? calculatedRouteLength(sketch, r)?.toFixed(2) ?? '?' : materialRouteLength(sketch, r).toFixed(2)) }} m</text><circle v-if="routeLabel(r)" :cx="riserPosition(r).x*30+15" :cy="riserPosition(r).y*30-15" r="5" fill="#142c40" stroke="#cbacff" /><text v-if="routeLabel(r)" :x="riserPosition(r).x*30+15" :y="riserPosition(r).y*30-13" text-anchor="middle" fill="#fff" font-size="7">↕</text><title>{{ routeLabel(r) }} · {{ (sketch.materials?.calculation ? calculatedRouteLength(sketch,r)?.toFixed(2) : materialRouteLength(sketch,r).toFixed(2)) }} m</title></g><g v-for="j in junctions" :key="j.id" ><circle :cx="j.x * 30" :cy="j.y * 30" r="14" fill="transparent" /><rect :x="j.x * 30 - 5" :y="j.y * 30 - 5" width="10" height="10" fill="#cbacff" /><title>{{ j.name }}</title></g></g>
             <polyline v-if="draftPoints" :points="draftPoints" fill="none" stroke="#ffda8a" stroke-width="3" stroke-dasharray="4 3" pointer-events="none" /><circle v-if="startAnchor && startAnchor.levelId === levelId" :cx="startAnchor.x * 30" :cy="startAnchor.y * 30" r="11" fill="none" stroke="#ffda8a" pointer-events="none" />
@@ -249,12 +253,13 @@ function moveRoomKey(event, target) {
             <g v-for="a in materialAnchors(drawingSketch).filter(a => a.levelId === levelId)" :key="`hit-${a.id}`" class="anchor-hit" @pointerdown.stop role="button" tabindex="0" :aria-label="a.name" :data-anchor="a.id" :aria-pressed="connectionStart === a.id" @click.stop="selectAnchor(a.id)" @keydown.enter.stop.prevent="selectAnchor(a.id)" @keydown.space.stop.prevent="selectAnchor(a.id)"><circle :cx="a.x * 30" :cy="a.y * 30" r="13" fill="transparent" /></g>
           </svg>
           <div class="sketch-result-actions"><button type="button" @click="materialView = materialView === 'list' ? '' : 'list'">Ver materiales</button><button type="button" @click="materialView = materialView === 'settings' ? '' : 'settings'">Calcular instalación</button></div>
+      <PointLoadEditor v-if="selectedPoint?.type === 'toma'" :point="selectedPoint" :disabled="disabled" @update="editPointLoad" @close="selectedPointId = ''" />
       <MaterialControls :entries="entries" :view="materialView" :sketch="sketch" :level-id="levelId" :disabled="disabled" :selected-route-id="materialRouteId" @close="materialView = ''" @edit="change" @select="materialRouteId = $event; infraTool = ''" @trace="materialRouteId = $event; beginInfrastructureTool('material-route')" />
           <p v-if="!rooms.length" class="catalog-notice">Agregá un ambiente.</p>
           <p v-if="overlap" class="catalog-notice">Hay ambientes superpuestos en este nivel. Revisá sus posiciones; la superficie suma cada ambiente.</p>
           <small>Cuadrícula: 1 × 1 m</small>
           <div v-if="room && tool !== 'select'" class="catalog-actions"><button type="button" @click="addPoint()">Agregar al centro de {{ room.name }}</button></div>
-          <div v-if="room?.points.length" class="sketch-point-list"><h3>Puntos de {{ room.name }}</h3><ul><li v-for="(point, index) in room.points" :key="point.id">{{ point.type === 'llave' ? switchLabel(point.id) : POINT_TYPES[point.type] }} {{ index + 1 }}<button type="button" :aria-label="`Quitar ${POINT_TYPES[point.type]} ${index + 1}`" @click="change(next => { const target = next.rooms.find(item => item.id === room.id); target.points = target.points.filter(item => item.id !== point.id); })">Quitar</button></li></ul></div>
+          <div v-if="room?.points.length" class="sketch-point-list"><h3>Puntos de {{ room.name }}</h3><ul><li v-for="(point, index) in room.points" :key="point.id">{{ point.type === 'llave' ? switchLabel(point.id) : POINT_TYPES[point.type] }} {{ index + 1 }}<button v-if="point.type === 'toma'" type="button" :aria-label="`Editar carga de Toma ${index + 1}`" @click="selectedPointId = point.id">Carga / circuito</button><button type="button" :aria-label="`Quitar ${POINT_TYPES[point.type]} ${index + 1}`" @click="change(next => { const target = next.rooms.find(item => item.id === room.id); target.points = target.points.filter(item => item.id !== point.id); })">Quitar</button></li></ul></div>
         </div>
       </div>
 

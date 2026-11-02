@@ -19,6 +19,7 @@ export function quoteFromSketch(input, entries) {
     if (!item || typeof item.price !== 'number' || !Number.isFinite(item.price) || item.price < 0) throw Error(`Falta un precio válido en tu cuenta para ${id}. Revisá Configuración.`);
     rows.push({ codigo: item.code, descripcion: item.description + (detail ? ` · ${detail}` : ''), unidad: item.unit, cantidad, precioUnitario: item.price });
   };
+  if(sketch.rooms.some(r=>r.points.some(p=>p.load))) warnings.push('Las cargas especiales conservan una boca de mano de obra por punto. Revisá trabajos y precios adicionales requeridos por esos equipos.');
   const bocas = summary.luminaria + summary.toma + s.extraBocas;
   add('boca_completa', bocas);
   const area = s.includeProject ? Math.max(30, summary.area) : 0;
