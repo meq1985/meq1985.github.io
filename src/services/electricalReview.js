@@ -86,14 +86,17 @@ export function electricalReview(sketch, design, anchors = []) {
   const boards = (sketch.equipment ?? []).filter(e => electricalBoardTypes.includes(e.type)).map(e => {
     const outgoing = [...design.circuits.filter(c => c.boardId === e.id), ...design.feederCircuits.filter(c => c.sourceBoardId === e.id)];
     const incoming = design.feederCircuits.filter(c => c.boardId === e.id), sum = outgoing.reduce((s,c) => s+c.current,0);
-    // Two DIN modules per 2P MCB; one 2P RCD (2 modules); two for the incoming switch.
-    const occupiedModules = outgoing.length ? outgoing.length * 2 + 4 + technical.extraModules : 0;
+    const primary=['principal','medidor_tp'].includes(e.type);
+    const hasRcd=!primary, hasSeparateMain=!primary;
+    // TP: its outgoing feeder MCB is the general switch, counted once.
+    // TG/TS: outgoing MCBs plus a 2P general switch and a 2P RCD.
+    const occupiedModules = outgoing.length ? outgoing.length * 2 + (primary ? 0 : 4 + technical.extraModules) : 0;
     const minimumModules = outgoing.length ? Math.ceil(occupiedModules / (1 - technical.reservePercent / 100)) : null;
-    const proposedModules = minimumModules ? [8,12,18,24,36,48,54,72,96,144].find(n => n >= minimumModules) ?? null : null;
+    const proposedModules = minimumModules ? [2,4,6,8,12,18,24,36,48,54,72,96,144].find(n => n >= minimumModules) ?? null : null;
     const entered = technical.boards.find(b => b.id === e.id)?.enclosureModules ?? null;
-    const mainBreaker = incoming.length === 1 ? incoming[0].breaker : [16,20,25,32,40,50,63].find(n=>n>=sum) ?? null;
-    const rcdRatedA = outgoing.length && incoming.length === 1 && incoming[0].status === 'proposal' && mainBreaker ? [25,40,63,80,100].find(n => n >= mainBreaker) ?? null : null;
-    return { id: e.id, name: e.name, circuitCount: outgoing.length, current: sum, occupiedModules, minimumModules, proposedModules, enclosureModules: entered,
+    const mainBreaker = primary && outgoing.length===1 ? outgoing[0].breaker : incoming.length === 1 ? incoming[0].breaker : [16,20,25,32,40,50,63].find(n=>n>=sum) ?? null;
+    const rcdRatedA = hasRcd && outgoing.length && incoming.length === 1 && incoming[0].status === 'proposal' && mainBreaker ? [25,40,63,80,100].find(n => n >= mainBreaker) ?? null : null;
+    return { id: e.id, name: e.name, type:e.type, hasRcd, hasSeparateMain, circuitCount: outgoing.length, current: sum, occupiedModules, minimumModules, proposedModules, enclosureModules: entered,
       status: !outgoing.length || entered == null ? 'pending' : entered >= minimumModules ? 'pass' : 'fail', mainBreaker, rcdRatedA,
       outsideScope: sum > 63 || (technical.boards.find(b=>b.id===e.id)?.ikMaxKA ?? 0) > 10,
       supplyUnresolved: incoming.length > 1 || incoming.some(c=>c.status !== 'proposal') || sum > 63 || outgoing.some(c=>c.status === 'unresolved') };
@@ -104,6 +107,9 @@ export function electricalReview(sketch, design, anchors = []) {
     'Verificación parcial: Icc ingresada en cada tablero; cálculo mínimo fase-neutro resistivo, no verifica falla fase-PE ni tiempos de desconexión de personas.',
     'La energía I²t debe corresponder al modelo, calibre y cortocircuito disponibles. Curvas y poder de corte no prueban selectividad ni respaldo en cascada.',
     'Cañerías: alternativas corrugado CL y aislante rígido RSP según tablas AEA 770:2017. Para secciones mezcladas se usa 35% con diámetros máximos aislados de referencia. Confirmar aptitud del producto y montaje; las alternativas no se suman entre sí.',
-    'Tableros: previsión de espacio con térmicas 2P, un diferencial 2P de 30 mA y maniobra de entrada. Extra y reserva son criterios editables; confirmar tipo de diferencial, módulos reales, disipación, IP y PAT. Sin protección de entrada conocida no se asigna calibre al diferencial.',
+    ...boards.filter(b=>['principal','medidor_tp'].includes(b.type) && b.circuitCount).map(b=>`${b.name}: propuesta con termomagnética bipolar, sin diferencial. Confirmar protección por Clase II donde corresponda, incluido el tramo anterior al diferencial del TG, y exigencias de la distribuidora. Sin esas condiciones, revisar protección diferencial aguas arriba.`),
+    ...design.feederCircuits.map(c=>`${c.name}: selectividad TP–TG pendiente de tablas del fabricante e Icc. Mayor calibre o curva D no garantizan selectividad; no aumentar la protección por encima de la capacidad del cable.`),
+    ...(technical.reservePercent<20 ? ['Reserva de tablero inferior al 20% indicado en AEA 770:2017, 770.16.4. Revisar la capacidad del gabinete.'] : []),
+    'Tableros: TP con termomagnética 2P; TG/TS con interruptor general, diferencial 2P de 30 mA y térmicas de salida. Confirmar tipo de diferencial, módulos reales, disipación, IP y PAT. Sin protección de entrada conocida no se asigna calibre al diferencial. Los módulos extra se aplican solo a TG/TS.',
   ] };
 }

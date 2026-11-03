@@ -24,7 +24,19 @@ it('separates special loads from TUG, uses absorbed W/pf and includes every load
   expect(dedicated.pointIds).toEqual(['oven']);expect(dedicated.current).toBeCloseTo(18.1818,3);expect(dedicated.breaker).toBe(20);
   expect(d.feederCircuits[0].demandVA).toBeCloseTo(7650);expect(d.feederCircuits[0].sourceBoardId).toBe('tp');
   expect(d.review.boards.find(b=>b.id==='tg').rcdRatedA).toBe(40);
-  expect(d.review.boards.find(b=>b.id==='tp').circuitCount).toBe(1);
+  expect(d.review.boards.find(b=>b.id==='tp')).toMatchObject({circuitCount:1,hasRcd:false,hasSeparateMain:false,occupiedModules:2,minimumModules:3,proposedModules:4,rcdRatedA:null});
+  const materials=sketchMaterials(s);
+  expect(materials.rows.filter(r=>r.description.startsWith('Diferencial ·'))).toHaveLength(1);
+  expect(materials.rows.find(r=>r.description.startsWith('Diferencial ·')).description).toContain('TG');
+  const tpMain=materials.rows.filter(r=>r.description.startsWith('Interruptor general · TP'));
+  expect(tpMain).toHaveLength(1);expect(tpMain[0].description).toContain('termomagnética 2P');
+  expect(materials.rows.filter(r=>r.description.startsWith('Interruptor general · TG'))).toHaveLength(1);
+  expect(materials.rows.some(r=>r.description.includes('Maniobra de entrada'))).toBe(false);
+  expect(materials.warnings.some(w=>w.includes('selectividad TP–TG pendiente'))).toBe(true);
+  expect(materials.warnings.some(w=>w.includes('Confirmar protección por Clase II'))).toBe(true);
+  // A combined meter/TP uses the same component and module rules.
+  s.equipment.find(e=>e.id==='tp').type='medidor_tp';
+  expect(proposeElectrical(s).review.boards.find(b=>b.id==='tp')).toMatchObject({hasRcd:false,occupiedModules:2});
 });
 it('keeps a minimum TUE demand and refuses to disguise an over-32A TUE as a valid circuit',()=>{
   const s=technicalFixture();s.rooms[0].points[1].load.powerW=100;
@@ -100,7 +112,7 @@ it('propagates conduit and cabinet results into materials without mutating the s
   expect(JSON.stringify(s)).toBe(before);
   expect(materials.rows.some(r=>r.description.includes('corrugado CL') && r.description.includes('aislante rígido RSP'))).toBe(true);
   expect(materials.rows.some(r=>r.description.includes('Termomagnética 2P'))).toBe(true);
-  expect(materials.rows.filter(r=>r.description.includes('Diferencial 2P'))).toHaveLength(1);
+  expect(materials.rows.filter(r=>r.description.startsWith('Diferencial ·'))).toHaveLength(1);
   expect(materials.rows.filter(r=>r.description.startsWith('Canalización')).every(r=>r.pending)).toBe(true);
   expect(materials.warnings.some(w=>w.includes('gabinete no alcanza'))).toBe(true);
 });
