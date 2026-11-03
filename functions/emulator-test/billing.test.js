@@ -22,7 +22,7 @@ globalThis.fetch = async (url, options) => {
   if (path === '/users/me') result = { id: 123, site_id: 'MLA', tags: realMerchant ? ['normal'] : ['test_user'] };
   else if (path === '/preapproval' && options.method === 'POST') {
     posts++; const body = JSON.parse(options.body), id = `sub${posts}`;
-    result = { ...body, id, collector_id: 123, init_point: `https://www.mercadopago.com.ar/subscriptions/checkout?id=${id}` };
+    result = { ...body, date_created:new Date().toISOString(),next_payment_date:new Date(Date.now()+31*86400000).toISOString(),id, collector_id: 123, init_point: `https://www.mercadopago.com.ar/subscriptions/checkout?id=${id}` };
     subscriptions.set(id, result);
     if (failPost) throw new Error('simulated-lost-response');
   } else if (path === '/preapproval/search') result = { results: [...subscriptions.values()].filter(s => s.external_reference === query.get('external_reference')) };
@@ -89,13 +89,15 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
   });
   const debit = new Date(Date.now() - 60000).toISOString();
   invoices.set('inv1', { id: 'inv1', preapproval_id: 'sub1', payment: { id: 'pay1' }, debit_date: debit, currency_id: 'ARS', transaction_amount: 12000 });
-  payments.set('pay1', { id: 'pay1', status: 'approved', collector_id: 123, currency_id: 'ARS', transaction_amount: 12000, live_mode: true, payer: { email: 'buyer@testuser.com' } });
+  payments.set('pay1', { date_approved:new Date().toISOString(),id: 'pay1', status: 'approved', collector_id: 123, currency_id: 'ARS', transaction_amount: 12000, live_mode: true, payer: { email: 'buyer@testuser.com' } });
   let originalExpiry;
   await t.test('forged webhook is denied and confirmed payment activates only its owner', async () => {
     assert.equal(await webhook('inv1', undefined, false), 401);
     assert.equal(await webhook('inv1'), 200);
     const subscription = (await db.doc('suscripciones/billing-owner').get()).data();
-    assert.equal(subscription.status, 'active'); originalExpiry = subscription.paidThrough.toMillis();
+    assert.equal(subscription.status, 'active');assert.ok(subscription.contractedAt.toMillis()>0);assert.ok(subscription.nextPaymentAt.toMillis()>Date.now());assert.equal(subscription.lastPayment.amount,12000);assert.equal(subscription.lastPayment.paidAt,Date.parse(payments.get('pay1').date_approved));
+    const history=(await db.doc('suscripciones/billing-owner/pagos/inv1').get()).data();assert.equal(history.status,'approved');assert.equal('payer' in history,false);
+    originalExpiry = subscription.paidThrough.toMillis();
     assert.equal((await db.doc('suscripciones/not-tester').get()).exists, false);
   });
   await t.test('duplicates and old events cannot extend the period', async () => {
@@ -106,7 +108,14 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     await billing.cancelSubscription.run(request('billing-owner', { confirm: true }));
     assert.equal(subscriptions.get('sub1').status, 'cancelled');
     const subscription = (await db.doc('suscripciones/billing-owner').get()).data();
-    assert.equal(subscription.providerStatus, 'cancelled'); assert.equal(subscription.paidThrough.toMillis(), originalExpiry);
+    assert.equal(subscription.nextPaymentAt,null);assert.equal(subscription.providerStatus, 'cancelled'); assert.equal(subscription.paidThrough.toMillis(), originalExpiry);
+  });
+  await t.test('a rejected renewal is visible without removing an earlier paid period',async()=>{
+    invoices.set('declined-invoice',{...invoices.get('inv1'),id:'declined-invoice',payment:{id:'declined-payment'},debit_date:new Date().toISOString()});
+    payments.set('declined-payment',{...payments.get('pay1'),id:'declined-payment',status:'rejected',date_approved:null});
+    assert.equal(await webhook('declined-invoice'),200);
+    const access=(await db.doc('suscripciones/billing-owner').get()).data();assert.equal(access.status,'active');assert.equal(access.paidThrough.toMillis(),originalExpiry);assert.equal(access.lastPaymentStatus,'rejected');
+    assert.equal((await db.doc('suscripciones/billing-owner/pagos/declined-invoice').get()).data().status,'rejected');
   });
   await t.test('a refund removes paid access even after a duplicate old invoice event', async () => {
     payments.get('pay1').transaction_amount_refunded = 12000;
@@ -219,6 +228,15 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     process.env.MP_MODE = 'live';
     await assert.rejects(billing.createSubscription.run(request('new-live-user')), /no está habilitada/);
     process.env.MP_MODE = 'test';
+  });
+  await t.test('consumer management is private and only an administrator can update its state',async()=>{
+    const {submitConsumerRequest}=await import('../consumerRequests.js');const {Timestamp}=await import('firebase-admin/firestore');
+    const id='12345678-1234-1234-1234-123456789abc';
+    await submitConsumerRequest({data:{kind:'baja',requestId:id,email:'owner@example.invalid',reference:'',message:'',token:'fake'},secret:'fake',ip:'192.0.2.1',db,Timestamp,verify:async()=>true});
+    await assert.rejects(billing.updateConsumerManagement.run(request('not-admin',{id,status:'resolved'})),/restringido/);
+    await db.doc('administradores/operator').set({enabled:true});
+    assert.equal((await billing.updateConsumerManagement.run(request('operator',{id,status:'in_progress'}))).status,'in_progress');
+    assert.equal((await db.doc(`gestionesConsumo/${id}`).get()).data().status,'in_progress');
   });
   await t.test('reconciliation reaches a paid invoice beyond the first five results', async () => {
     await db.doc('billingTesters/billing-pages').set({ enabled: true, payerEmail: 'buyer@testuser.com' });

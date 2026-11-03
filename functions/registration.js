@@ -5,14 +5,14 @@ export function validRegistration(data) {
     typeof data.password === 'string' && data.password.length >= 6 && data.password.length <= 128 &&
     typeof data.token === 'string' && data.token.length > 0 && data.token.length <= 2048;
 }
-export async function verifyRegistration(secret, token, fetcher = fetch) {
+export async function verifyRegistration(secret, token, fetcher = fetch, action = 'signup') {
   const response = await fetcher('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(8000),
     body: JSON.stringify({ secret, response: token }),
   });
   if (!response.ok) return false;
   const result = await response.json();
-  return result.success === true && result.action === 'signup' && REGISTRATION_HOSTS.includes(result.hostname);
+  return result.success === true && result.action === action && REGISTRATION_HOSTS.includes(result.hostname);
 }
 export function registrationCounter(current, now, maximum) {
   const expired = !current || now >= current.startedAt.toMillis() + 86400000;

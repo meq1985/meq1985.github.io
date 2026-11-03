@@ -1,4 +1,4 @@
-import { doc, getDocFromServer, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, getDocFromServer, runTransaction, serverTimestamp, collection, query, orderBy, limit, startAfter, getDocsFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
 import { requireUser, assertCurrentUser } from '../firebase/session';
 import { isAdministrator, PLANS } from './billingPolicy';
@@ -23,6 +23,8 @@ export async function loadBillingAccess() {
   const stored = subscription.data();
   return { enabled, admin: false, trialStartedAt: allowance.data()?.claimedAt?.toMillis?.() ?? null,
     subscription: stored ? { planId: stored.planId, status: stored.status, paidThrough: stored.paidThrough?.toMillis?.() ?? null,
+      contractedAt:stored.contractedAt?.toMillis?.() ?? null,nextPaymentAt:stored.nextPaymentAt?.toMillis?.() ?? null,
+      updatedAt:stored.updatedAt?.toMillis?.() ?? null,lastPayment:stored.lastPayment ?? null,lastPaymentStatus:stored.lastPaymentStatus ?? null,
       amount: stored.amount ?? (stored.planId === 'croquis' ? 25000 : 12000), pendingAmount: stored.pendingAmount ?? ((stored.pendingPlanId ?? stored.planId) === 'croquis' ? 25000 : 12000), pendingPlanId: stored.pendingPlanId, providerStatus: stored.providerStatus, manageable: stored.manageable === true } : null,
     checkoutAvailable: enabled && config.data()?.checkoutAvailable === true };
 }
@@ -48,3 +50,11 @@ export async function startSubscription(planId) {
 }
 export const refreshSubscription = () => billingCall('refreshSubscription', {});
 export const cancelSubscription = () => billingCall('cancelSubscription', { confirm: true });
+
+export async function loadPaymentHistory(cursor=null) {
+  const user=await requireUser();
+  const constraints=[orderBy('scheduledAt','desc'),limit(20)];if(cursor)constraints.push(startAfter(cursor));
+  const result=await getDocsFromServer(query(collection(db,'suscripciones',user.uid,'pagos'),...constraints));
+  assertCurrentUser(user);
+  return {rows:result.docs.map(d=>({id:d.id,...d.data()})),cursor:result.docs.at(-1) ?? null,hasMore:result.size===20};
+}

@@ -1,13 +1,17 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import ConsumerRequestsAdmin from '../components/ConsumerRequestsAdmin.vue';
 import PlanPrice from '../components/PlanPrice.vue';
 import PlanComparison from '../components/PlanComparison.vue';
 import CatalogHeader from '../components/CatalogHeader.vue';
 import { PLANS, TRIAL_MS, paidPlan } from '../services/billingPolicy';
 import { PLAN_PRESENTATION } from '../data/planPresentation';
-import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription } from '../services/billing';
+import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription, loadPaymentHistory } from '../services/billing';
 import { currency } from '../data/laborCatalog';
 
+import { subscriptionStatus, paymentStatus } from '../services/subscriptionStatus';
+const history=ref([]),historyCursor=ref(null),historyMore=ref(false),historyLoading=ref(false),historyError=ref(''),historyOpened=ref(false);
+async function payments(reset=false){if(historyLoading.value)return;historyLoading.value=true;historyError.value='';try{const page=await loadPaymentHistory(reset?null:historyCursor.value);history.value=reset?page.rows:[...history.value,...page.rows];historyCursor.value=page.cursor;historyMore.value=page.hasMore;historyOpened.value=true;}catch{historyError.value='No pudimos cargar el historial. Reintentá.';}finally{historyLoading.value=false;}}
 const access = ref(null), error = ref(''), loading = ref(true), busy = ref('');
 const consent = ref({}), cancelConfirm = ref(false), notice = ref(''), uncertain = ref(false);
 const now = ref(Date.now());
@@ -17,12 +21,7 @@ const cancelled = computed(() => subscription.value?.providerStatus === 'cancell
 const pending = computed(() => subscription.value?.providerStatus === 'pending');
 const canSubscribe = computed(() => !loading.value && !uncertain.value && access.value?.checkoutAvailable && !access.value.admin && !paid.value &&
   (!subscription.value?.manageable || cancelled.value || pending.value));
-const statusTitle = computed(() => {
-  if (access.value?.admin) return 'Acceso administrador';
-  if (paid.value) return cancelled.value ? 'Plan activo · renovación cancelada' : `Plan ${subscription.value.planId === 'croquis' ? 'Full' : 'Básico'} activo`;
-  if (pending.value) return 'Suscripción pendiente de pago';
-  return access.value?.trialStartedAt != null && now.value < access.value.trialStartedAt + TRIAL_MS ? 'Tu prueba gratuita está activa' : 'Tu prueba gratuita terminó';
-});
+const statusTitle=computed(()=>subscriptionStatus(access.value,now.value));
 const date = value => new Date(value).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'long', year: 'numeric' });
 async function load() {
   loading.value = true; error.value = '';
@@ -53,6 +52,7 @@ async function act(action, planId) {
       access.value = await loadBillingAccess(); now.value = Date.now(); uncertain.value = false;
       notice.value = action === 'cancel' ? 'Renovación cancelada. Conservás el período que ya pagaste.' : paid.value ? 'Pago confirmado. Tu plan está activo.' : 'Estado actualizado. Si acabás de pagar, la confirmación puede demorar unos minutos.';
       cancelConfirm.value = false;
+      if(historyOpened.value)await payments(true);
     }
   } catch {
     if (action === 'subscribe') uncertain.value = true;
@@ -93,6 +93,22 @@ onMounted(async () => {
         <RouterLink class="secondary-link" to="/proyectos">Ver mis proyectos →</RouterLink>
       </section>
 
+      <section v-if="subscription && !access?.admin" class="subscription-details" aria-label="Datos de tu suscripción">
+        <h2>Tu suscripción, en detalle</h2>
+        <dl class="subscription-dates">
+          <div><dt>Contratación iniciada</dt><dd>{{ subscription.contractedAt ? date(subscription.contractedAt) : 'Fecha no informada' }}</dd></div>
+          <div><dt>Último pago aprobado</dt><dd>{{ subscription.lastPayment ? (subscription.lastPayment.paidAt ? date(subscription.lastPayment.paidAt) : 'Fecha no informada')+' · '+currency(subscription.lastPayment.amount)+' ARS' : 'Sin pago aprobado informado' }}</dd></div>
+          <div><dt>Próximo cobro programado</dt><dd>{{ cancelled ? 'Renovación cancelada' : subscription.nextPaymentAt ? date(subscription.nextPaymentAt) : 'Sin fecha confirmada por Mercado Pago' }}</dd></div>
+          <div><dt>Acceso abonado hasta</dt><dd>{{ subscription.paidThrough > 0 ? date(subscription.paidThrough) : 'Sin período abonado' }}</dd></div>
+        </dl>
+        <p>La fecha de acceso abonado y la del próximo cobro son datos diferentes. Solo un pago aprobado habilita un nuevo período.</p>
+        <p v-if="subscription.lastPaymentStatus === 'rejected'" role="status">El último intento de cobro fue rechazado. Podés conservar un período anterior todavía vigente; el rechazo no lo extiende.</p>
+        <p v-if="subscription.updatedAt">Estado consultado: {{ date(subscription.updatedAt) }}. Usá «Actualizar estado del pago» para consultar Mercado Pago.</p>
+        <button type="button" :disabled="historyLoading" @click="payments(true)">{{ historyLoading ? 'Consultando historial…' : 'Ver historial de pagos' }}</button>
+        <p v-if="historyError" role="alert">{{ historyError }}</p>
+        <div v-if="historyOpened" class="catalog-scroll"><table class="catalog-table"><caption>Historial de cobros · importes en ARS</caption><thead><tr><th>Cobro programado</th><th>Fecha de aprobación</th><th>Plan</th><th>Importe</th><th>Estado</th></tr></thead><tbody><tr v-for="p in history" :key="p.id"><td>{{ p.scheduledAt ? date(p.scheduledAt) : 'Sin fecha' }}</td><td>{{ p.paidAt ? date(p.paidAt) : '—' }}</td><td>{{ p.planId === 'croquis' ? 'Full' : 'Básico' }}</td><td>{{ currency(p.amount) }}</td><td>{{ paymentStatus(p.status) }}</td></tr><tr v-if="!history.length"><td colspan="5">No hay cobros informados.</td></tr></tbody></table><button v-if="historyMore" :disabled="historyLoading" @click="payments()">Cargar 20 anteriores</button></div>
+      </section>
+      <ConsumerRequestsAdmin v-if="access?.admin" />
       <section class="plans-grid" aria-label="Comparar planes">
         <article class="plan-card free-plan">
           <p class="plan-tag">PARA EMPEZAR</p><h2>Un mes gratis</h2><p class="plan-description">Conocé la herramienta con un trabajo real.</p>
@@ -121,7 +137,7 @@ onMounted(async () => {
       <PlanComparison />
       <section v-if="subscription?.manageable && !access?.admin" class="management" aria-labelledby="manage-title">
         <div><p class="eyebrow">SIEMPRE BAJO TU CONTROL</p><h2 id="manage-title">Gestioná tu suscripción</h2>
-          <p>Renovación: <strong>{{ cancelled ? 'cancelada' : subscription.providerStatus === 'authorized' ? 'automática mensual' : 'pendiente de confirmación' }}</strong>.</p>
+          <p>Renovación: <strong>{{ cancelled ? 'cancelada' : subscription.providerStatus === 'paused' ? 'pausada' : subscription.providerStatus === 'authorized' ? 'automática mensual' : 'pendiente de confirmación' }}</strong>.</p>
           <p v-if="paid">Conservás tu acceso hasta el {{ date(subscription.paidThrough) }}.</p>
           <button :disabled="!!busy" @click="act('refresh')">{{ busy === 'refresh' ? 'Consultando…' : 'Actualizar estado del pago' }}</button>
         </div>
@@ -144,3 +160,5 @@ onMounted(async () => {
 </template>
 <style src="../assets/catalog.css"></style>
 <style scoped src="../assets/subscription.css"></style>
+
+<style scoped>.subscription-details{padding:24px;margin:24px 0;border:1px solid #465a71;border-radius:14px;background:#192b3c}.subscription-dates{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px}.subscription-dates dt{color:#b7c8d9;font-size:13px}.subscription-dates dd{margin:6px 0;font-weight:600}.subscription-details p{color:#b7c8d9}.subscription-details .catalog-scroll{overflow:auto}</style>

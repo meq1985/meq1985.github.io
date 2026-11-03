@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { createPinia, setActivePinia } from 'pinia';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, limit, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { applyActionCode, confirmPasswordReset, signOut, signInWithEmailAndPassword,
   createUserWithEmailAndPassword } from 'firebase/auth';
 import { deleteApp } from 'firebase/app';
@@ -68,6 +68,20 @@ describe('server rules on the actual Firestore emulator', () => {
     await assertFails(getDoc(doc(unverified(), 'costos', 'codigos')));
     await assertFails(setDoc(doc(own(), 'costos', 'codigos'), {}));
     await assertFails(deleteDoc(doc(own(), 'costos', 'codigos')));
+  });
+  it('isolates payment history and consumer requests, enforces pagination and forbids client writes',async()=>{
+    await environment.withSecurityRulesDisabled(async context=>{
+      const f=context.firestore();await setDoc(doc(f,'suscripciones/owner/pagos/invoice'),{status:'approved',scheduledAt:1,amount:12000});await setDoc(doc(f,'gestionesConsumo/request'),{email});await setDoc(doc(f,'administradores/operator'),{enabled:true});
+    });
+    await assertSucceeds(getDoc(doc(own(),'suscripciones/owner/pagos/invoice')));
+    await assertSucceeds(getDocs(query(collection(own(),'suscripciones/owner/pagos'),limit(20))));
+    await assertFails(getDocs(collection(own(),'suscripciones/owner/pagos')));
+    await assertFails(getDoc(doc(other(),'suscripciones/owner/pagos/invoice')));await assertFails(getDoc(doc(unverified(),'suscripciones/owner/pagos/invoice')));
+    await assertFails(setDoc(doc(own(),'suscripciones/owner/pagos/forged'),{status:'approved'}));
+    await assertFails(getDoc(doc(own(),'gestionesConsumo/request')));await assertFails(getDoc(doc(anon(),'gestionesConsumo/request')));
+    const operator=environment.authenticatedContext('operator',{email:'operator@example.invalid',email_verified:true}).firestore();
+    await assertSucceeds(getDocs(query(collection(operator,'gestionesConsumo'),limit(20))));
+    await assertFails(setDoc(doc(operator,'gestionesConsumo/forged'),{status:'resolved'}));
   });
   it('rejects collection lists, deletes, and unknown paths', async () => {
     await assertFails(getDocs(collection(own(), 'usuarios')));

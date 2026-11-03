@@ -12,6 +12,8 @@ test('challenge validation checks provider, hostname, action and server status',
     return { ok: true, json: async () => body };
   };
   assert.equal(await verifyRegistration('secret', 'token', response({ success: true, hostname: 'electricistaxpress.com.ar', action: 'signup' })), true);
+  assert.equal(await verifyRegistration('secret','token',response({success:true,hostname:'electricistaxpress.com.ar',action:'consumer_request'})),false);
+  assert.equal(await verifyRegistration('secret','token',response({success:true,hostname:'electricistaxpress.com.ar',action:'consumer_request'}),'consumer_request'),true);
   for (const patch of [{ success: false }, { hostname: 'evil.example' }, { action: 'login' }]) assert.equal(await verifyRegistration('secret', 'token', response({ success: true, hostname: 'electricistaxpress.com.ar', action: 'signup', ...patch })), false);
 });
 test('registration counters cap a rolling day and permit a reset only after 24 hours', () => {

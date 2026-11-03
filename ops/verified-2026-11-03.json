@@ -1,0 +1,13 @@
+{
+  "verifiedOn": "2026-11-03",
+  "project": "presupuesto-electrico",
+  "database": "(default)",
+  "location": "southamerica-east1",
+  "backup": {"daily": true, "retentionDays": 7, "firstBackupAndRestoreVerified": false},
+  "ttl": {"collectionGroup": "registrationLimits", "field": "expiresAt", "state": "ACTIVE"},
+  "alerts": {"serverErrorsAndConsumerRequests": true, "firestoreUsage": true, "notificationEmailConfigured": "meq1985@hotmail.com", "notificationDeliveryTested": false},
+  "budgetAlertsUSD": [1, 3, 5],
+  "defaultLogRetentionDays": 30,
+  "pitrEnabled": false,
+  "realSubscriptionPaymentsEnabledByThisChange": false
+}

@@ -16,7 +16,7 @@ const signedIn = computed(() => userStore.user?.emailVerified);
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="site-header shell">
       <RouterLink class="brand" to="/" aria-label="Electricista Xpress, inicio"><BrandMark class="brand-mark" /><span>Electricista<br><strong>Xpress</strong></span></RouterLink>
-      <nav aria-label="Navegación principal"><a href="#herramientas">Herramientas</a><a href="#croquis">Croquis</a><a href="#planes">Planes</a><RouterLink class="button secondary" :to="signedIn ? '/config' : '/ingresar'">{{ signedIn ? 'Ir a mi cuenta' : 'Ingresar' }}</RouterLink></nav>
+      <nav aria-label="Navegación principal"><RouterLink to="/gestiones#baja">Botón de baja</RouterLink><RouterLink to="/gestiones#arrepentimiento">Botón de arrepentimiento</RouterLink><a href="#herramientas">Herramientas</a><a href="#croquis">Croquis</a><a href="#planes">Planes</a><RouterLink class="button secondary" :to="signedIn ? '/config' : '/ingresar'">{{ signedIn ? 'Ir a mi cuenta' : 'Ingresar' }}</RouterLink></nav>
     </header>
     <div id="contenido" class="shell">
       <p v-if="$route.query.setup" class="feedback" role="alert">No se pudo completar la configuración. <RouterLink to="/ingresar">Ingresá para reintentar</RouterLink> sin perder tus datos.</p>

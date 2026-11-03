@@ -2,14 +2,14 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 vi.mock('../src/components/CatalogHeader.vue', () => ({ default: { template: '<header>Electricista Xpress</header>' } }));
-vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(), startSubscription: vi.fn(), refreshSubscription: vi.fn(), cancelSubscription: vi.fn() }));
-import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription } from '../src/services/billing';
+vi.mock('../src/services/billing', () => ({ loadBillingAccess: vi.fn(), startSubscription: vi.fn(), refreshSubscription: vi.fn(), cancelSubscription: vi.fn(),loadPaymentHistory:vi.fn() }));
+import { loadBillingAccess, startSubscription, refreshSubscription, cancelSubscription, loadPaymentHistory } from '../src/services/billing';
 import Plans from '../src/views/PlansView.vue';
 const base = { enabled: true, admin: false, checkoutAvailable: true, trialStartedAt: Date.now(), subscription: null };
 const subscription = patch => ({ planId: 'presupuestos', status: 'active', manageable: true, providerStatus: 'authorized', paidThrough: Date.now() + 86400000, ...patch });
 const render = () => mount(Plans, { global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } });
 const button = (wrapper, text) => wrapper.findAll('button').find(b => b.text().includes(text));
-beforeEach(() => { vi.resetAllMocks(); window.history.replaceState({}, '', '/planes'); loadBillingAccess.mockResolvedValue({ ...base }); refreshSubscription.mockResolvedValue({ status: 'inactive' }); cancelSubscription.mockResolvedValue({}); });
+beforeEach(() => { vi.resetAllMocks(); window.history.replaceState({}, '', '/planes'); loadBillingAccess.mockResolvedValue({ ...base }); refreshSubscription.mockResolvedValue({ status: 'inactive' }); cancelSubscription.mockResolvedValue({});loadPaymentHistory.mockResolvedValue({rows:[],cursor:null,hasMore:false}); });
 
 it('compares the free project and both plans with finished-product copy while retaining checkout gates', async () => {
   const w = render(); await flushPromises();
@@ -117,4 +117,15 @@ it('shows an active historical monthly price without treating it as an unpaid ol
  expect(w.get('.account-banner h2').text()).toContain('Plan Full activo');
  expect(w.text()).toContain('Mensualidad contratada: $');
  expect(w.text()).not.toContain('Tu contratación pendiente tiene un precio anterior');w.unmount();
+});
+
+it('distinguishes next debit and paid access and loads a bounded history only on request',async()=>{
+ const start=Date.UTC(2026,10,3,12),next=Date.UTC(2026,11,5,12),through=Date.UTC(2026,11,3,12);
+ loadBillingAccess.mockResolvedValue({...base,subscription:subscription({contractedAt:start,nextPaymentAt:next,paidThrough:through,lastPayment:{paidAt:start,amount:19900},lastPaymentStatus:'rejected'})});
+ loadPaymentHistory.mockResolvedValue({rows:[{id:'x',scheduledAt:start,paidAt:null,amount:19900,planId:'croquis',status:'rejected'}],cursor:'cursor',hasMore:true});
+ const w=render();await flushPromises();const d=w.get('.subscription-details');expect(d.text()).toContain('Próximo cobro programado');expect(d.text()).toContain('5 de diciembre de 2026');expect(d.text()).toContain('3 de diciembre de 2026');expect(d.text()).toContain('fue rechazado');expect(loadPaymentHistory).not.toHaveBeenCalled();
+ await button(w,'Ver historial de pagos').trigger('click');await flushPromises();expect(loadPaymentHistory).toHaveBeenCalledExactlyOnceWith(null);expect(d.text()).toContain('Rechazado');expect(button(w,'Cargar 20 anteriores')).toBeTruthy();w.unmount();
+});
+it('labels an expired paid subscription rather than presenting it as an expired trial',async()=>{
+ loadBillingAccess.mockResolvedValue({...base,subscription:subscription({paidThrough:1})});const w=render();await flushPromises();expect(w.get('.account-banner h2').text()).toBe('Suscripción vencida');w.unmount();
 });
