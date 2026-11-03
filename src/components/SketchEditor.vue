@@ -2,7 +2,7 @@
 import { moveRoom } from '../services/roomMovement';
 import { computed, ref, watch, useId, inject } from 'vue';
 import { emptySketch, validateSketch, encodeSketch, sketchSummary, overlapsRoom, POINT_TYPES, SKETCH_LIMITS } from '../services/sketch';
-import { EQUIPMENT_TYPES, feederPoints, feederLength } from '../services/sketchInfrastructure';
+import { EQUIPMENT_TYPES, classifyEarthing, feederPoints, feederLength } from '../services/sketchInfrastructure';
 import NumberField from './NumberField.vue';
 import MaterialControls from './MaterialControls.vue';
 import PointLoadEditor from './PointLoadEditor.vue';
@@ -94,7 +94,7 @@ watch(() => props.modelValue, () => {
 function change(edit, recordHistory = true) {
   if (props.disabled) return;
   try {
-    const next = clone(sketch.value); edit(next); pruneMaterialNetwork(next);
+    const next = clone(sketch.value); edit(next); classifyEarthing(next); pruneMaterialNetwork(next);
     const valid = validateSketch(next);
     encodeSketch(valid);
     if (JSON.stringify(valid) === JSON.stringify(sketch.value)) { error.value = ''; return true; }
@@ -172,7 +172,7 @@ function placeInfrastructure(event) {
   else if (infraTool.value === 'route') change(next => next.feeders.find(f => f.id === routeId.value).bends.push({ x, y }));
   else addInfrastructure(infraTool.value, x, y);
 }
-const equipmentCode = type => ({ medidor_tp: 'M+TP', principal: 'TP', general: 'TG', seccional: 'TS', jabalina: 'PAT' })[type];
+const equipmentCode = type => ({ medidor_tp: 'M+TP', principal: 'TP', general: 'TG', seccional: 'TS', jabalina: 'PAT', jabalina_servicio: 'PAT-S' })[type];
 function beginInfrastructureTool(type) {
   if (props.disabled) return;
   cancelConnection(); selectedPointId.value = '';

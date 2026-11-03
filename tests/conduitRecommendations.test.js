@@ -52,3 +52,12 @@ it('does not invent missing earth paths and includes drawn bends and manual vert
   expect(d.warnings.some(w=>w.startsWith('TP: no se midió'))).toBe(true);
   expect(d.earthingCircuits.some(c=>c.boardId==='tp')).toBe(false);
 });
+
+it('recognizes legacy M+TP electrodes as service in materials and cable lengths without mutating the drawing',()=>{
+  const s=groundFixture();s.equipment.find(e=>e.id==='tp').type='medidor_tp';const rod=s.equipment.find(e=>e.id==='rod-tp');rod.itemId='';rod.name='Jabalina de protección';
+  const before=JSON.stringify(s),d=proposeElectrical(s),m=sketchMaterials(s);
+  expect(d.assignments.get('earth-tp')[0].wires[0].role).toBe('serviceEarth');
+  expect(m.rows.some(r=>r.description.startsWith('Jabalina de servicio'))).toBe(true);
+  expect(m.rows.find(r=>r.description.startsWith('Conductor Tierra de servicio')).quantity).toBe(3.5);
+  expect(JSON.stringify(s)).toBe(before);
+});

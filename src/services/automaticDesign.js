@@ -1,3 +1,4 @@
+import { isEarthEquipment } from './sketchInfrastructure';
 import { electricalReview, circuitReviewInputs, minimumEndFault, CIRCUIT_CURVES } from './electricalReview';
 import { materialAnchors, materialRouteLength, materialRouteVertical, materialRouteFloorRise, levelElevation, emptyMaterialNetwork } from './materialNetwork';
 import { sketchHeights } from './sketchQuoteSettings';
@@ -21,9 +22,9 @@ export function verticalForRoute(sketch, route) {
   const height = a => ['luminaria', undefined].includes(a.type) ? ceiling : ['toma', 'llave'].includes(a.type) ? heights[a.type] :
     ['general', 'seccional', 'principal', 'medidor_tp'].includes(a.type) ? sketch.materials.calculation.boardHeight : null;
   const nodes = [route.fromId, route.toId].map(id => anchors.find(a => a.id === id) ?? {});
-  const earthRoute=nodes.some(a=>a.type==='jabalina') && nodes.some(a=>['general','seccional','principal','medidor_tp'].includes(a.type));
+  const earthRoute=nodes.some(isEarthEquipment) && nodes.some(a=>['general','seccional','principal','medidor_tp'].includes(a.type));
   if(earthRoute) {
-    const ends=nodes.map(a=>a.type==='jabalina'?0:sketch.materials.calculation.boardHeight);
+    const ends=nodes.map(a=>isEarthEquipment(a)?0:sketch.materials.calculation.boardHeight);
     const floorDelta=levelElevation(sketch,nodes[1].levelId)-levelElevation(sketch,nodes[0].levelId);
     return materialRouteFloorRise(sketch,route)-Math.abs(floorDelta)+Math.abs(floorDelta+ends[1]-ends[0]);
   }
@@ -70,7 +71,7 @@ export function proposeElectrical(sketch) {
     if (r.feederId) continue;
     const from = anchors.find(a => a.id === r.fromId), to = anchors.find(a => a.id === r.toId);
     // Switch boxes may carry the lighting supply and neutral towards luminaires.
-    if ([from, to].some(a => !a || ['jabalina', 'principal', 'medidor_tp'].includes(a.type))) continue;
+    if ([from, to].some(a => !a || isEarthEquipment(a) || ['principal', 'medidor_tp'].includes(a.type))) continue;
     const meters = calculatedRouteLength(sketch, r);
     if (!(meters > 0)) continue;
     graph.get(from.id).push({ to: to.id, routeId: r.id, meters }); graph.get(to.id).push({ to: from.id, routeId: r.id, meters });
@@ -213,20 +214,20 @@ export function proposeElectrical(sketch) {
   const earthingCircuits=[];
   for(const r of routes.filter(r=>!r.feederId)) {
     const ends=[r.fromId,r.toId].map(id=>anchors.find(a=>a.id===id));
-    const rod=ends.find(a=>a?.type==='jabalina'), board=ends.find(a=>['general','seccional','principal','medidor_tp'].includes(a?.type));
+    const rod=ends.find(isEarthEquipment), board=ends.find(a=>['general','seccional','principal','medidor_tp'].includes(a?.type));
     if(!rod || !board) continue;
     const related=[...circuits.filter(c=>c.boardId===board.id),...feederCircuits.filter(c=>c.boardId===board.id || c.sourceBoardId===board.id)];
     const sections=related.filter(c=>c.status==='proposal').map(c=>c.section);
     const section=sections.length && !related.some(c=>c.status==='unresolved') ? Math.max(4,...sections) : null;
     const meters=calculatedRouteLength(sketch,r), id=`auto-earth-${r.id}`;
-    const service=rod.itemId==='pat_servicio';
+    const service=rod.type==='jabalina_servicio';
     const c={id,name:`${service?'Tierra de servicio':'Puesta a tierra'} · ${board.name}`,type:'otro',boardId:board.id,rodId:rod.id,routeIds:[r.id],section,meters,status:section && meters!==null?'proposal':'unresolved'};
     earthingCircuits.push(c);
     if(c.status==='proposal') assignments.get(r.id).push({circuitId:id,wires:[{role:service?'serviceEarth':'earth',count:1,section}]});
   }
   if(earthingCircuits.length) warnings.push('Tierra: se miden solo las conexiones tablero–jabalina dibujadas, con bajada a nivel de piso y sin los 3 m del alimentador. La sección es una propuesta por las fases calculadas (mínimo 4 mm²); confirmar alimentación, montaje y requisitos de la distribuidora, especialmente tierra de servicio. No se unen neutro y PE ni se valida independencia o equipotencialidad entre electrodos.');
   for(const board of anchors.filter(a=>['general','principal','medidor_tp'].includes(a.type))) if(feederCircuits.some(c=>[c.boardId,c.sourceBoardId].includes(board.id)) && !earthingCircuits.some(c=>c.boardId===board.id)) warnings.push(`${board.name}: no se midió conductor hacia jabalina; trazá la conexión de tierra correspondiente. El alimentador TP–TG incluye solo fase y neutro.`);
-  for(const rod of anchors.filter(a=>a.type==='jabalina')) if(!earthingCircuits.some(c=>c.rodId===rod.id)) warnings.push(`${rod.name}: trazá una conexión directa desde su tablero, con los quiebres necesarios, para medir su conductor de tierra.`);
+  for(const rod of anchors.filter(isEarthEquipment)) if(!earthingCircuits.some(c=>c.rodId===rod.id)) warnings.push(`${rod.name}: trazá una conexión directa desde su tablero, con los quiebres necesarios, para medir su conductor de tierra.`);
   for(const c of earthingCircuits.filter(c=>c.status==='unresolved')) warnings.push(`${c.name}: sección pendiente hasta resolver los circuitos y la alimentación del tablero.`);
   const sharedRoutes = [...assignments].filter(([, a]) => a.length > 1).map(([id]) => id);
   if (sharedRoutes.length) warnings.push('Se aplicó reducción por cantidad de circuitos en cañerías compartidas. Confirmar temperatura y condiciones reales de instalación.');

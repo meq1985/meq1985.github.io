@@ -1,6 +1,6 @@
-export const EQUIPMENT_TYPES = { medidor_tp: 'Medidor + tablero principal', principal: 'Tablero principal', general: 'Tablero general', seccional: 'Tablero seccional', jabalina: 'Jabalina de protección' };
+export const EQUIPMENT_TYPES = { medidor_tp: 'Medidor + tablero principal', principal: 'Tablero principal', general: 'Tablero general', seccional: 'Tablero seccional', jabalina: 'Jabalina de protección', jabalina_servicio: 'Jabalina de servicio' };
 const sectional = ['seccional_8', 'seccional_36', 'seccional_54'];
-export const EQUIPMENT_ITEMS = { medidor_tp: ['pilar', 'gabinete_adicional'], principal: ['tp_mono', 'tp_tri'], general: sectional, seccional: sectional, jabalina: ['tp_pat', 'pat_servicio'] };
+export const EQUIPMENT_ITEMS = { medidor_tp: ['pilar', 'gabinete_adicional'], principal: ['tp_mono', 'tp_tri'], general: sectional, seccional: sectional, jabalina: ['tp_pat', 'pat_servicio'], jabalina_servicio: ['pat_servicio'] };
 export const FEEDER_ITEMS = ['subterraneo_tierra', 'subterraneo_piso', 'mamposteria_comun_metro', 'mamposteria_hueco_metro'];
 export const FEEDER_EXTRA_METERS = 3;
 export const PACKAGE_PAT = ['tp_mono', 'tp_tri', 'gabinete_1', 'gabinete_2', 'gabinete_3', 'gabinete_4', 'pilar'];
@@ -31,4 +31,19 @@ export function feederLength(sketch, feeder) {
   const points = feederPoints(sketch, feeder);
   const horizontal = points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - points[i].x, p.y - points[i].y), 0);
   return Math.round((horizontal + feeder.verticalMeters + FEEDER_EXTRA_METERS) * 100) / 100;
+}
+
+export const isEarthEquipment = e => ['jabalina','jabalina_servicio'].includes(e?.type);
+// Classification is derived for legacy drawings and persisted only on deliberate edits.
+export function earthingEquipment(sketch, equipment) {
+  if(!isEarthEquipment(equipment)) return equipment;
+  const service=equipment.type==='jabalina_servicio' || equipment.itemId==='pat_servicio' ||
+    (sketch.materials?.routes ?? []).some(r=>[r.fromId,r.toId].includes(equipment.id) &&
+      sketch.equipment?.some(e=>e.type==='medidor_tp' && [r.fromId,r.toId].includes(e.id)));
+  if(!service) return equipment;
+  const generic=['Jabalina','Jabalina de protección','Jabalina de servicio'].includes(equipment.name);
+  return {...equipment,type:'jabalina_servicio',name:generic?'Jabalina de servicio':equipment.name,itemId:'pat_servicio'};
+}
+export function classifyEarthing(sketch) {
+  if(sketch.equipment) sketch.equipment=sketch.equipment.map(e=>earthingEquipment(sketch,e));
 }

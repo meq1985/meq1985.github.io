@@ -1,7 +1,7 @@
 import { validateTechnical } from './electricalReview';
 // Physical routes are independent of labour prices and of regulatory design rules.
 import { switchTopology } from './switchTopology';
-import { FEEDER_EXTRA_METERS } from './sketchInfrastructure';
+import { FEEDER_EXTRA_METERS, earthingEquipment } from './sketchInfrastructure';
 export const WIRE_ROLES = { phase: 'Fase', neutral: 'Neutro', pe: 'Protección PE', earth: 'Puesta a tierra de protección', serviceEarth: 'Tierra de servicio', return: 'Retorno', traveller: 'Viajero' };
 export const emptyMaterialNetwork = () => ({ schema: 1, circuits: [], junctions: [], routes: [], extras: [], reservePercent: 0 });
 export function materialAnchors(sketch) {
@@ -9,7 +9,7 @@ export function materialAnchors(sketch) {
     ...sketch.rooms.flatMap(room => room.points.map((point, i) => ({ ...point, levelId: room.levelId,
       x: room.x + point.x * room.width, y: room.y + point.y * room.depth,
       name: `${room.name} · ${point.load?.name || { luminaria: 'Luminaria', toma: 'Toma', llave: 'Llave' }[point.type]} ${i + 1}` }))),
-    ...(sketch.equipment ?? []), ...(sketch.materials?.junctions ?? []),
+    ...(sketch.equipment ?? []).map(e=>earthingEquipment(sketch,e)), ...(sketch.materials?.junctions ?? []),
   ];
 }
 export function validateMaterialNetwork(input, sketch, unique) {
@@ -123,7 +123,7 @@ export function materialsFromSketch(sketch) {
     add(point.type === 'llave' ? `device-${switchLabel}` : `device-${point.type}`, point.type === 'llave' ? `${switchLabel} · mecanismo a definir` : (point.load ? `${point.load.kind === 'TUE' ? 'Tomacorriente de uso especial' : 'Conexión de carga dedicada'} · ${point.load.name} · modelo a definir` : { luminaria: 'Luminaria · artefacto a definir', toma: 'Tomacorriente · mecanismo a definir' }[point.type]), 'ud.', 1, point.id, true);
   }
   for (const j of network.junctions) add('junction', 'Caja de paso · modelo a definir', 'ud.', 1, j.id, true);
-  for (const e of sketch.equipment ?? []) add(`equipment-${e.type}-${e.specification ?? ''}`, ({ general: 'Gabinete TG', seccional: 'Gabinete TS', principal: 'Conjunto TP', medidor_tp: 'Conjunto medidor + TP', jabalina: 'Jabalina' }[e.type]) + ' · ' + (e.specification || 'componentes a definir'), 'ud.', 1, e.id, true);
+  for (const e of (sketch.equipment ?? []).map(e=>earthingEquipment(sketch,e))) add(`equipment-${e.type}-${e.specification ?? ''}`, ({ general: 'Gabinete TG', seccional: 'Gabinete TS', principal: 'Conjunto TP', medidor_tp: 'Conjunto medidor + TP', jabalina: 'Jabalina de protección', jabalina_servicio: 'Jabalina de servicio' }[e.type]) + ' · ' + (e.specification || 'componentes a definir'), 'ud.', 1, e.id, true);
   const linked = new Set(network.routes.map(r => r.feederId).filter(Boolean));
   for (const f of sketch.feeders ?? []) if (!linked.has(f.id)) warnings.push('Un recorrido TP → TG no está incorporado a materiales.');
   for (const r of network.routes) {
