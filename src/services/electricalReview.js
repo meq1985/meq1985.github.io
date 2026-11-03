@@ -1,3 +1,4 @@
+import { recommendConduits } from './conduitRecommendations';
 // Versioned engineering assumptions; these checks never certify an installation.
 // Diameters: Prysmian Argentina Superastic Jet/Flex, 2020 catalogue, p. 3.
 export const CABLE_DIAMETERS = { 1.5: 3, 2.5: 3.6, 4: 4.1, 6: 4.7, 10: 6, 16: 7 };
@@ -76,8 +77,11 @@ export function electricalReview(sketch, design, anchors = []) {
     const used = [...design.circuits,...design.feederCircuits].filter(c=>c.routeIds.includes(r.id));
     const sharingInvalid = used.length > 1 && (used.some(c=>!['IUG','TUG'].includes(c.type)) || used.length > 3 ||
       new Set(used.map(c=>c.boardId)).size > 1 || used.reduce((s,c)=>s+(c.breaker ?? Infinity),0)>36 || used.reduce((s,c)=>s+c.pointIds.length,0)>15);
-    const size=conduitSizing(design.assignments.get(r.id) ?? [],r.innerDiameter,used.some(c=>c.status==='unresolved'),r.feederId?15:13);
-    return {id:r.id,name:`${names.get(r.fromId) ?? 'Origen'} → ${names.get(r.toId) ?? 'Destino'}`,...size,sharingInvalid,status:sharingInvalid?'fail':size.status};
+    const earth=design.earthingCircuits?.find(c=>c.routeIds.includes(r.id));
+    const incomplete=used.some(c=>c.status==='unresolved') || earth?.status==='unresolved';
+    const size=conduitSizing(design.assignments.get(r.id) ?? [],null,incomplete,r.feederId?15:13);
+    const recommendations=recommendConduits(design.assignments.get(r.id) ?? [],{incomplete,feeder:!!r.feederId});
+    return {id:r.id,name:`${names.get(r.fromId) ?? 'Origen'} → ${names.get(r.toId) ?? 'Destino'}`,...size,...recommendations,sharingInvalid,status:sharingInvalid?'fail':recommendations.corrugated && recommendations.rigid?'proposal':'pending'};
   });
   const boards = (sketch.equipment ?? []).filter(e => electricalBoardTypes.includes(e.type)).map(e => {
     const outgoing = [...design.circuits.filter(c => c.boardId === e.id), ...design.feederCircuits.filter(c => c.sourceBoardId === e.id)];
@@ -99,7 +103,7 @@ export function electricalReview(sketch, design, anchors = []) {
     ...boards.filter(b=>b.outsideScope).map(b=>`${b.name}: demanda mayor a 63 A o Icc mayor a 10 kA, fuera del alcance residencial 770:2017 de esta propuesta.`),
     'Verificación parcial: Icc ingresada en cada tablero; cálculo mínimo fase-neutro resistivo, no verifica falla fase-PE ni tiempos de desconexión de personas.',
     'La energía I²t debe corresponder al modelo, calibre y cortocircuito disponibles. Curvas y poder de corte no prueban selectividad ni respaldo en cascada.',
-    'Cañerías: ocupación máxima de diseño 35%, incluyendo aislación, PE, neutros y mandos. Mínimos interiores: 13 mm terminales y 15 mm principales/seccionales; verificar tablas aplicables, diámetro útil real, curvas y tendido.',
+    'Cañerías: alternativas corrugado CL y aislante rígido RSP según tablas AEA 770:2017. Para secciones mezcladas se usa 35% con diámetros máximos aislados de referencia. Confirmar aptitud del producto y montaje; las alternativas no se suman entre sí.',
     'Tableros: previsión de espacio con térmicas 2P, un diferencial 2P de 30 mA y maniobra de entrada. Extra y reserva son criterios editables; confirmar tipo de diferencial, módulos reales, disipación, IP y PAT. Sin protección de entrada conocida no se asigna calibre al diferencial.',
   ] };
 }

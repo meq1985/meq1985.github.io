@@ -30,21 +30,27 @@ Se compara Icn con Icc máxima en origen como cota conservadora. Para cobre PVC 
 
 ## Cañerías y tableros
 
-La ocupación suma la sección exterior aislada de fase, neutro, PE, retornos y viajeros, con sus cantidades por tramo. Diámetros aproximados de la ficha Prysmian citada: confirmar la familia efectivamente comprada. Se puede ingresar diámetro interior real del caño al tocar la conexión; si falta, se informa el mínimo pero la elección queda pendiente. Conductores incompletos o secciones sin datos no producen un chequeo aprobado.
+La ocupación suma la sección exterior aislada de fase, neutro, PE, retornos y viajeros, con sus cantidades por tramo. Las recomendaciones comerciales usan los diámetros máximos de las tablas AEA; el cálculo geométrico interior auxiliar conserva la referencia Prysmian. La interfaz recomienda automáticamente alternativas comerciales corrugado CL y aislante rígido RSP. Para conjuntos homogéneos con un PE se usan las capacidades de las tablas 770.10.VIII/IX; para mezclas se usa 35% con diámetros aislados máximos de esas tablas. Se respetan los mínimos interiores de 13/15 mm. El dato interior manual anterior se conserva por compatibilidad, pero no condiciona la nueva recomendación ni debe cargarse. Las dos familias son alternativas y sus metros no se suman. Conductores incompletos o secciones sin datos no producen un chequeo aprobado.
 
 El gabinete se prevé con dos módulos por térmica 2P, dos por un diferencial 2P y dos por maniobra de entrada. Los módulos extra y la reserva libre son editables. El mínimo es techo(ocupados/(1-reserva/100)); se muestra un tamaño candidato superior, a confirmar con catálogo. El 20% inicial es una hipótesis de planificación de esta interfaz, no una declaración de obligatoriedad reglamentaria. Un gabinete vacío de circuitos no recibe un tamaño inventado.
 
 Se propone sensibilidad de 30 mA; el tipo de diferencial requiere la carga/fabricante. Solo se muestra calibre de diferencial cuando hay una protección de alimentador conocida en la propuesta. No se considera que una maniobra de entrada sin protección contra sobrecorriente pueda protegerlo. La previsión no valida coordinación, corriente condicional, disipación, IP, bornes ni disposición física.
 
+## Alimentador y conexiones de tierra
+
+El tramo TP → TG incluye solo fase y neutro en el cómputo solicitado. Se miden por separado las conexiones directas dibujadas tablero–jabalina, incluidos quiebres y desniveles. La bajada automática termina a nivel de piso, no supone profundidad enterrada del electrodo; una vertical manual reemplaza esa bajada. No reciben los 3 m extra del alimentador. Si falta el trazo, no se inventa una unión ni longitud.
+
+La sección propuesta de puesta a tierra parte de las fases resueltas asociadas al tablero, con mínimo 4 mm² (rango calculado ≤16 mm²); si falta resolver una carga, queda pendiente. Confirmar la fase de alimentación real si no hay alimentador definido. El tipo de jabalina seleccionado en materiales distingue protección y servicio; esta última requiere confirmar exigencias de la distribuidora. Las cantidades se agrupan por funciones separadas y no mezclan ese cable con los PE terminales. No se unen neutro/PE ni se afirma que los electrodos de servicio y protección sean intercambiables, independientes o correctamente equipotencializados.
+
 ## Materiales y compatibilidad
 
 La revisión avanzada queda en `materials.calculation.technical`; las cargas, en el punto; el diámetro real, en la conexión. Todo queda dentro del croquis versionado y el límite previo de 80.000 bytes. No se agregan colecciones, reglas ni funciones. Los croquis antiguos conservan sus opciones y pueden activar la revisión explícitamente.
 
-Los resultados alimentan la lista usada por Ver materiales, CSV y PDF: diámetro interior mínimo, gabinete y componentes propuestos. Los materiales generados son propuestas, nunca un kit validado. Se advierte sobre duplicados si ya se ingresaron componentes manuales. No se modifica el generador PDF ni su distribución. Como antes, los resultados se recalculan con el motor instalado al descargar; no existe snapshot independiente del resultado técnico.
+Los resultados alimentan la lista usada por Ver materiales, CSV y PDF: alternativas comerciales CL/RSP, gabinete y componentes propuestos. Los materiales generados son propuestas, nunca un kit validado. Se advierte sobre duplicados si ya se ingresaron componentes manuales. No se modifica el generador PDF ni su distribución. Como antes, los resultados se recalculan con el motor instalado al descargar; no existe snapshot independiente del resultado técnico.
 
 ## Límites pendientes
 
-Texto completo de la edición 2026, otros destinos y trifásica; elección de productos concretos y tablas específicas de caños, radios/curvas y cajas; arranque y protecciones específicas de motores/inversores; selectividad y respaldo en cascada; jerarquías TG → TS y su propagación de impedancias; falla a tierra/tiempos de desconexión, PAT y protecciones contra sobretensiones completas; calentamiento del tablero y comprobación física de montaje. Los chequeos parciales no sustituyen estos puntos.
+Texto completo de la edición 2026, otros destinos y trifásica; elección de productos concretos y comprobación de sus medidas útiles, radios/curvas y cajas; arranque y protecciones específicas de motores/inversores; selectividad y respaldo en cascada; jerarquías TG → TS y su propagación de impedancias; falla a tierra/tiempos de desconexión, PAT y protecciones contra sobretensiones completas; calentamiento del tablero y comprobación física de montaje. Los chequeos parciales no sustituyen estos puntos.
 
 ## Fuentes
 

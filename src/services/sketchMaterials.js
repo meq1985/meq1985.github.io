@@ -25,7 +25,7 @@ export function sketchMaterials(sketch) {
     result.warnings=result.warnings.filter(w=>!w.startsWith('Lista parcial: no verifica'));
     result.warnings.push(...review.warnings);
     for(const b of review.boards) if(b.status==='fail') result.warnings.push(`${b.name}: el gabinete no alcanza los módulos mínimos con reserva.`);
-    for(const r of review.conduits) if(r.status==='fail') result.warnings.push(r.sharingInvalid ? `Canalización ${r.name}: separar los circuitos en cañerías independientes.` : `Canalización ${r.name}: diámetro interior insuficiente para la ocupación de diseño.`);
+    for(const r of review.conduits) if(r.status==='fail') result.warnings.push(r.sharingInvalid ? `Canalización ${r.name}: separar los circuitos en cañerías independientes.` : `Canalización ${r.name}: revisar las medidas comerciales disponibles.`);
     for(const c of review.circuits) if(!c.reserved) result.warnings.push(`${c.name}: disparo magnético ${checkLabel(c.magnetic)}, poder de corte ${checkLabel(c.breaking)}, térmica ${checkLabel(c.thermal)}.`);
     result.warnings.push('Protecciones y maniobra son una previsión; revisar duplicados si se agregaron manualmente. Los módulos extra no agregan automáticamente DPS u otros equipos.');
   }

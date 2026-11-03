@@ -25,6 +25,10 @@ it('keeps unknown fault data pending and stores only the explicitly entered sour
   await field(review,'Icc máxima').setValue(6);await field(review,'Icc mínima').setValue(1000);await field(review,'Origen de los datos').setValue('Informe de ejemplo');
   const saved=decodeSketch(encodeSketch(w.vm.sketch)).materials.calculation.technical.boards[0];
   expect(saved).toMatchObject({id:'tg',ikMaxKA:6,ikMinA:1000,sourceNote:'Informe de ejemplo'});
+  await button(review,'Cañerías').trigger('click');
+  expect(review.get('table').text()).toContain('Corrugado recomendado');expect(review.get('table').text()).toContain('CL19');expect(review.get('table').text()).toContain('RSP16');
+  expect(review.get('table').text()).not.toContain('Ocupación elegida');
+  await button(review,'Protecciones').trigger('click');
   expect(review.text()).toContain('Cumple este chequeo');expect(review.text()).toContain('Poder de corte');
   await field(review,'Marca, modelo').setValue('Modelo ficticio');
   await field(review,'Poder de corte Icn').setValue(6);

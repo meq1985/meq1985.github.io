@@ -2,7 +2,7 @@ import { validateTechnical } from './electricalReview';
 // Physical routes are independent of labour prices and of regulatory design rules.
 import { switchTopology } from './switchTopology';
 import { FEEDER_EXTRA_METERS } from './sketchInfrastructure';
-export const WIRE_ROLES = { phase: 'Fase', neutral: 'Neutro', pe: 'Protección PE', return: 'Retorno', traveller: 'Viajero' };
+export const WIRE_ROLES = { phase: 'Fase', neutral: 'Neutro', pe: 'Protección PE', earth: 'Puesta a tierra de protección', serviceEarth: 'Tierra de servicio', return: 'Retorno', traveller: 'Viajero' };
 export const emptyMaterialNetwork = () => ({ schema: 1, circuits: [], junctions: [], routes: [], extras: [], reservePercent: 0 });
 export function materialAnchors(sketch) {
   return [
