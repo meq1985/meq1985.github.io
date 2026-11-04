@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import AcquisitionAdmin from '../components/AcquisitionAdmin.vue';
 import ConsumerRequestsAdmin from '../components/ConsumerRequestsAdmin.vue';
 import PlanPrice from '../components/PlanPrice.vue';
 import PlanComparison from '../components/PlanComparison.vue';
@@ -108,6 +109,7 @@ onMounted(async () => {
         <p v-if="historyError" role="alert">{{ historyError }}</p>
         <div v-if="historyOpened" class="catalog-scroll"><table class="catalog-table"><caption>Historial de cobros · importes en ARS</caption><thead><tr><th>Cobro programado</th><th>Fecha de aprobación</th><th>Plan</th><th>Importe</th><th>Estado</th></tr></thead><tbody><tr v-for="p in history" :key="p.id"><td>{{ p.scheduledAt ? date(p.scheduledAt) : 'Sin fecha' }}</td><td>{{ p.paidAt ? date(p.paidAt) : '—' }}</td><td>{{ p.planId === 'croquis' ? 'Full' : 'Básico' }}</td><td>{{ currency(p.amount) }}</td><td>{{ paymentStatus(p.status) }}</td></tr><tr v-if="!history.length"><td colspan="5">No hay cobros informados.</td></tr></tbody></table><button v-if="historyMore" :disabled="historyLoading" @click="payments()">Cargar 20 anteriores</button></div>
       </section>
+      <AcquisitionAdmin v-if="access?.admin" />
       <ConsumerRequestsAdmin v-if="access?.admin" />
       <section class="plans-grid" aria-label="Comparar planes">
         <article class="plan-card free-plan">

@@ -12,6 +12,12 @@ service cloud.firestore {
       return verified() && exists(/databases/$(database)/documents/administradores/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/administradores/$(request.auth.uid)).data.enabled == true;
     }
+    match /acquisitionDays/{day} {
+      allow get: if administrator();
+      allow list: if administrator() && request.query.limit != null && request.query.limit <= 31;
+      allow write: if false;
+    }
+    // acquisitionAccounts is server-only; unknown paths remain denied.
     function billingEnabled() {
       return exists(/databases/$(database)/documents/configuracion/facturacion) &&
         get(/databases/$(database)/documents/configuracion/facturacion).data.enabled == true;

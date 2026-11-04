@@ -39,6 +39,25 @@ describe('server rules on the actual Firestore emulator', () => {
   const unverified = () => environment.authenticatedContext('owner', { email, email_verified: false }).firestore();
   const other = () => environment.authenticatedContext('other', { email: 'other@example.invalid', email_verified: true }).firestore();
   const anon = () => environment.unauthenticatedContext().firestore();
+  it('keeps acquisition ledgers server-only and restricts daily summaries to bounded admin reads', async () => {
+    await environment.withSecurityRulesDisabled(async context => {
+      const db=context.firestore();
+      await setDoc(doc(db,'administradores','metrics-admin'),{enabled:true});
+      await setDoc(doc(db,'acquisitionDays','2026-11-04'),{registrations:2});
+      await setDoc(doc(db,'acquisitionAccounts','owner'),{registrations:123});
+    });
+    const admin=environment.authenticatedContext('metrics-admin',{email:'admin@example.invalid',email_verified:true}).firestore();
+    for(const client of [anon(),own(),other(),unverified()]) {
+      await assertFails(getDoc(doc(client,'acquisitionDays','2026-11-04')));
+      await assertFails(getDocs(query(collection(client,'acquisitionDays'),limit(31))));
+      await assertFails(setDoc(doc(client,'acquisitionDays','2026-11-04'),{registrations:999}));
+    }
+    await assertSucceeds(getDocs(query(collection(admin,'acquisitionDays'),limit(31))));
+    await assertFails(getDocs(collection(admin,'acquisitionDays')));
+    await assertFails(getDocs(query(collection(admin,'acquisitionDays'),limit(32))));
+    await assertFails(setDoc(doc(admin,'acquisitionDays','2026-11-04'),{registrations:999}));
+    for(const client of [own(),admin]) await assertFails(getDoc(doc(client,'acquisitionAccounts','owner')));
+  });
   it('rejects anonymous reads and writes', async () => {
     await assertFails(getDoc(doc(anon(), 'usuarios', email)));
     await assertFails(getDoc(doc(anon(), 'costos', 'codigos')));

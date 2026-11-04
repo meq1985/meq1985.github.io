@@ -1,3 +1,4 @@
+import { analytics } from './analytics';
 import { doc, getDocFromServer, runTransaction, serverTimestamp, collection, query, orderBy, limit, startAfter, getDocsFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
 import { requireUser, assertCurrentUser } from '../firebase/session';
@@ -13,13 +14,15 @@ export async function loadBillingAccess() {
   const enabled = config.data()?.enabled === true;
   assertCurrentUser(user);
   if (admin) return { enabled, admin, trialStartedAt: null, subscription: null, checkoutAvailable: false };
-  await runTransaction(db, async transaction => {
+  const started = await runTransaction(db, async transaction => {
     const allowance = await transaction.get(allowanceRef(user.uid));
     assertCurrentUser(user);
-    if (!allowance.exists()) transaction.set(allowanceRef(user.uid), { claimedAt: serverTimestamp() });
+    if (!allowance.exists()) { transaction.set(allowanceRef(user.uid), { claimedAt: serverTimestamp() }); return true; }
+    return false;
   });
   const [allowance, subscription] = await Promise.all([getDocFromServer(allowanceRef(user.uid)), getDocFromServer(subscriptionRef(user.uid))]);
   assertCurrentUser(user);
+  if (started && typeof window !== 'undefined') analytics().event('trial_start');
   const stored = subscription.data();
   return { enabled, admin: false, trialStartedAt: allowance.data()?.claimedAt?.toMillis?.() ?? null,
     subscription: stored ? { planId: stored.planId, status: stored.status, paidThrough: stored.paidThrough?.toMillis?.() ?? null,
@@ -46,6 +49,7 @@ export async function startSubscription(planId) {
   const result = await billingCall('createSubscription', { planId, consent: true, acceptedAmount: PLANS.find(plan => plan.id === planId).amount });
   const url = new URL(result.url);
   if (url.protocol !== 'https:' || url.hostname !== 'www.mercadopago.com.ar' || url.username || url.password) throw new Error('La dirección de pago no es válida.');
+  if (typeof window !== 'undefined') analytics().event('begin_checkout', { plan: planId });
   return url.href;
 }
 export const refreshSubscription = () => billingCall('refreshSubscription', {});

@@ -39,3 +39,13 @@ test('valid registrations reserve global and IP limits before account creation a
   await assert.rejects(() => registerProtected(input), /registration-limit/);
   assert.equal(events.filter(event => event === 'account').length, 3);
 });
+
+test('only successful new accounts notify metrics, and a metrics failure cannot break signup', async () => {
+  const db={doc:path=>path,runTransaction:async op=>op({get:async()=>({data:()=>undefined}),set(){}})};
+  const base={data:{email:'qa@example.invalid',password:'long-password',token:'valid',consent:true},secret:'secret',db,Timestamp:{fromMillis:value=>value},verify:async()=>true};
+  let calls=0;
+  const onCreated=async uid=>{assert.equal(uid,'new');calls++;throw Error('metrics temporarily unavailable');};
+  assert.deepEqual(await registerProtected({...base,onCreated,auth:{createUser:async()=>({uid:'new'})}}),{accepted:true});
+  assert.equal(calls,1);
+  await registerProtected({...base,onCreated,auth:{createUser:async()=>{throw {code:'auth/email-already-exists'};}}});assert.equal(calls,1);
+});

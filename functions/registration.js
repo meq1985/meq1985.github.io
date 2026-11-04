@@ -20,7 +20,7 @@ export function registrationCounter(current, now, maximum) {
   if (count > maximum) throw new Error('registration-limit');
   return { count, startedAt: expired ? now : current.startedAt.toMillis() };
 }
-export async function registerProtected({ data, ip, secret, db, auth, Timestamp, verify = verifyRegistration }) {
+export async function registerProtected({ data, ip, secret, db, auth, Timestamp, verify = verifyRegistration, onCreated = async () => {} }) {
   if (!validRegistration(data)) throw new Error('invalid-registration');
   // Validate the single-use token before accessing the database or Authentication.
   if (!await verify(secret, data.token)) throw new Error('invalid-challenge');
@@ -32,7 +32,11 @@ export async function registerProtected({ data, ip, secret, db, auth, Timestamp,
     tx.set(global, { count: globalUsage.count, startedAt: Timestamp.fromMillis(globalUsage.startedAt) });
     tx.set(address, { count: ipUsage.count, startedAt: Timestamp.fromMillis(ipUsage.startedAt), expiresAt: Timestamp.fromMillis(now + 7 * 86400000) });
   });
-  try { await auth.createUser({ email: data.email.trim(), password: data.password }); }
+  try {
+    const created = await auth.createUser({ email: data.email.trim(), password: data.password });
+    // Observability must never turn a successful signup into a failed registration.
+    if (created?.uid) await onCreated(created.uid).catch(() => {});
+  }
   catch (error) { if (error.code !== 'auth/email-already-exists') throw new Error('registration-failed'); }
   // Do not reveal whether the email already exists. The client must authenticate.
   return { accepted: true };

@@ -1,3 +1,5 @@
+import { recordAcquisition } from './acquisition.js';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { submitConsumerRequest } from './consumerRequests.js';
 import { paymentPresentation, subscriptionPresentation } from './billingPresentation.js';
 import * as logger from 'firebase-functions/logger';
@@ -145,6 +147,7 @@ async function updateInvoice(uid, invoice, api) {
     providerStatus: payment.status, updatedAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();
+  if (period && validContext && mode.value() === 'live') await recordAcquisition({ db, uid, stage: 'firstSubscriptions' });
 }
 async function publishAccess(uid, remote) {
   const periods = await db.collection(`billingAccounts/${uid}/periods`).where('through', '>', Date.now()).get();
@@ -244,7 +247,7 @@ export const mercadoPagoWebhook = onRequest({ ...options, secrets: [accessToken,
 const turnstileSecret = defineSecret('TURNSTILE_SECRET');
 export const registerAccount = onCall({ region: 'us-central1', minInstances: 0, maxInstances: 1, concurrency: 5, timeoutSeconds: 20, memory: '256MiB',
   cors: ['https://electricistaxpress.com.ar', 'https://www.electricistaxpress.com.ar'], secrets: [turnstileSecret] }, async request => {
-  try { return await registerProtected({ data: request.data, ip: request.rawRequest.ip, secret: turnstileSecret.value(), db, auth: getAuth(), Timestamp }); }
+  try { return await registerProtected({ data: request.data, ip: request.rawRequest.ip, secret: turnstileSecret.value(), db, auth: getAuth(), Timestamp, onCreated: uid => recordAcquisition({ db, uid, stage: 'registrations' }) }); }
   catch { throw new HttpsError('failed-precondition', 'No se pudo completar el registro. Revisá la verificación o reintentá más tarde. Si ya tenés cuenta, ingresá o recuperá tu contraseña.'); }
 });
 
@@ -260,4 +263,14 @@ export const updateConsumerManagement=onCall({region:'us-central1',minInstances:
   const ref=db.doc(`gestionesConsumo/${id}`);
   await db.runTransaction(async tx=>{if(!(await tx.get(ref)).exists)throw new HttpsError('not-found','La gestión no existe.');tx.update(ref,{status,updatedBy:uid,updatedAt:FieldValue.serverTimestamp()});});
   return {status};
+});
+
+// Database events cannot be forged as public analytics requests. Delivery may repeat;
+// the per-account transaction guarantees each milestone counts at most once.
+const acquisitionTrigger = { region: 'southamerica-east1', minInstances: 0, maxInstances: 1, concurrency: 5, memory: '256MiB', retry: true };
+export const countTrialStarted = onDocumentCreated({ ...acquisitionTrigger, document: 'accesos/{uid}' }, async event => {
+  if (event.data) await recordAcquisition({ db, uid: event.params.uid, stage: 'trials', now: event.data.createTime.toMillis() });
+});
+export const countFirstProject = onDocumentCreated({ ...acquisitionTrigger, document: 'cuentas/{uid}/proyectos/{projectId}' }, async event => {
+  if (event.data) await recordAcquisition({ db, uid: event.params.uid, stage: 'firstProjects', now: event.data.createTime.toMillis() });
 });

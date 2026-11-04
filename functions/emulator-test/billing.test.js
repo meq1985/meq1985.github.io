@@ -238,6 +238,20 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
     assert.equal((await billing.updateConsumerManagement.run(request('operator',{id,status:'in_progress'}))).status,'in_progress');
     assert.equal((await db.doc(`gestionesConsumo/${id}`).get()).data().status,'in_progress');
   });
+  await t.test('acquisition transactions deduplicate concurrent milestones and database trigger retries',async()=>{
+    const {recordAcquisition}=await import('../acquisition.js');
+    const uid='acquisition-new',now=Date.UTC(2026,10,4);
+    const mark=stage=>recordAcquisition({db,uid,stage,now});
+    const results=await Promise.all(Array.from({length:5},()=>mark('registrations')));
+    assert.equal(results.filter(Boolean).length,1);
+    const event={params:{uid},data:{createTime:{toMillis:()=>now}}};
+    await billing.countTrialStarted.run(event);await billing.countTrialStarted.run(event);
+    await billing.countFirstProject.run(event);await billing.countFirstProject.run(event);
+    assert.deepEqual((await db.doc('acquisitionDays/2026-11-04').get()).data(),{registrations:1,trials:1,firstProjects:1});
+    assert.equal((await db.doc(`acquisitionAccounts/${uid}`).get()).data().firstSubscriptions,undefined);
+    // Existing unrelated QA/test payments earlier in this suite never count as sales.
+    assert.equal((await db.collection('acquisitionDays').get()).size,1);
+  });
   await t.test('reconciliation reaches a paid invoice beyond the first five results', async () => {
     await db.doc('billingTesters/billing-pages').set({ enabled: true, payerEmail: 'buyer@testuser.com' });
     await billing.createSubscription.run(request('billing-pages'));

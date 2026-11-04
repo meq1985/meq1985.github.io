@@ -1,5 +1,6 @@
 
 <script setup>
+import AnalyticsConsent from './components/AnalyticsConsent.vue';
 import { useUserStore } from './stores/user';
 const userStore = useUserStore();
 </script>
@@ -7,6 +8,7 @@ const userStore = useUserStore();
     <main>
     <RouterView :key="userStore.user?.uid || 'guest'" />
   </main>
+  <AnalyticsConsent />
 </template>
 
 <style>

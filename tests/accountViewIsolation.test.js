@@ -9,7 +9,7 @@ it('recreates the route view when switching accounts so previous project data do
   state.store = reactive({ user: { uid: 'first' } });
   const mounted = vi.fn();
   const RouteView = { setup() { onMounted(mounted); const owner = state.store.user?.uid; return () => h('p', owner ?? 'guest'); } };
-  const wrapper = mount(App, { global: { stubs: { RouterView: RouteView } } });
+  const wrapper = mount(App, { global: { stubs: { AnalyticsConsent: true, RouterView: RouteView } } });
   expect(wrapper.text()).toBe('first');
   state.store.user = { uid: 'second' }; await nextTick();
   expect(wrapper.text()).toBe('second'); expect(mounted).toHaveBeenCalledTimes(2);
