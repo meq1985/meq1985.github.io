@@ -1,3 +1,8 @@
+import { recordAcquisition } from './acquisition.js';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { submitConsumerRequest } from './consumerRequests.js';
+import { paymentPresentation, subscriptionPresentation } from './billingPresentation.js';
+import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
 import { registerProtected } from './registration.js';
 import { randomUUID } from 'node:crypto';
@@ -5,7 +10,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret, defineString } from 'firebase-functions/params';
-import { createProvider, safeId, verifySignature, checkoutUrl, subscriptionBody, validSubscription, validMerchant, paidPeriod, BILLING_PLANS, billingPlan, contractAmount } from './mercadopago.js';
+import { createProvider, safeId, verifySignature, checkoutUrl, subscriptionBody, validSubscription, validMerchant, paidPeriod, validPaymentContext, BILLING_PLANS, billingPlan, contractAmount } from './mercadopago.js';
 
 initializeApp();
 const db = getFirestore();
@@ -19,7 +24,8 @@ const options = { region: 'us-central1', minInstances: 0, maxInstances: 2, concu
 const checkoutRef = uid => db.doc(`billingCheckouts/${uid}`);
 const subscriptionRef = uid => db.doc(`suscripciones/${uid}`);
 async function provider() {
-  const api = createProvider(accessToken.value());
+  const raw=createProvider(accessToken.value());
+  const api=async(...args)=>{try{return await raw(...args);}catch(error){logger.error('billing_provider_failed',{event:'billing_provider_failed'});throw error;}};
   if (!validMerchant(await api('/users/me'), collectorId.value(), mode.value())) {
     throw new HttpsError('failed-precondition', 'Las credenciales no corresponden al vendedor y entorno configurados.');
   }
@@ -70,7 +76,7 @@ async function bindCheckout(uid, stored, remote) {
   const batch = db.batch();
   batch.set(checkoutRef(uid), { ...stored, providerId: id, url, state: 'ready' });
   batch.set(db.doc(`billingBindings/${id}`), { uid, reference: stored.reference, planId: stored.planId ?? 'presupuestos', amount: contractAmount(stored) });
-  batch.set(subscriptionRef(uid), { pendingPlanId: stored.planId ?? 'presupuestos', pendingAmount: contractAmount(stored), providerStatus: remote.status, manageable: true }, { merge: true });
+  batch.set(subscriptionRef(uid), { pendingPlanId: stored.planId ?? 'presupuestos', pendingAmount: contractAmount(stored), providerStatus: remote.status, manageable: true, ...Object.fromEntries(Object.entries(subscriptionPresentation(remote,stored)).map(([k,v])=>[k,v==null?null:Timestamp.fromMillis(v)])) }, { merge: true });
   await batch.commit();
   if (contractAmount(stored) !== billingPlan(stored.planId).amount) throw new HttpsError('failed-precondition', 'El precio cambió. Cancelá la contratación pendiente y elegí el plan de nuevo.');
   return { url };
@@ -109,7 +115,7 @@ export const createSubscription = onCall(options, async request => {
       if (found.results?.length === 1) return bindCheckout(uid, existing, await api(`/preapproval/${safeId(found.results[0].id)}`));
       throw new HttpsError('failed-precondition', 'La contratación anterior requiere revisión para evitar cobros duplicados.');
     }
-    const stored = { planId, amount: billingPlan(planId).amount, consent: { amount: billingPlan(planId).amount, currency: 'ARS', frequency: 'monthly', termsVersion: '2026-10-31', acceptedAt: FieldValue.serverTimestamp() }, reference: randomUUID(), mode: mode.value(), state: 'creating', createdAt: FieldValue.serverTimestamp() };
+    const stored = { planId, amount: billingPlan(planId).amount, consent: { amount: billingPlan(planId).amount, currency: 'ARS', frequency: 'monthly', termsVersion: '2026-11-03', acceptedAt: FieldValue.serverTimestamp() }, reference: randomUUID(), mode: mode.value(), state: 'creating', createdAt: FieldValue.serverTimestamp() };
     await checkoutRef(uid).set(stored);
     const remote = await api('/preapproval', { method: 'POST', key: stored.reference,
       body: subscriptionBody({ planId, email: payerEmail ?? email, reference: stored.reference, returnOrigin: returnOrigin.value(), webhook: webhookUrl.value() }) });
@@ -120,21 +126,28 @@ export const createSubscription = onCall(options, async request => {
 async function updateInvoice(uid, invoice, api) {
   const binding = (await db.doc(`billingBindings/${safeId(invoice.preapproval_id)}`).get()).data();
   if (!binding || binding.uid !== uid) throw new Error('unbound-invoice');
+  const historyRef=db.doc(`suscripciones/${uid}/pagos/${safeId(invoice.id)}`);
   if (!invoice.payment?.id) {
-    await db.doc(`billingAccounts/${uid}/periods/${safeId(invoice.id)}`).set({ from: 0, through: 0, providerStatus: 'pending', updatedAt: FieldValue.serverTimestamp() });
+    const pendingBatch=db.batch();
+    pendingBatch.set(db.doc(`billingAccounts/${uid}/periods/${safeId(invoice.id)}`),{ from: 0, through: 0, providerStatus: 'pending', updatedAt: FieldValue.serverTimestamp() });
+    pendingBatch.set(historyRef,{...paymentPresentation(invoice,null,contractAmount(binding),binding.planId ?? 'presupuestos',false),updatedAt:FieldValue.serverTimestamp()});
+    await pendingBatch.commit();
     return;
   }
   const paymentId = safeId(invoice.payment?.id);
   const payment = await api(`/v1/payments/${paymentId}`);
   const testPayerEmail = mode.value() === 'test' ? (await db.doc(`billingTesters/${uid}`).get()).data()?.payerEmail : undefined;
   const period = paidPeriod(invoice, payment, String(invoice.preapproval_id), collectorId.value(), mode.value() === 'live', testPayerEmail, binding.planId, contractAmount(binding));
+  const validContext=validPaymentContext(invoice,payment,String(invoice.preapproval_id),collectorId.value(),mode.value()==='live',testPayerEmail,binding.planId,contractAmount(binding));
   const batch = db.batch();
+  batch.set(historyRef,{...paymentPresentation(invoice,payment,contractAmount(binding),binding.planId ?? 'presupuestos',validContext),updatedAt:FieldValue.serverTimestamp()});
   batch.set(db.doc(`billingPayments/${paymentId}`), { uid, invoiceId: safeId(invoice.id) });
   batch.set(db.doc(`billingAccounts/${uid}/periods/${safeId(invoice.id)}`), {
     from: period?.from ?? 0, through: period?.through ?? 0, paymentId, planId: binding.planId ?? 'presupuestos', amount: contractAmount(binding),
     providerStatus: payment.status, updatedAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();
+  if (period && validContext && mode.value() === 'live') await recordAcquisition({ db, uid, stage: 'firstSubscriptions' });
 }
 async function publishAccess(uid, remote) {
   const periods = await db.collection(`billingAccounts/${uid}/periods`).where('through', '>', Date.now()).get();
@@ -143,7 +156,13 @@ async function publishAccess(uid, remote) {
   const full = active.filter(p => p.planId === 'croquis');
   const eligible = full.length ? full : active.filter(p => !p.planId || p.planId === 'presupuestos');
   const through = Math.max(0, ...eligible.map(p => p.through));
-  await subscriptionRef(uid).set({ planId: full.length ? 'croquis' : 'presupuestos', status: through > now ? 'active' : 'inactive',
+  const [stored,last,attempt]=await Promise.all([checkoutRef(uid).get(),db.collection(`suscripciones/${uid}/pagos`).orderBy('successfulAt','desc').limit(1).get(),db.collection(`suscripciones/${uid}/pagos`).orderBy('scheduledAt','desc').limit(1).get()]);
+  const lastPaid=last.docs[0]?.data(),lastAttempt=attempt.docs[0]?.data();
+  const dates=subscriptionPresentation(remote,stored.data());
+  await subscriptionRef(uid).set({ ...Object.fromEntries(Object.entries(dates).map(([k,v])=>[k,v==null?null:Timestamp.fromMillis(v)])),
+    lastPayment:lastPaid?.status==='approved'?{amount:lastPaid.amount,paidAt:lastPaid.paidAt}:null,
+    lastPaymentStatus:lastAttempt?.status ?? null,
+    planId: full.length ? 'croquis' : 'presupuestos', status: through > now ? 'active' : 'inactive',
     amount: eligible.length ? contractAmount(eligible.reduce((a,b)=>a.through>b.through?a:b)) : billingPlan().amount, paidThrough: Timestamp.fromMillis(through), providerStatus: remote.status, manageable: true,
     updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return { status: through > now ? 'active' : 'inactive' };
@@ -218,6 +237,7 @@ export async function handleMercadoPagoWebhook(req, res) {
     });
     return res.sendStatus(200);
   } catch {
+    logger.error('billing_webhook_failed',{event:'billing_webhook_failed'});
     // Keep provider payloads, signatures, payer data and credentials out of logs.
     return res.sendStatus(503);
   }
@@ -227,6 +247,30 @@ export const mercadoPagoWebhook = onRequest({ ...options, secrets: [accessToken,
 const turnstileSecret = defineSecret('TURNSTILE_SECRET');
 export const registerAccount = onCall({ region: 'us-central1', minInstances: 0, maxInstances: 1, concurrency: 5, timeoutSeconds: 20, memory: '256MiB',
   cors: ['https://electricistaxpress.com.ar', 'https://www.electricistaxpress.com.ar'], secrets: [turnstileSecret] }, async request => {
-  try { return await registerProtected({ data: request.data, ip: request.rawRequest.ip, secret: turnstileSecret.value(), db, auth: getAuth(), Timestamp }); }
+  try { return await registerProtected({ data: request.data, ip: request.rawRequest.ip, secret: turnstileSecret.value(), db, auth: getAuth(), Timestamp, onCreated: uid => recordAcquisition({ db, uid, stage: 'registrations' }) }); }
   catch { throw new HttpsError('failed-precondition', 'No se pudo completar el registro. Revisá la verificación o reintentá más tarde. Si ya tenés cuenta, ingresá o recuperá tu contraseña.'); }
+});
+
+export const submitConsumerManagement=onCall({region:'us-central1',minInstances:0,maxInstances:1,concurrency:5,timeoutSeconds:20,memory:'256MiB',cors:['https://electricistaxpress.com.ar','https://www.electricistaxpress.com.ar'],secrets:[turnstileSecret]},async request=>{
+  try{const result=await submitConsumerRequest({data:request.data,ip:request.rawRequest.ip,secret:turnstileSecret.value(),db,Timestamp});logger.warn('consumer_request_received',{event:'consumer_request_received'});return result;}
+  catch{throw new HttpsError('failed-precondition','No se pudo registrar la solicitud. Reintentá la verificación o escribí a meq1985@hotmail.com.');}
+});
+export const updateConsumerManagement=onCall({region:'us-central1',minInstances:0,maxInstances:1,concurrency:5,timeoutSeconds:20,memory:'256MiB'},async request=>{
+  const {uid}=identity(request);
+  if((await db.doc(`administradores/${uid}`).get()).data()?.enabled!==true)throw new HttpsError('permission-denied','Acceso restringido.');
+  const {id,status}=request.data ?? {};
+  if(!/^[a-f0-9-]{36}$/i.test(id ?? '') || !['received','in_progress','resolved'].includes(status))throw new HttpsError('invalid-argument','Revisá la gestión.');
+  const ref=db.doc(`gestionesConsumo/${id}`);
+  await db.runTransaction(async tx=>{if(!(await tx.get(ref)).exists)throw new HttpsError('not-found','La gestión no existe.');tx.update(ref,{status,updatedBy:uid,updatedAt:FieldValue.serverTimestamp()});});
+  return {status};
+});
+
+// Database events cannot be forged as public analytics requests. Delivery may repeat;
+// the per-account transaction guarantees each milestone counts at most once.
+const acquisitionTrigger = { region: 'southamerica-east1', minInstances: 0, maxInstances: 1, concurrency: 5, memory: '256MiB', retry: false };
+export const countTrialStarted = onDocumentCreated({ ...acquisitionTrigger, document: 'accesos/{uid}' }, async event => {
+  if (event.data) await recordAcquisition({ db, uid: event.params.uid, stage: 'trials', now: event.data.createTime.toMillis() });
+});
+export const countFirstProject = onDocumentCreated({ ...acquisitionTrigger, document: 'cuentas/{uid}/proyectos/{projectId}' }, async event => {
+  if (event.data) await recordAcquisition({ db, uid: event.params.uid, stage: 'firstProjects', now: event.data.createTime.toMillis() });
 });

@@ -1,3 +1,4 @@
+import { analytics } from './analytics';
 import { collection, doc, getDocFromServer, getDocsFromServer, query, orderBy, limit, startAfter, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { allowanceRef, subscriptionRef } from './billing';
@@ -104,6 +105,7 @@ async function writeProject(user, input) {
       else transaction.set(reference, { ...metadata, schema: 1, ownerUid: user.uid, createdAt: now, sourceLocalId });
     });
     assertCurrentUser(user);
+    if (expected === 0 && typeof window !== 'undefined') analytics().event('project_saved');
     return { id: input.id, revision };
   } catch (error) { throw offlineError(error); }
 }

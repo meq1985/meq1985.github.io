@@ -3,7 +3,7 @@ import { it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, ref } from 'vue';
 import SketchEditor from '../src/components/SketchEditor.vue';
-import { emptySketch } from '../src/services/sketch';
+import { emptySketch, encodeSketch, decodeSketch } from '../src/services/sketch';
 import { materialsFromSketch } from '../src/services/materialNetwork';
 import { emptyQuoteSettings } from '../src/services/sketchQuoteSettings';
 const fixture = () => ({ ...emptySketch(), rooms: [{ id: 'room', name: 'Estar', levelId: 'planta-baja', x: 0, y: 0, width: 4, depth: 3,
@@ -85,7 +85,7 @@ it('calculates circuits from drawn board connections and exposes equipment speci
     await button(w, 'Trazar conexión').trigger('click'); await w.get('[data-anchor=tg]').trigger('click'); await w.get(`[data-anchor=${point}]`).trigger('click');
   }
   await button(w, 'Calcular instalación').trigger('click'); await button(w, 'Calcular circuitos y cables').trigger('click');
-  expect(w.vm.sketch.materials.calculation.profile).toBe('cu-pvc-b1-v1');
+  expect(w.vm.sketch.materials.calculation.profile).toBe('cu-pvc-iram-40-v2');
   expect(w.vm.sketch.materials.calculation.tugDemandMode).toBe('per-point-150');
   expect(w.get('.auto-design').text()).toContain('IUG 1'); expect(w.get('.auto-design').text()).toContain('TUG 1');
   expect(w.get('.auto-design').text()).toContain('mm²');
@@ -158,4 +158,25 @@ it('moves internal route bends in the live drag preview, commits once and restor
  expect(w.vm.sketch.materials.routes[0].bends[0]).toEqual({x:4,y:2});
  await button(w,'Deshacer').trigger('click');expect(w.vm.sketch.materials.routes[0].bends[0]).toEqual({x:2,y:1});
  await button(w,'Rehacer').trigger('click');expect(w.vm.sketch.materials.routes[0].bends[0]).toEqual({x:4,y:2});w.unmount();
+});
+
+it('classifies an electrode connected to M+TP in either tracing direction and exposes its service role',async()=>{
+  for(const reverse of [false,true]){
+    const w=editor();w.vm.sketch.equipment=[{id:'meter',name:'Medidor + tablero principal',type:'medidor_tp',levelId:'planta-baja',x:0,y:0,itemId:''},{id:'rod',name:'Jabalina de protección',type:'jabalina',levelId:'planta-baja',x:2,y:0,itemId:''}];w.vm.sketch.feeders=[];await w.vm.$nextTick();
+    await button(w,'Trazar conexión').trigger('click');
+    for(const id of reverse?['rod','meter']:['meter','rod']) await w.get(`[data-anchor=${id}]`).trigger('click');
+    expect(w.vm.sketch.equipment.find(e=>e.id==='rod')).toMatchObject({type:'jabalina_servicio',name:'Jabalina de servicio',itemId:'pat_servicio'});
+    expect(decodeSketch(encodeSketch(w.vm.sketch)).equipment.find(e=>e.id==='rod').type).toBe('jabalina_servicio');
+    await button(w,'Ver materiales').trigger('click');
+    const row=w.findAll('.material-row').find(r=>r.find('select').element.value==='jabalina_servicio');
+    expect(field(row,'Elemento','input').element.value).toBe('Jabalina de servicio');
+    expect(field(row,'Función del tablero / equipo','select').find('option[value=jabalina_servicio]').text()).toBe('Jabalina de servicio');
+    expect(w.get('.material-controls').text()).toContain('Jabalina de servicio');w.unmount();
+  }
+});
+it('lets an unconnected electrode be explicitly classified as service while preserving custom names',async()=>{
+  const w=editor();w.vm.sketch.equipment=[{id:'rod',name:'Electrodo del pilar',type:'jabalina',levelId:'planta-baja',x:0,y:0,itemId:''}];w.vm.sketch.feeders=[];await w.vm.$nextTick();
+  await button(w,'Ver materiales').trigger('click');
+  await field(w,'Función del tablero / equipo','select').setValue('jabalina_servicio');
+  expect(w.vm.sketch.equipment[0]).toMatchObject({name:'Electrodo del pilar',type:'jabalina_servicio',itemId:'pat_servicio'});w.unmount();
 });

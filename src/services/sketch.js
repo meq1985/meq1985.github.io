@@ -1,3 +1,4 @@
+import { validatePointLoad } from './electricalReview';
 // Metres for rooms; points use relative coordinates so resizing preserves their layout.
 import { validateQuoteSettings } from './sketchQuoteSettings';
 import { validateInfrastructure } from './sketchInfrastructure';
@@ -22,7 +23,7 @@ export function validateSketch(input) {
       x: number(room.x, 0, 100), y: number(room.y, 0, 100), width: number(room.width, 1, 50), depth: number(room.depth, 1, 50),
       points: room.points.map(point => {
         if (!Object.hasOwn(POINT_TYPES, point.type) || ++count > SKETCH_LIMITS.points) fail();
-        return { id: unique(point.id), type: point.type, x: number(point.x, 0, 1), y: number(point.y, 0, 1) };
+        return { id: unique(point.id), type: point.type, x: number(point.x, 0, 1), y: number(point.y, 0, 1), ...(point.load === undefined ? {} : {load:validatePointLoad(point.load,point.type)}) };
       }) };
     return result;
   });

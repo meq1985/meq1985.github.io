@@ -1,5 +1,7 @@
 # Croquis, materiales y propuesta de circuitos
 
+Este documento conserva las hipótesis del perfil inicial. Para la ampliación de cargas, protecciones, cañerías y tableros ver [Cálculos del croquis v2](calculos-croquis-v2.md); para el PDF de materiales ya incorporado, [Croquis, PDF y promociones](croquis-pdf-promociones.md).
+
 ## Interacción
 
 La rama incluye la portada del PR #15. Tablero, Medidor + TP, Jabalina y Caja de paso se ubican desde botones del plano. Trazar conexión permite elegir origen, quiebres y destino, incluso en otra planta. Se elimina el modo Conectar. Escape o Cancelar descartan un trazado sin guardar; cambiar de nivel conserva el origen y los quiebres para conectar plantas. No hay formularios inferiores para elegir Desde/Hasta. Tocar equipos abre materiales; allí se eligen función, capacidad/montaje y trabajo del catálogo. Especificación del gabinete es texto editable, no una selección automática de módulos.

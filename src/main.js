@@ -20,6 +20,7 @@ import { auth } from './firebase';
 import { useUserStore } from './stores/user';
 import { PostStore } from './stores/dbUsers';
 import { costoStore } from './stores/dbCostos';
+import { analytics } from './services/analytics';
 import App from './App.vue'
 import router from './router'
 
@@ -48,4 +49,5 @@ onAuthStateChanged(auth, user => {
 });
 app.use(router)
 app.component('font-awesome-icon', FontAwesomeIcon)
+router.isReady().then(() => analytics().start(router.currentRoute.value.path));
 app.mount('#app')

@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref } from 'vue';
+const props=defineProps({action:{type:String,default:'signup'}});
 const emit = defineEmits(['verified']);
 const box = ref(null), error = ref(''); let widget, disposed = false;
 const sitekey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
@@ -17,7 +18,7 @@ async function render() {
     }
     if (disposed) return;
     if (widget !== undefined) window.turnstile.remove(widget);
-    widget = window.turnstile.render(box.value, { sitekey, action: 'signup', theme: 'dark',
+    widget = window.turnstile.render(box.value, { sitekey, action: props.action, theme: 'dark',
       callback: token => emit('verified', token), 'expired-callback': () => emit('verified', ''),
       'error-callback': () => { emit('verified', ''); error.value = 'Reintentá la verificación de seguridad.'; } });
   } catch { error.value = 'No pudimos cargar la verificación de seguridad. Revisá la conexión y reintentá.'; }

@@ -1,0 +1,79 @@
+{
+  "project": "presupuesto-electrico",
+  "database": "(default)",
+  "location": "southamerica-east1",
+  "backup": {
+    "retention": "604800s",
+    "dailyRecurrence": {}
+  },
+  "ttl": {
+    "collectionGroup": "registrationLimits",
+    "field": "expiresAt",
+    "scope": "Only expired IP counters; global counter has no expiresAt"
+  },
+  "logsRetentionDays": 30,
+  "errorAlert": {
+    "displayName": "Electricista Xpress - errores del servidor",
+    "combiner": "OR",
+    "enabled": true,
+    "conditions": [
+      {
+        "displayName": "Errores seguros del servidor",
+        "conditionMatchedLog": {
+          "filter": "resource.type=\"cloud_run_revision\" (severity>=ERROR OR jsonPayload.event=\"consumer_request_received\")"
+        }
+      }
+    ],
+    "alertStrategy": {
+      "notificationRateLimit": {
+        "period": "3600s"
+      },
+      "autoClose": "86400s"
+    }
+  },
+  "usageAlert": {
+    "displayName": "Electricista Xpress - uso Firestore",
+    "combiner": "OR",
+    "enabled": true,
+    "conditions": [
+      {
+        "displayName": "Lecturas altas en 24 horas",
+        "conditionThreshold": {
+          "filter": "resource.type=\"firestore_instance\" AND metric.type=\"firestore.googleapis.com/document/read_count\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "86400s",
+              "perSeriesAligner": "ALIGN_SUM",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 40000,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      },
+      {
+        "displayName": "Escrituras altas en 24 horas",
+        "conditionThreshold": {
+          "filter": "resource.type=\"firestore_instance\" AND metric.type=\"firestore.googleapis.com/document/write_count\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "86400s",
+              "perSeriesAligner": "ALIGN_SUM",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 15000,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ]
+  }
+}

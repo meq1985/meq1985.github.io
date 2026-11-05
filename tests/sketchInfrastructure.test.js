@@ -43,3 +43,14 @@ it('rejects a principal drawn twice as a package and separately', () => {
   const s = scene(); s.equipment.push({ ...s.equipment[0], id: 'duplicate-tp', type: 'principal', itemId: 'tp_mono' });
   expect(() => quoteFromSketch(s, LABOR_CATALOG)).toThrow('ya incluye tablero principal');
 });
+
+it('uses a service electrode attached to M+TP first for included PAT and keeps protection earth separate',()=>{
+  const s=scene();s.schema=2;s.materials={schema:1,circuits:[],junctions:[],extras:[],reservePercent:0,routes:[{id:'earth-route',fromId:'meter',toId:'earth-2',feederId:null,bends:[],verticalMeters:0,conduit:'',assignments:[]}]};
+  const before=JSON.stringify(s),result=quoteFromSketch(s,LABOR_CATALOG);
+  const rods=result.rows.filter(r=>r.descripcion.includes('Jabalina de protección'));
+  expect(rods).toHaveLength(1);expect(rods[0].descripcion).toContain('PAT 1');
+  expect(result.rows.some(r=>r.descripcion.includes('Jabalina de servicio'))).toBe(false);
+  expect(JSON.stringify(s)).toBe(before);
+  s.equipment[0].itemId='gabinete_adicional';
+  expect(quoteFromSketch(s,LABOR_CATALOG).rows.some(r=>r.descripcion.includes('Jabalina de servicio: PAT 2'))).toBe(true);
+});

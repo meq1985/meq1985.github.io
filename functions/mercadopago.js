@@ -74,7 +74,7 @@ export function periodEnd(debitDate) {
   const day = Math.min(Number(match[3]), new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate());
   return Date.parse(`${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}T${match[4]}${match[5]}`);
 }
-export function paidPeriod(invoice, payment, subscriptionId, collectorId, liveMode, testPayerEmail, planId = 'presupuestos', amount = billingPlan(planId).amount) {
+export function validPaymentContext(invoice, payment, subscriptionId, collectorId, liveMode, testPayerEmail, planId = 'presupuestos', amount = billingPlan(planId).amount) {
   // Hosted subscriptions from verified test merchants also return live_mode=true.
   // Test access additionally requires the privately configured fictitious buyer.
   const environmentMatches = liveMode ? payment.live_mode === true :
@@ -83,7 +83,10 @@ export function paidPeriod(invoice, payment, subscriptionId, collectorId, liveMo
   if (String(invoice.preapproval_id) !== subscriptionId || String(invoice.payment?.id) !== String(payment.id) ||
       String(payment.collector_id) !== String(collectorId) || !environmentMatches ||
       invoice.currency_id !== 'ARS' || Number(invoice.transaction_amount) !== amount ||
-      payment.currency_id !== 'ARS' || Number(payment.transaction_amount) !== amount ||
-      payment.status !== 'approved' || Number(payment.transaction_amount_refunded ?? 0) !== 0) return null;
+      payment.currency_id !== 'ARS' || Number(payment.transaction_amount) !== amount) return false;
+  return true;
+}
+export function paidPeriod(invoice,payment,subscriptionId,collectorId,liveMode,testPayerEmail,planId='presupuestos',amount=billingPlan(planId).amount){
+  if(!validPaymentContext(invoice,payment,subscriptionId,collectorId,liveMode,testPayerEmail,planId,amount) || payment.status!=='approved' || Number(payment.transaction_amount_refunded ?? 0)!==0)return null;
   return { from: Date.parse(invoice.debit_date), through: periodEnd(invoice.debit_date) };
 }

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "../firebase";
 import { waitForAuth } from "../firebase/session";
+import { analytics } from '../services/analytics';
 import { updateSeo } from '../services/seo';
 import { createAuthGuard } from "./guard";
 import { ensureAccountReady } from '../services/accountProvisioning';
@@ -48,6 +49,9 @@ const router = createRouter({
 
 router.beforeEach(createAuthGuard(auth, waitForAuth, ensureAccountReady));
 
-router.afterEach(to => updateSeo(to));
+router.afterEach((to, from, failure) => {
+  updateSeo(to);
+  if (!failure && typeof window !== 'undefined') analytics().page(to.path);
+});
 
 export default router;

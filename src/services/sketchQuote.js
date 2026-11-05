@@ -1,14 +1,14 @@
 import { validateSketch, sketchSummary, overlapsRoom } from './sketch';
 import { validateBudget } from './budgetValidation';
 import { validateQuoteSettings, includesPat } from './sketchQuoteSettings';
-import { EQUIPMENT_TYPES, PACKAGE_PAT, feederLength, FEEDER_EXTRA_METERS } from './sketchInfrastructure';
+import { EQUIPMENT_TYPES, PACKAGE_PAT, earthingEquipment, isEarthEquipment, feederLength, FEEDER_EXTRA_METERS } from './sketchInfrastructure';
 
 export function quoteFromSketch(input, entries) {
   const sketch = validateSketch(input);
   if (!sketch.rooms.length) throw Error('Agregá ambientes al croquis antes de calcular.');
   const s = validateQuoteSettings(sketch.quote);
   if (sketch.rooms.some(a => sketch.rooms.some(b => overlapsRoom(a, b)))) throw Error('Corregí los ambientes superpuestos antes de calcular la superficie.');
-  const drawn = sketch.equipment ?? [], warnings = [];
+  const drawn = (sketch.equipment ?? []).map(e=>earthingEquipment(sketch,e)), warnings = [];
   if (!drawn.length && ['pilar', 'gabinete_adicional'].includes(s.service) && ['tp_mono', 'tp_tri'].includes(s.board)) throw Error('La acometida elegida ya incluye tablero principal. Quitá el tablero principal separado.');
   if (drawn.some(e => e.type === 'medidor_tp') && drawn.some(e => e.type === 'principal')) throw Error('El medidor con TP ya incluye tablero principal. Quitá el principal separado del croquis.');
   const summary = sketchSummary(sketch), rows = [];
@@ -19,14 +19,16 @@ export function quoteFromSketch(input, entries) {
     if (!item || typeof item.price !== 'number' || !Number.isFinite(item.price) || item.price < 0) throw Error(`Falta un precio válido en tu cuenta para ${id}. Revisá Configuración.`);
     rows.push({ codigo: item.code, descripcion: item.description + (detail ? ` · ${detail}` : ''), unidad: item.unit, cantidad, precioUnitario: item.price });
   };
+  if(sketch.rooms.some(r=>r.points.some(p=>p.load))) warnings.push('Las cargas especiales conservan una boca de mano de obra por punto. Revisá trabajos y precios adicionales requeridos por esos equipos.');
   const bocas = summary.luminaria + summary.toma + s.extraBocas;
   add('boca_completa', bocas);
   const area = s.includeProject ? Math.max(30, summary.area) : 0;
   add('proyecto_m2', area);
   if (drawn.length) {
     let included = drawn.filter(e => PACKAGE_PAT.includes(e.itemId)).length, covered = 0;
-    for (const e of drawn) {
-      if (e.type === 'jabalina' && included > 0) { included--; covered++; continue; }
+    const ordered=[...drawn].sort((a,b)=>Number(b.type==='jabalina_servicio')-Number(a.type==='jabalina_servicio'));
+    for (const e of ordered) {
+      if (isEarthEquipment(e) && included > 0) { included--; covered++; continue; }
       if (!e.itemId) throw Error(`Elegí el trabajo del catálogo para ${e.name}.`);
       add(e.itemId, 1, `${EQUIPMENT_TYPES[e.type]}: ${e.name}`);
       if (e.type === 'general') rows.at(-1).descripcion = rows.at(-1).descripcion.replace(/^Tablero seccional:/, 'Tablero general:');

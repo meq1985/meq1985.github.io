@@ -1,14 +1,15 @@
+import { validateTechnical } from './electricalReview';
 // Physical routes are independent of labour prices and of regulatory design rules.
 import { switchTopology } from './switchTopology';
-import { FEEDER_EXTRA_METERS } from './sketchInfrastructure';
-export const WIRE_ROLES = { phase: 'Fase', neutral: 'Neutro', pe: 'Protección PE', return: 'Retorno', traveller: 'Viajero' };
+import { FEEDER_EXTRA_METERS, earthingEquipment } from './sketchInfrastructure';
+export const WIRE_ROLES = { phase: 'Fase', neutral: 'Neutro', pe: 'Protección PE', earth: 'Puesta a tierra de protección', serviceEarth: 'Tierra de servicio', return: 'Retorno', traveller: 'Viajero' };
 export const emptyMaterialNetwork = () => ({ schema: 1, circuits: [], junctions: [], routes: [], extras: [], reservePercent: 0 });
 export function materialAnchors(sketch) {
   return [
     ...sketch.rooms.flatMap(room => room.points.map((point, i) => ({ ...point, levelId: room.levelId,
       x: room.x + point.x * room.width, y: room.y + point.y * room.depth,
-      name: `${room.name} · ${{ luminaria: 'Luminaria', toma: 'Toma', llave: 'Llave' }[point.type]} ${i + 1}` }))),
-    ...(sketch.equipment ?? []), ...(sketch.materials?.junctions ?? []),
+      name: `${room.name} · ${point.load?.name || { luminaria: 'Luminaria', toma: 'Toma', llave: 'Llave' }[point.type]} ${i + 1}` }))),
+    ...(sketch.equipment ?? []).map(e=>earthingEquipment(sketch,e)), ...(sketch.materials?.junctions ?? []),
   ];
 }
 export function validateMaterialNetwork(input, sketch, unique) {
@@ -45,7 +46,7 @@ export function validateMaterialNetwork(input, sketch, unique) {
       }) };
     });
     return { id: unique(r.id), fromId: from.id, toId: to.id, feederId: r.feederId, ...(r.kind === undefined ? {} : { kind: r.kind }), ...(r.routing === undefined ? {} : { routing: r.routing }),
-      bends: list(r.bends, 50).map(p => ({ ...coords(p), ...(p.levelId === undefined ? {} : { levelId: sketch.levels.some(l => l.id === p.levelId) ? p.levelId : fail() }) })), verticalMeters: number(r.verticalMeters, 0, 200),
+      bends: list(r.bends, 50).map(p => ({ ...coords(p), ...(p.levelId === undefined ? {} : { levelId: sketch.levels.some(l => l.id === p.levelId) ? p.levelId : fail() }) })), verticalMeters: number(r.verticalMeters, 0, 200), ...(r.innerDiameter === undefined ? {} : {innerDiameter:r.innerDiameter === null ? null : number(r.innerDiameter,1,150)}),
       conduit: typeof r.conduit === 'string' && r.conduit.length <= 120 ? r.conduit.trim() : fail(), assignments };
   });
   const extras = list(input.extras, 100).map(e => ({ id: unique(e.id), description: text(e.description, 120),
@@ -54,12 +55,12 @@ export function validateMaterialNetwork(input, sketch, unique) {
   let calculation;
   if (input.calculation !== undefined) {
     const c = input.calculation;
-    if (!c || c.profile !== 'cu-pvc-b1-v1') fail();
+    if (!c || !['cu-pvc-b1-v1','cu-pvc-iram-40-v2'].includes(c.profile)) fail();
     const tugDemandMode = c.tugDemandMode ?? 'per-point-150';
     if (!['per-point-150', 'per-circuit-2200'].includes(tugDemandMode)) fail();
     calculation = { profile: c.profile, voltage: number(c.voltage, 200, 240), limitPercent: number(c.limitPercent, 0.1, 2),
       totalLimitPercent: number(c.totalLimitPercent ?? 3, 0.1, 3), feederLimitPercent: number(c.feederLimitPercent ?? 1, 0.1, 1),
-      upstreamPercent: number(c.upstreamPercent, 0, 5), correctionFactor: number(c.correctionFactor, 0.1, 1), boardHeight: number(c.boardHeight ?? 1.5, 0.1, 5), tugDemandMode };
+      upstreamPercent: number(c.upstreamPercent, 0, 5), correctionFactor: number(c.correctionFactor, 0.1, 1), boardHeight: number(c.boardHeight ?? 1.5, 0.1, 5), tugDemandMode, ...(c.technical === undefined ? {} : {technical:validateTechnical(c.technical,sketch)}) };
   }
   return { schema: 1, circuits, junctions, routes, extras, reservePercent: number(input.reservePercent, 0, 50), ...(calculation ? { calculation } : {}) };
 }
@@ -103,6 +104,7 @@ export function pruneMaterialNetwork(sketch) {
   if (!sketch.materials) return;
   sketch.materials.junctions = sketch.materials.junctions.filter(j => sketch.levels.some(l => l.id === j.levelId));
   const ids = new Set(materialAnchors(sketch).map(a => a.id));
+  if(sketch.materials.calculation?.technical) sketch.materials.calculation.technical.boards = sketch.materials.calculation.technical.boards.filter(b=>sketch.equipment?.some(e=>e.id===b.id && ['general','seccional','principal','medidor_tp'].includes(e.type)));
   sketch.materials.routes = sketch.materials.routes.filter(r => ids.has(r.fromId) && ids.has(r.toId) &&
     r.bends.every(p => p.levelId === undefined || sketch.levels.some(l => l.id === p.levelId)) &&
     (!r.feederId || (sketch.feeders ?? []).some(f => f.id === r.feederId)));
@@ -118,16 +120,16 @@ export function materialsFromSketch(sketch) {
   for (const room of sketch.rooms) for (const point of room.points) {
     add(point.type === 'luminaria' ? 'box-light' : 'box-mechanism', point.type === 'luminaria' ? 'Caja para luminaria · modelo a definir' : 'Caja para mecanismo · modelo a definir', 'ud.', 1, point.id, true);
     const switchLabel = controls.switches.find(s => s.id === point.id)?.label;
-    add(point.type === 'llave' ? `device-${switchLabel}` : `device-${point.type}`, point.type === 'llave' ? `${switchLabel} · mecanismo a definir` : { luminaria: 'Luminaria · artefacto a definir', toma: 'Tomacorriente · mecanismo a definir' }[point.type], 'ud.', 1, point.id, true);
+    add(point.type === 'llave' ? `device-${switchLabel}` : `device-${point.type}`, point.type === 'llave' ? `${switchLabel} · mecanismo a definir` : (point.load ? `${point.load.kind === 'TUE' ? 'Tomacorriente de uso especial' : 'Conexión de carga dedicada'} · ${point.load.name} · modelo a definir` : { luminaria: 'Luminaria · artefacto a definir', toma: 'Tomacorriente · mecanismo a definir' }[point.type]), 'ud.', 1, point.id, true);
   }
   for (const j of network.junctions) add('junction', 'Caja de paso · modelo a definir', 'ud.', 1, j.id, true);
-  for (const e of sketch.equipment ?? []) add(`equipment-${e.type}-${e.specification ?? ''}`, ({ general: 'Gabinete TG', seccional: 'Gabinete TS', principal: 'Conjunto TP', medidor_tp: 'Conjunto medidor + TP', jabalina: 'Jabalina' }[e.type]) + ' · ' + (e.specification || 'componentes a definir'), 'ud.', 1, e.id, true);
+  for (const e of (sketch.equipment ?? []).map(e=>earthingEquipment(sketch,e))) add(`equipment-${e.type}-${e.specification ?? ''}`, ({ general: 'Gabinete TG', seccional: 'Gabinete TS', principal: 'Conjunto TP', medidor_tp: 'Conjunto medidor + TP', jabalina: 'Jabalina de protección', jabalina_servicio: 'Jabalina de servicio' }[e.type]) + ' · ' + (e.specification || 'componentes a definir'), 'ud.', 1, e.id, true);
   const linked = new Set(network.routes.map(r => r.feederId).filter(Boolean));
   for (const f of sketch.feeders ?? []) if (!linked.has(f.id)) warnings.push('Un recorrido TP → TG no está incorporado a materiales.');
   for (const r of network.routes) {
     const meters = materialRouteLength(sketch, r);
     if (meters <= 0) warnings.push('Hay un recorrido sin longitud: revisá sus extremos y quiebres.');
-    add(`conduit-${r.conduit.toLowerCase()}`, r.conduit || 'Canalización · tipo y diámetro a definir', 'm', meters, r.id, !r.conduit);
+    add(`conduit-${r.conduit.toLowerCase()}`, r.conduit || 'Canalización · tipo y diámetro a definir', 'm', meters, r.id, !r.conduit || r.conduitProposed === true);
     if (!r.assignments.length || r.assignments.some(a => !a.wires.length)) warnings.push('Hay recorridos sin conductores definidos.');
     for (const a of r.assignments) for (const w of a.wires) {
       add(`wire-${w.role}-${w.section}`, `Conductor ${WIRE_ROLES[w.role]} · ${w.section} mm² · familia a confirmar`, 'm', meters * w.count, `${r.id}/${a.circuitId}`, true);
@@ -147,6 +149,6 @@ export function materialsCsv(result) {
     return '"' + text.replaceAll('"', '""') + '"';
   };
   return '\uFEFF' + [['Estado', 'Lista parcial para revisar'], ['Material', 'Unidad', 'Cantidad calculada', 'Cantidad con reserva', 'Especificación'],
-    ...result.rows.map(r => [r.description, r.unit, r.quantity, r.purchaseQuantity, r.pending ? 'Por definir / confirmar' : 'Ingresado manualmente']),
+    ...result.rows.map(r => [r.description, r.unit, r.quantity, r.purchaseQuantity, r.pending ? 'Por definir / confirmar' : 'Dato definido / revisar alcance']),
     ...result.warnings.map(w => ['Observación', w])].map(row => row.map(cell).join(';')).join('\r\n');
 }

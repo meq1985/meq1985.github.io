@@ -12,6 +12,12 @@ service cloud.firestore {
       return verified() && exists(/databases/$(database)/documents/administradores/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/administradores/$(request.auth.uid)).data.enabled == true;
     }
+    match /acquisitionDays/{day} {
+      allow get: if administrator();
+      allow list: if administrator() && request.query.limit != null && request.query.limit <= 31;
+      allow write: if false;
+    }
+    // acquisitionAccounts is server-only; unknown paths remain denied.
     function billingEnabled() {
       return exists(/databases/$(database)/documents/configuracion/facturacion) &&
         get(/databases/$(database)/documents/configuracion/facturacion).data.enabled == true;
@@ -62,9 +68,19 @@ service cloud.firestore {
         (getAfter(/databases/$(database)/documents/accesos/$(uid)).data.claimedAt <= request.time &&
          request.time < getAfter(/databases/$(database)/documents/accesos/$(uid)).data.claimedAt + duration.value(30, 'd'))));
     }
+    match /gestionesConsumo/{id} {
+      allow get: if administrator();
+      allow list: if administrator() && request.query.limit != null && request.query.limit <= 20;
+    }
     match /administradores/{uid} { allow get: if verified() && request.auth.uid == uid; }
     match /configuracion/facturacion { allow get: if verified(); }
-    match /suscripciones/{uid} { allow get: if verified() && request.auth.uid == uid; }
+    match /suscripciones/{uid} {
+      allow get: if verified() && request.auth.uid == uid;
+      match /pagos/{paymentId} {
+        allow get: if verified() && request.auth.uid == uid;
+        allow list: if verified() && request.auth.uid == uid && request.query.limit != null && request.query.limit <= 20;
+      }
+    }
     match /accesos/{uid} {
       allow get: if verified() && request.auth.uid == uid;
       // Immutable server timestamp; existing trial starts cannot be reset.
