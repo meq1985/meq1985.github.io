@@ -14,8 +14,11 @@ import { createProvider, safeId, verifySignature, checkoutUrl, subscriptionBody,
 
 initializeApp();
 const db = getFirestore();
-const accessToken = defineSecret('MP_ACCESS_TOKEN');
-const webhookSecret = defineSecret('MP_WEBHOOK_SECRET');
+// Firebase loads MP_MODE before discovery and before the deployed module starts.
+// Bind only the credentials for that environment to the payment functions.
+const liveDeployment = process.env.MP_MODE === 'live';
+const accessToken = defineSecret(liveDeployment ? 'MP_LIVE_ACCESS_TOKEN' : 'MP_ACCESS_TOKEN');
+const webhookSecret = defineSecret(liveDeployment ? 'MP_LIVE_WEBHOOK_SECRET' : 'MP_WEBHOOK_SECRET');
 const mode = defineString('MP_MODE', { default: 'disabled' });
 const returnOrigin = defineString('APP_ORIGIN', { default: 'https://electricistaxpress.com.ar' });
 const webhookUrl = defineString('MP_WEBHOOK_URL', { default: 'https://us-central1-presupuesto-electrico.cloudfunctions.net/mercadoPagoWebhook' });

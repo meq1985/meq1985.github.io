@@ -45,6 +45,40 @@ it('does not discard independently edited heights when undoing geometry', async 
   await button(w, 'Rehacer').trigger('click'); expect(w.vm.sketch.rooms).toHaveLength(1); expect(w.vm.sketch.quote.heights.toma).toBe(0.4);
   w.unmount();
 });
+it('keeps existing connections visible without intercepting bends of a new trace', async () => {
+  const w = editor();
+  const svg = w.get('.sketch-canvas');
+  const bounds = vi.spyOn(svg.element, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 360, height: 270 });
+  await button(w, 'Medidor + TP').trigger('click');
+  await svg.trigger('click', { clientX: 0, clientY: 0 });
+  await button(w, 'Tablero').trigger('click');
+  await svg.trigger('click', { clientX: 180, clientY: 240 });
+  bounds.mockReturnValue({ left: 0, top: 0, width: 360, height: 300 });
+  await button(w, 'Jabalina').trigger('click');
+  await svg.trigger('click', { clientX: 270, clientY: 30 });
+  const [meter, board, ground] = w.vm.sketch.equipment;
+  const anchor = item => w.get(`[data-anchor="${item.id}"]`);
+  await button(w, 'Trazar conexión').trigger('click');
+  await anchor(meter).trigger('click');
+  await anchor(board).trigger('click');
+
+  const existing = w.get('[data-material-route]');
+  expect(existing.find('polyline[pointer-events="stroke"]').exists()).toBe(true);
+  await button(w, 'Trazar conexión').trigger('click');
+  await anchor(board).trigger('click');
+  expect(existing.attributes('pointer-events')).toBe('none');
+  expect(existing.attributes('tabindex')).toBe('-1');
+  expect(existing.find('polyline[pointer-events="stroke"]').exists()).toBe(false);
+  expect(existing.find('polyline').exists()).toBe(true);
+  await existing.trigger('keydown', { key: 'Enter' });
+  await svg.trigger('click', { clientX: 90, clientY: 120 });
+  await anchor(ground).trigger('click');
+
+  expect(w.vm.sketch.materials.routes).toHaveLength(2);
+  expect(w.vm.sketch.materials.routes[1].bends).toEqual([{ x: 3, y: 4 }]);
+  expect(existing.find('polyline[pointer-events="stroke"]').exists()).toBe(true);
+  w.unmount();
+});
 it('adds rooms, sizes and levels, preserves points on resize, and undoes level removal', async () => {
   const w = editor(); await button(w, '+ Ambiente').trigger('click');
   await input(w, 'Nombre del ambiente').setValue('Cocina');

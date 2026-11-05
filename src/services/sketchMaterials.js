@@ -26,6 +26,10 @@ export function sketchMaterials(sketch) {
     }
     result.warnings=result.warnings.filter(w=>!w.startsWith('Lista parcial: no verifica'));
     result.warnings.push(...review.warnings);
+    result.warnings.push(
+      'Verificación parcial: el cálculo mínimo fase-neutro resistivo no verifica falla fase-PE ni tiempos de desconexión de personas.',
+      'La energía I²t debe corresponder al modelo, calibre y cortocircuito disponibles. Curvas y poder de corte no prueban selectividad ni respaldo en cascada.',
+    );
     for(const b of review.boards) if(b.status==='fail') result.warnings.push(`${b.name}: el gabinete no alcanza los módulos mínimos con reserva.`);
     for(const r of review.conduits) if(r.status==='fail') result.warnings.push(r.sharingInvalid ? `Canalización ${r.name}: separar los circuitos en cañerías independientes.` : `Canalización ${r.name}: revisar las medidas comerciales disponibles.`);
     for(const c of review.circuits) if(!c.reserved) result.warnings.push(`${c.name}: disparo magnético ${checkLabel(c.magnetic)}, poder de corte ${checkLabel(c.breaking)}, térmica ${checkLabel(c.thermal)}.`);

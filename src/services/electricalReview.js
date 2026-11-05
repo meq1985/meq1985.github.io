@@ -104,8 +104,6 @@ export function electricalReview(sketch, design, anchors = []) {
   return { circuits, conduits, boards, status: 'partial', warnings: [
     ...conduits.filter(r=>r.sharingInvalid).map(r=>`Conexión ${r.name}: separar cañerías. TUE/dedicados y alimentadores independientes; la excepción de uso general exige mismo tablero, hasta 3 circuitos, suma de térmicas ≤ 36 A y hasta 15 bocas en conjunto.`),
     ...boards.filter(b=>b.outsideScope).map(b=>`${b.name}: demanda mayor a 63 A o Icc mayor a 10 kA, fuera del alcance residencial 770:2017 de esta propuesta.`),
-    'Verificación parcial: Icc ingresada en cada tablero; cálculo mínimo fase-neutro resistivo, no verifica falla fase-PE ni tiempos de desconexión de personas.',
-    'La energía I²t debe corresponder al modelo, calibre y cortocircuito disponibles. Curvas y poder de corte no prueban selectividad ni respaldo en cascada.',
     'Cañerías: alternativas corrugado CL y aislante rígido RSP según tablas AEA 770:2017. Para secciones mezcladas se usa 35% con diámetros máximos aislados de referencia. Confirmar aptitud del producto y montaje; las alternativas no se suman entre sí.',
     ...boards.filter(b=>['principal','medidor_tp'].includes(b.type) && b.circuitCount).map(b=>`${b.name}: propuesta con termomagnética bipolar, sin diferencial. Confirmar protección por Clase II donde corresponda, incluido el tramo anterior al diferencial del TG, y exigencias de la distribuidora. Sin esas condiciones, revisar protección diferencial aguas arriba.`),
     ...design.feederCircuits.map(c=>`${c.name}: selectividad TP–TG pendiente de tablas del fabricante e Icc. Mayor calibre o curva D no garantizan selectividad; no aumentar la protección por encima de la capacidad del cable.`),
