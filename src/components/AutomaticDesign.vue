@@ -28,7 +28,7 @@ function update(key, value) {
         <p>En mandos, se usa la longitud equivalente de ida del lazo eléctrico. Los metros de materiales se suman por conductor en cada tramo.</p><p>IUG: 40 VA simultáneos por luminaria. La demanda TUG sigue el criterio seleccionado. Máximo 15 puntos por circuito, con mínimos de cantidad según superficie aportados para el proyecto. Verificá consumos reales antes de ejecutar.</p>
       </details>
       <div class="catalog-scroll"><table class="catalog-table"><thead><tr><th>Circuito</th><th>Puntos</th><th>Longitud de cálculo</th><th>Corriente</th><th>Sección</th><th>Caída total</th><th>Protección propuesta</th></tr></thead><tbody><tr v-for="c in [...design.feederCircuits, ...design.circuits]" :key="c.id"><td>{{ c.name }}</td><td>{{ c.pointIds.length }}</td><td>{{ c.meters.toFixed(2) }} m</td><td>{{ c.current.toFixed(2) }} A</td><td>{{ c.section ? `${c.section} mm²` : c.status === 'reserved' ? 'Reserva' : 'Pendiente' }}</td><td>{{ c.percent == null ? '—' : `${c.percent.toFixed(2)} %` }}</td><td>{{ c.breaker == null ? 'Pendiente' : `${c.breaker} A` }} · verificar curva y corte</td></tr></tbody></table></div>
-      <ElectricalReview :sketch="sketch" :design="design" :disabled="disabled" @edit="emit('edit',$event)" />
+      <ElectricalReview :design="design" :disabled="disabled" @edit="emit('edit',$event)" />
       <ul><li v-for="warning in design.warnings" :key="warning">{{ warning }}</li></ul>
       <button type="button" :disabled="disabled" @click="emit('edit', next => { delete next.materials.calculation; })">Volver a conductores manuales</button>
     </template>

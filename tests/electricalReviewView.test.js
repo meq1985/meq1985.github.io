@@ -17,30 +17,23 @@ it('edits an appliance from the drawing, preserves it and prevents edits in a di
   w.vm.disabled=true;await w.vm.$nextTick();const before=JSON.stringify(w.vm.sketch);
   await field(p,'Uso de esta toma','select').setValue('TUE');expect(JSON.stringify(w.vm.sketch)).toBe(before);w.unmount();
 });
-it('keeps unknown fault data pending and stores only the explicitly entered source inputs',async()=>{
-  const w=editor();await button(w,'Trazar conexión').trigger('click');await w.get('[data-anchor=tg]').trigger('click');await w.get('[data-anchor=outlet]').trigger('click');
-  await button(w,'Calcular instalación').trigger('click');await button(w,'Calcular circuitos y cables').trigger('click');
+it('shows conduit and cabinet settings without the fault and protection model panels', async () => {
+  const w=editor();
+  await button(w,'Trazar conexión').trigger('click');
+  await w.get('[data-anchor=tg]').trigger('click');
+  await w.get('[data-anchor=outlet]').trigger('click');
+  await button(w,'Calcular instalación').trigger('click');
+  await button(w,'Calcular circuitos y cables').trigger('click');
   expect(w.vm.sketch.materials.calculation.profile).toBe('cu-pvc-iram-40-v2');
-  const review=w.get('.electrical-review');expect(review.text()).toContain('Pendiente');
-  await field(review,'Icc máxima').setValue(6);await field(review,'Icc mínima').setValue(1000);await field(review,'Origen de los datos').setValue('Informe de ejemplo');
-  const saved=decodeSketch(encodeSketch(w.vm.sketch)).materials.calculation.technical.boards[0];
-  expect(saved).toMatchObject({id:'tg',ikMaxKA:6,ikMinA:1000,sourceNote:'Informe de ejemplo'});
-  await button(review,'Cañerías').trigger('click');
-  expect(review.get('table').text()).toContain('Corrugado recomendado');expect(review.get('table').text()).toContain('CL19');expect(review.get('table').text()).toContain('RSP16');
-  expect(review.get('table').text()).not.toContain('Ocupación elegida');
-  await button(review,'Protecciones').trigger('click');
-  expect(review.text()).toContain('Cumple este chequeo');expect(review.text()).toContain('Poder de corte');
-  await field(review,'Marca, modelo').setValue('Modelo ficticio');
-  await field(review,'Poder de corte Icn').setValue(6);
-  await field(review,'Energía pasante').setValue(150000);
-  const stored=w.vm.sketch.materials.calculation.technical.protections[0];expect(stored.atIkKA).toBe(6);
-  await field(review,'Icc máxima').setValue(10);expect(field(review,'Energía pasante').element.value).toBe('');
-  await field(review,'Energía pasante').setValue(100000);
-  await field(review,'Curva de la termomagnética','select').setValue('B');
-  expect(field(review,'Energía pasante').element.value).toBe('');
-  await field(review,'Energía pasante').setValue(90000);
-  await field(review,'Marca, modelo').setValue('Otro modelo ficticio');
-  expect(w.vm.sketch.materials.calculation.technical.protections[0]).toMatchObject({letThrough:null,breakingKA:null,atIkKA:null});
-  expect(field(review,'Energía pasante').element.value).toBe('');
+  const review=w.get('.electrical-review');
+  expect(review.text()).not.toMatch(/Icc máxima en este tablero|Icc mínima|Modelos de protección|energía pasante/i);
+  expect(review.get('table').text()).toContain('Corrugado recomendado');
+  expect(review.get('table').text()).toContain('CL19');
+  expect(review.get('table').text()).toContain('RSP16');
+  await field(review,'Capacidad real del gabinete').setValue(24);
+  expect(decodeSketch(encodeSketch(w.vm.sketch)).materials.calculation.technical.boards[0])
+    .toMatchObject({id:'tg',enclosureModules:24});
+  await button(review,'Tableros').trigger('click');
+  expect(review.get('table').text()).toContain('Módulos ocupados');
   w.unmount();
 });
