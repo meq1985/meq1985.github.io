@@ -21,7 +21,7 @@ function editHeight(key, value) {
 const levelId = ref(sketch.value.levels[0].id), roomId = ref(sketch.value.rooms.find(room => room.levelId === levelId.value)?.id ?? ''), tool = ref('select'), error = ref('');
 const undo = ref([]), redo = ref([]);
 const gridId = useId();
-const canvas = ref(null), roomDrag = ref(null), suppressClick = ref(false);
+const canvas = ref(null), roomDrag = ref(null);
 const drawingSketch = computed(() => {
   if (!roomDrag.value) return sketch.value;
   const next = clone(sketch.value), r = next.rooms.find(r => r.id === roomDrag.value.id);
@@ -70,12 +70,14 @@ function selectAnchor(id) {
 function selectMaterialRoute(id) { if (props.disabled) return; cancelConnection(); selectedPointId.value = ''; materialRouteId.value = id; materialView.value = 'route'; }
 const materialRoutes = computed(() => (sketch.value.materials?.routes ?? []).filter(r => materialRoutePlanePoints(sketch.value,r,levelId.value).length));
 const junctions = computed(() => (sketch.value.materials?.junctions ?? []).filter(j => j.levelId === levelId.value));
-watch(levelId, () => { selectedPointId.value = ''; roomDrag.value = null; materialView.value = ''; materialRouteId.value = ''; if (infraTool.value === 'material-route') infraTool.value = ''; });
-watch(() => props.disabled, disabled => { if (disabled) { cancelConnection(); roomDrag.value = null; } });
+watch(levelId, () => { selectedPointId.value = ''; cancelRoomDrag(); materialView.value = ''; materialRouteId.value = ''; if (infraTool.value === 'material-route') infraTool.value = ''; });
+watch(() => props.disabled, disabled => { if (disabled) cancelConnection(); });
 const equipment = computed(() => (sketch.value.equipment ?? []).filter(e => e.levelId === levelId.value));
 const feeders = computed(() => (sketch.value.feeders ?? []).filter(f => equipment.value.some(e => e.id === f.fromId)));
 const extents = computed(() => [...equipment.value, ...feeders.value.flatMap(f => f.bends), ...junctions.value, ...materialRoutes.value.flatMap(r => planePoints(r))]);
 const rooms = computed(() => sketch.value.rooms.filter(room => room.levelId === levelId.value));
+const canMoveRoom = computed(() => !props.disabled && !connectionMode.value && !infraTool.value && tool.value === 'select');
+watch(canMoveRoom, enabled => { if (!enabled) cancelRoomDrag(); });
 const room = computed(() => rooms.value.find(item => item.id === roomId.value));
 const summary = computed(() => sketchSummary(sketch.value));
 const width = computed(() => roomDrag.value?.width ?? Math.max(12, ...rooms.value.map(item => item.x + item.width + 1), ...extents.value.map(e => e.x + 2)));
@@ -133,7 +135,6 @@ function addPoint(x = 0.5, y = 0.5, target = room.value) {
 }
 function place(event, target) {
   if (props.disabled) return;
-  if (suppressClick.value) { suppressClick.value = false; return; }
   if (connectionMode.value) { placeInfrastructure(event); return; }
   if (infraTool.value) { placeInfrastructure(event); return; }
   roomId.value = target.id;
@@ -179,13 +180,14 @@ function beginInfrastructureTool(type) {
   infraTool.value = type; canvas.value?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
 }
 function startRoomDrag(event, target) {
-  if (props.disabled || connectionMode.value || infraTool.value || tool.value !== 'select' || (event.button !== undefined && event.button !== 0)) return;
+  if (!canMoveRoom.value || roomDrag.value || event.isPrimary === false || (event.button !== undefined && event.button !== 0)) return;
   const bounds = canvas.value.getBoundingClientRect(); if (!bounds.width || !bounds.height) return;
   roomId.value = target.id;
   roomDrag.value = { id: target.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
     originX: target.x, originY: target.y, x: target.x, y: target.y, width: width.value, depth: depth.value,
     scaleX: width.value / bounds.width, scaleY: depth.value / bounds.height };
-  canvas.value.setPointerCapture?.(event.pointerId); event.preventDefault();
+  canvas.value.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
 }
 function dragRoom(event) {
   const drag = roomDrag.value; if (!drag || props.disabled || event.pointerId !== drag.pointerId) return;
@@ -194,14 +196,19 @@ function dragRoom(event) {
 }
 function finishRoomDrag(event) {
   if (!roomDrag.value || event.pointerId !== roomDrag.value.pointerId) return;
-  dragRoom(event); const drag = roomDrag.value; roomDrag.value = null;
-  if (canvas.value.hasPointerCapture?.(event.pointerId)) canvas.value.releasePointerCapture(event.pointerId);
+  dragRoom(event);
+  const drag = roomDrag.value;
+  cancelRoomDrag(event);
   if (drag.x === drag.originX && drag.y === drag.originY) return;
-  suppressClick.value = true;
   change(next => moveRoom(next, drag.id, drag.x, drag.y));
 }
-function canvasClick(event) { if (suppressClick.value) { suppressClick.value = false; return; } placeInfrastructure(event); }
-function cancelDrawing() { cancelConnection(); roomDrag.value = null; }
+function cancelRoomDrag(event) {
+  const drag = roomDrag.value;
+  if (!drag || (event && event.pointerId !== drag.pointerId)) return;
+  roomDrag.value = null;
+  if (canvas.value?.hasPointerCapture?.(drag.pointerId)) canvas.value.releasePointerCapture(drag.pointerId);
+}
+function cancelDrawing() { cancelConnection(); cancelRoomDrag(); }
 function moveRoomKey(event, target) {
   if (props.disabled || connectionMode.value || infraTool.value || tool.value !== 'select') return;
   const delta = { ArrowLeft: [-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1] }[event.key];
@@ -237,7 +244,9 @@ function moveRoomKey(event, target) {
           <p v-if="connectionMode" role="status" class="catalog-notice">{{ !connectionStart ? 'Tocá el elemento de origen.' : connectionMode === 'trace' ? 'Marcá los quiebres en el plano y tocá el elemento de destino.' : 'Tocá el elemento de destino.' }} <span v-if="startAnchor"> Origen: {{ startAnchor.name }} ({{ sketch.levels.find(l => l.id === startAnchor.levelId)?.name }}). Podés cambiar de planta para elegir el destino.</span> <button type="button" @click="cancelConnection">Cancelar conexión</button></p>
           <p v-else-if="infraTool" class="catalog-notice" role="status">{{ ['route', 'material-route'].includes(infraTool) ? 'Tocá el plano para agregar quiebres al recorrido seleccionado.' : `Tocá el plano para ubicar: ${(infraTool === 'material-junction' ? 'Caja de paso' : EQUIPMENT_TYPES[infraTool])}.` }} <button type="button" @click="infraTool = ''">Terminar ubicación</button></p>
           <p v-else-if="tool !== 'select'" class="muted" role="status">{{ POINT_TYPES[tool] }}: tocá un ambiente.</p>
-          <svg ref="canvas" class="sketch-canvas" :viewBox="`0 0 ${width * 30} ${depth * 30}`" :style="{ aspectRatio: `${width} / ${depth}` }" role="img" aria-label="Plano del nivel seleccionado. Editá también desde los controles de ambientes." @click="canvasClick" @pointermove="dragRoom" @pointerup="finishRoomDrag" @pointercancel="roomDrag = null" @keydown.esc="cancelDrawing" tabindex="0">
+          <p v-if="canMoveRoom && rooms.length" class="sketch-touch-hint muted">Arrastrá desde una parte libre del ambiente. Para deslizar la página, hacelo fuera del plano.</p>
+          <div :class="{ 'room-drag-surface': canMoveRoom && rooms.length }">
+          <svg ref="canvas" class="sketch-canvas" :viewBox="`0 0 ${width * 30} ${depth * 30}`" :style="{ aspectRatio: `${width} / ${depth}` }" role="img" aria-label="Plano del nivel seleccionado. Editá también desde los controles de ambientes." @click="placeInfrastructure" @pointermove="dragRoom" @pointerup="finishRoomDrag" @pointercancel="cancelRoomDrag" @lostpointercapture="cancelRoomDrag" @keydown.esc="cancelDrawing" tabindex="0">
             <defs><pattern :id="gridId" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M 30 0 L 0 0 0 30" fill="none" stroke="#294158" stroke-width="0.6" /></pattern></defs>
             <rect width="100%" height="100%" :fill="`url(#${gridId})`" />
             <g v-for="item in rooms" :key="item.id" class="sketch-room" :class="{ selected: item.id === roomId, dragging: roomDrag?.id === item.id }" :transform="roomDrag?.id === item.id ? `translate(${(roomDrag.x-item.x)*30},${(roomDrag.y-item.y)*30})` : undefined" role="button" tabindex="0" :aria-label="`Mover ambiente ${item.name}`" @pointerdown="startRoomDrag($event,item)" @keydown="moveRoomKey($event,item)" @click.stop="place($event, item)">
@@ -252,6 +261,7 @@ function moveRoomKey(event, target) {
             <g v-for="e in equipment" :key="e.id" class="sketch-equipment" :transform="`translate(${e.x * 30},${e.y * 30})`" ><title>{{ e.name }}</title><rect x="-13" y="-9" width="26" height="18" rx="3" fill="#142c40" :stroke="e.id === equipmentId ? '#fff' : '#79c9ff'" stroke-width="1.5"/><text text-anchor="middle" y="3" font-size="8" fill="#fff">{{ equipmentCode(e.type) }}</text></g>
             <g v-for="a in materialAnchors(drawingSketch).filter(a => a.levelId === levelId)" :key="`hit-${a.id}`" class="anchor-hit" @pointerdown.stop role="button" tabindex="0" :aria-label="a.name" :data-anchor="a.id" :aria-pressed="connectionStart === a.id" @click.stop="selectAnchor(a.id)" @keydown.enter.stop.prevent="selectAnchor(a.id)" @keydown.space.stop.prevent="selectAnchor(a.id)"><circle :cx="a.x * 30" :cy="a.y * 30" r="13" fill="transparent" /></g>
           </svg>
+          </div>
           <div class="sketch-result-actions"><button type="button" @click="materialView = materialView === 'list' ? '' : 'list'">Ver materiales</button><button type="button" @click="materialView = materialView === 'settings' ? '' : 'settings'">Calcular instalación</button></div>
       <PointLoadEditor v-if="selectedPoint?.type === 'toma'" :point="selectedPoint" :disabled="disabled" @update="editPointLoad" @close="selectedPointId = ''" />
       <MaterialControls :entries="entries" :view="materialView" :sketch="sketch" :level-id="levelId" :disabled="disabled" :selected-route-id="materialRouteId" @close="materialView = ''" @edit="change" @select="materialRouteId = $event; infraTool = ''" @trace="materialRouteId = $event; beginInfrastructureTool('material-route')" />
@@ -269,5 +279,10 @@ function moveRoomKey(event, target) {
   </section>
 </template>
 <style scoped>
-.sketch-heading,.sketch-history,.sketch-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.sketch-heading{justify-content:space-between}.sketch-eyebrow{color:#a8d4ff;font-size:11px;letter-spacing:2px}.sketch-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px}.sketch-controls{display:flex;flex-direction:column;gap:14px}.sketch-controls .catalog-actions{margin:0}.sketch-controls h3{margin:8px 0 0}.sketch-heights{display:grid;gap:12px;padding:12px;border:1px solid #475366;border-radius:8px}.sketch-heights h3{margin:0}.sketch-measures{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sketch-room-list{display:flex;flex-direction:column;gap:8px}.sketch-room-list button{text-align:left;overflow-wrap:anywhere}.sketch-room-list small{display:block}.sketch-editor button[aria-pressed=true]{border-color:#8ccaff;background:#294e70}.sketch-result-actions{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}.sketch-room{touch-action:none}.sketch-room.dragging{cursor:grabbing}.sketch-workspace{min-width:0}.sketch-canvas{overflow:visible;display:block;width:100%;height:auto;background:#101e2c;border:1px solid #6487a8;border-radius:8px;touch-action:manipulation}.sketch-room{cursor:grab;stroke:#6684a1}.sketch-room.selected{stroke:#91ccff}.sketch-equipment{cursor:pointer}.sketch-equipment text,.sketch-feeders,.material-route-lines text{pointer-events:none}.sketch-room text{pointer-events:none;stroke:none}.anchor-hit{cursor:pointer}.anchor-hit:focus circle{stroke:#fff;stroke-width:2}.sketch-symbol,.material-route-lines g{pointer-events:all;cursor:pointer}.sketch-symbol:focus circle,.sketch-equipment:focus rect{stroke:#fff;stroke-width:3}.sketch-symbol path{stroke-width:1.5}.sketch-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}.sketch-summary>div{border:1px solid #475366;border-radius:8px;padding:12px}.sketch-summary dt{font-size:13px;color:#bfccda}.sketch-summary dd{margin:6px 0 0;font-size:22px;font-weight:700}.sketch-point-list ul{padding:0;list-style:none;max-height:240px;overflow:auto}.sketch-point-list li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;gap:12px}.sketch-instruction{min-height:48px}@media(max-width:800px){.sketch-layout{grid-template-columns:1fr}.sketch-summary{grid-template-columns:1fr 1fr}.sketch-tools button{flex:1;padding:10px}.sketch-controls{max-width:100%}}
+.room-drag-surface { touch-action: none; }
+.sketch-touch-hint { display: none; }
+@media (any-pointer: coarse) {
+  .sketch-touch-hint { display: block; margin: 8px 0; }
+}
+.sketch-heading,.sketch-history,.sketch-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.sketch-heading{justify-content:space-between}.sketch-eyebrow{color:#a8d4ff;font-size:11px;letter-spacing:2px}.sketch-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px}.sketch-controls{display:flex;flex-direction:column;gap:14px}.sketch-controls .catalog-actions{margin:0}.sketch-controls h3{margin:8px 0 0}.sketch-heights{display:grid;gap:12px;padding:12px;border:1px solid #475366;border-radius:8px}.sketch-heights h3{margin:0}.sketch-measures{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sketch-room-list{display:flex;flex-direction:column;gap:8px}.sketch-room-list button{text-align:left;overflow-wrap:anywhere}.sketch-room-list small{display:block}.sketch-editor button[aria-pressed=true]{border-color:#8ccaff;background:#294e70}.sketch-result-actions{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}.sketch-room.dragging{cursor:grabbing}.sketch-workspace{min-width:0}.sketch-canvas{overflow:visible;display:block;width:100%;height:auto;background:#101e2c;border:1px solid #6487a8;border-radius:8px;touch-action:manipulation}.sketch-room{cursor:grab;stroke:#6684a1}.sketch-room.selected{stroke:#91ccff}.sketch-equipment{cursor:pointer}.sketch-equipment text,.sketch-feeders,.material-route-lines text{pointer-events:none}.sketch-room text{pointer-events:none;stroke:none}.anchor-hit{cursor:pointer}.anchor-hit:focus circle{stroke:#fff;stroke-width:2}.sketch-symbol,.material-route-lines g{pointer-events:all;cursor:pointer}.sketch-symbol:focus circle,.sketch-equipment:focus rect{stroke:#fff;stroke-width:3}.sketch-symbol path{stroke-width:1.5}.sketch-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}.sketch-summary>div{border:1px solid #475366;border-radius:8px;padding:12px}.sketch-summary dt{font-size:13px;color:#bfccda}.sketch-summary dd{margin:6px 0 0;font-size:22px;font-weight:700}.sketch-point-list ul{padding:0;list-style:none;max-height:240px;overflow:auto}.sketch-point-list li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;gap:12px}.sketch-instruction{min-height:48px}@media(max-width:800px){.sketch-layout{grid-template-columns:1fr}.sketch-summary{grid-template-columns:1fr 1fr}.sketch-tools button{flex:1;padding:10px}.sketch-controls{max-width:100%}}
 </style>

@@ -72,6 +72,33 @@ it('places touch/click points relative to the room and removes them accessibly',
   await button(w, 'Deshacer').trigger('click'); expect(w.vm.sketch.rooms[0].points).toHaveLength(1);
   w.unmount();
 });
+it('reserves touch gestures only in selection mode and commits only the active finger’s drag', async () => {
+  const w = editor();
+  await button(w, '+ Ambiente').trigger('click');
+  const svg = w.get('.sketch-canvas');
+  vi.spyOn(svg.element, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 360, height: 270 });
+  const room = w.get('.sketch-room');
+  const touch = { pointerType: 'touch', pointerId: 1, isPrimary: true, button: 0 };
+  async function dispatch(target, type, options) {
+    target.element.dispatchEvent(new PointerEvent(type, { bubbles: true, ...touch, ...options }));
+    await w.vm.$nextTick();
+  }
+  expect(w.find('.room-drag-surface').exists()).toBe(true);
+  await dispatch(room, 'pointerdown', { clientX: 20, clientY: 20 });
+  await dispatch(svg, 'pointermove', { clientX: 50, clientY: 80 });
+  await dispatch(svg, 'pointercancel', { pointerId: 2, isPrimary: false });
+  expect(room.classes()).toContain('dragging');
+  await dispatch(svg, 'pointerup', { clientX: 50, clientY: 80 });
+  expect(w.vm.sketch.rooms[0]).toMatchObject({ x: 1, y: 2 });
+  await dispatch(room, 'pointerdown', { clientX: 50, clientY: 80 });
+  await dispatch(svg, 'pointermove', { clientX: 80, clientY: 110 });
+  await dispatch(svg, 'pointercancel');
+  expect(room.classes()).not.toContain('dragging');
+  expect(w.vm.sketch.rooms[0]).toMatchObject({ x: 1, y: 2 });
+  await button(w, 'Toma').trigger('click');
+  expect(w.find('.room-drag-surface').exists()).toBe(false);
+  w.unmount();
+});
 it('rejects invalid measures visibly and prevents SVG changes while saving', async () => {
   const w = editor(); await button(w, '+ Ambiente').trigger('click');
   const widthInput = input(w, 'Ancho (m)');
