@@ -27,7 +27,7 @@ acquisitionDays/{fechaUTC}: resúmenes por día UTC. Solo administradores verifi
 Cada hito se cuenta una sola vez por UID en una transacción. Se excluyen administradores y cualquier documento billingTesters, aunque esté deshabilitado. Solo cuentas registradas después de activar esta medición; no hay reconstrucción histórica ni lectura masiva de usuarios. Los hitos diarios no son cohortes ni tasas de conversión comparables automáticamente.
 
 ## Operación y posible consumo
-No hay endpoint público para enviar eventos internos arbitrarios. Dos funciones reciben eventos de creación en Firestore: accesos y proyectos; región southamerica-east1, minInstances 0, maxInstances 1, concurrencia 5, reintentos idempotentes. Deben desplegarse junto con las reglas y el frontend antes de contar como implementación activa.
+Dos funciones privadas reciben eventos de creación de accesos y proyectos en Firestore. Se ejecutan en southamerica-east1 con un máximo de una instancia por función y concurrencia de cinco. La transacción evita contar entregas duplicadas. Los reintentos automáticos ante fallos están deshabilitados, por lo que una ejecución fallida puede dejar un evento sin contabilizar. El despliegue debe incluir las reglas y el frontend.
 
 GA4 estándar no requiere un plan pago. Firebase añade invocaciones/Eventarc y lecturas: hasta tres lecturas iniciales por evento, y para un hito nuevo una lectura de resumen y dos escrituras. Cada proyecto nuevo dispara una comprobación aunque ya exista el primer hito. Puede consumir cuota y generar cargos en Blaze; no existe tope de gasto. No se habilitan estos despliegues en esta tarea de preparación. Mantener las alertas de consumo aprobadas.
 

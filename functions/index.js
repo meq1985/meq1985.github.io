@@ -267,7 +267,7 @@ export const updateConsumerManagement=onCall({region:'us-central1',minInstances:
 
 // Database events cannot be forged as public analytics requests. Delivery may repeat;
 // the per-account transaction guarantees each milestone counts at most once.
-const acquisitionTrigger = { region: 'southamerica-east1', minInstances: 0, maxInstances: 1, concurrency: 5, memory: '256MiB', retry: true };
+const acquisitionTrigger = { region: 'southamerica-east1', minInstances: 0, maxInstances: 1, concurrency: 5, memory: '256MiB', retry: false };
 export const countTrialStarted = onDocumentCreated({ ...acquisitionTrigger, document: 'accesos/{uid}' }, async event => {
   if (event.data) await recordAcquisition({ db, uid: event.params.uid, stage: 'trials', now: event.data.createTime.toMillis() });
 });
