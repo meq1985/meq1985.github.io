@@ -9,12 +9,23 @@ it('offers equal accept/reject choices and applies rejection without restricting
   const w=mount(AnalyticsConsent,{global:{stubs:{RouterLink:true}}});
   await flushPromises(); const buttons=w.findAll('button');expect(buttons.map(b=>b.text())).toEqual(['Rechazar Analytics','Aceptar Analytics']);
   await buttons[0].trigger('click');expect(mocked.apply).toHaveBeenCalledWith('denied');expect(w.find('aside').exists()).toBe(false);
-  await w.get('button').trigger('click');expect(w.find('aside').exists()).toBe(true);w.unmount();
+  expect(w.find('button').exists()).toBe(false);w.unmount();
 });
 it('acceptance is an explicit separate action and can be reviewed later',async()=>{
   const w=mount(AnalyticsConsent,{global:{stubs:{RouterLink:true}}});await flushPromises(); expect(mocked.apply).not.toHaveBeenCalled();
-  await w.findAll('button')[1].trigger('click');expect(mocked.apply).toHaveBeenCalledWith('granted');expect(w.text()).toBe('Preferencias de privacidad');w.unmount();
+  await w.findAll('button')[1].trigger('click');
+  expect(mocked.apply).toHaveBeenCalledWith('granted');
+  expect(w.text()).toBe('');
+  w.vm.openPreferences();
+  await flushPromises();
+  expect(w.find('aside').exists()).toBe(true);
+  w.unmount();
 });
-it('does not reopen a rejected preference on another visit',()=>{
-  mocked.consent.mockReturnValue('denied');const w=mount(AnalyticsConsent,{global:{stubs:{RouterLink:true}}});expect(w.find('aside').exists()).toBe(false);expect(mocked.apply).not.toHaveBeenCalled();w.unmount();
+it.each(['granted', 'denied'])('stays hidden on a return visit after choosing %s',async choice=>{
+  mocked.consent.mockReturnValue(choice);
+  const w=mount(AnalyticsConsent,{global:{stubs:{RouterLink:true}}});
+  await flushPromises();
+  expect(w.text()).toBe('');
+  expect(mocked.apply).not.toHaveBeenCalled();
+  w.unmount();
 });
