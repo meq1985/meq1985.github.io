@@ -16,6 +16,7 @@ async function page(path = '/') {
     ...[['/ingresar', 'login'], ['/registrarse', 'register'], ['/recuperar', 'recovery']].map(([path, authMode]) => ({ path, component: AuthView, meta: { authMode } })),
     { path: '/config', component: { template: '<div>Cuenta</div>' } },
     { path: '/dashboard', component: { template: '<div>Presupuestar</div>' } },
+    { path: '/gestiones', component: { template: '<div>Gestiones</div>' } },
   ] });
   await router.push(path); await router.isReady();
   const wrapper = mount({ template: '<RouterView />' }, { global: { plugins: [router] } });
@@ -44,6 +45,10 @@ describe('professional landing and access', () => {
     expect(wrapper.get('#croquis svg').attributes('aria-label')).toContain('tablero general');
     expect(wrapper.get('.home-plan-full').text()).toContain('Recorridos medidos');
     expect(wrapper.find('.home-plan-full a').attributes('href')).toBe('/ingresar');
+    for (const href of ['/gestiones#baja', '/gestiones#arrepentimiento']) {
+      expect(wrapper.findAll(`a[href="${href}"]`)).toHaveLength(1);
+      expect(wrapper.find(`footer a[href="${href}"]`).exists()).toBe(true);
+    }
     wrapper.unmount();
   });
   it('offers working signup navigation and clearly explains account storage and illustrative prices', async () => {
