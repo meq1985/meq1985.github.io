@@ -4,6 +4,7 @@ import { auth } from '../firebase';
 import { signInWithEmailAndPassword, signOut,
   sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
 import { ensureAccountReady } from '../services/accountProvisioning';
+import { MIN_NEW_PASSWORD_LENGTH } from '../../functions/passwordPolicy.js';
 
 export const useUserStore = defineStore('user', {
   state: () => ({ user: null, busy: false, notice: '', error: '' }),
@@ -35,7 +36,7 @@ export const useUserStore = defineStore('user', {
       } catch (error) {
         this.error = signedIn
           ? 'No se completó el paso de verificación o configuración. Reintentá con el mismo correo y contraseña; tu cuenta se puede recuperar.'
-          : 'No se pudo registrar. Revisá el correo y la contraseña (mínimo 6 caracteres) o recuperá tu contraseña.';
+          : `No se pudo registrar. Revisá el correo y la contraseña (mínimo ${MIN_NEW_PASSWORD_LENGTH} caracteres) o recuperá tu contraseña.`;
         return false;
       } finally {
         try { if (signedIn && !complete) await signOut(auth); }

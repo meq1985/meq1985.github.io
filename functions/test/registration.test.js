@@ -4,7 +4,8 @@ import { validRegistration, verifyRegistration, registrationCounter, registerPro
 test('registration requires consent, bounded credentials and a challenge', () => {
   const valid = { email: 'qa@example.invalid', password: 'long-password', token: 'single-use', consent: true };
   assert.equal(validRegistration(valid), true);
-  for (const patch of [{ consent: false }, { token: '' }, { token: 'x'.repeat(2049) }, { password: 'short' }, { email: 'bad' }]) assert.equal(validRegistration({ ...valid, ...patch }), false);
+  assert.equal(validRegistration({ ...valid, password: 'x'.repeat(12) }), true);
+  for (const patch of [{ consent: false }, { token: '' }, { token: 'x'.repeat(2049) }, { password: 'x'.repeat(11) }, { password: 'x'.repeat(129) }, { email: 'bad' }]) assert.equal(validRegistration({ ...valid, ...patch }), false);
 });
 test('challenge validation checks provider, hostname, action and server status', async () => {
   const response = body => async (url, options) => {

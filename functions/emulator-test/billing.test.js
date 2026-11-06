@@ -1,6 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 if (process.env.GCLOUD_PROJECT !== 'demo-presupuesto-electrico' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080') throw new Error('Isolated demo emulator required.');
 process.env.MP_ACCESS_TOKEN = 'fake-no-real-network';
 process.env.MP_WEBHOOK_SECRET = 'fake-signature';
@@ -40,9 +40,9 @@ globalThis.fetch = async (url, options) => {
   return { ok: true, json: async () => structuredClone(result) };
 };
 const request = (uid = 'billing-owner', data = { planId: 'presupuestos', consent: true }) => ({ auth: { uid, token: { email_verified: true, email: `${uid}@example.invalid` } }, data: { acceptedAmount: data.planId === 'croquis' ? 19900 : 12000, ...data } });
-const webhook = async (id, type = 'subscription_authorized_payment', signed = true) => {
-  const hash = createHmac('sha256', 'fake-signature').update(`id:${id};request-id:test-request;ts:123;`).digest('hex');
-  const req = { method: 'POST', query: { 'data.id': id }, body: { type }, get: name => ({ 'x-signature': signed ? `ts=123,v1=${hash}` : '', 'x-request-id': 'test-request' })[name] };
+const webhook = async (id, type = 'subscription_authorized_payment', signed = true, requestId = randomUUID()) => {
+  const hash = createHmac('sha256', 'fake-signature').update(`id:${id};request-id:${requestId};ts:123;`).digest('hex');
+  const req = { method: 'POST', query: { 'data.id': id }, body: { type }, get: name => ({ 'x-signature': signed ? `ts=123,v1=${hash}` : '', 'x-request-id': requestId })[name] };
   let status;
   await billing.handleMercadoPagoWebhook(req, { sendStatus: code => { status = code; } });
   return status;
@@ -93,12 +93,18 @@ test('complete billing lifecycle uses only the emulator and a simulated provider
   let originalExpiry;
   await t.test('forged webhook is denied and confirmed payment activates only its owner', async () => {
     assert.equal(await webhook('inv1', undefined, false), 401);
-    assert.equal(await webhook('inv1'), 200);
+    assert.equal(await webhook('inv1', undefined, true, 'first-payment-delivery'), 200);
     const subscription = (await db.doc('suscripciones/billing-owner').get()).data();
     assert.equal(subscription.status, 'active');assert.ok(subscription.contractedAt.toMillis()>0);assert.ok(subscription.nextPaymentAt.toMillis()>Date.now());assert.equal(subscription.lastPayment.amount,12000);assert.equal(subscription.lastPayment.paidAt,Date.parse(payments.get('pay1').date_approved));
     const history=(await db.doc('suscripciones/billing-owner/pagos/inv1').get()).data();assert.equal(history.status,'approved');assert.equal('payer' in history,false);
     originalExpiry = subscription.paidThrough.toMillis();
     assert.equal((await db.doc('suscripciones/not-tester').get()).exists, false);
+  });
+  await t.test('repeating the same signed delivery does not write payment history again', async () => {
+    const history = db.doc('suscripciones/billing-owner/pagos/inv1');
+    const before = (await history.get()).updateTime;
+    assert.equal(await webhook('inv1', undefined, true, 'first-payment-delivery'), 200);
+    assert.ok((await history.get()).updateTime.isEqual(before));
   });
   await t.test('duplicates and old events cannot extend the period', async () => {
     assert.equal(await webhook('inv1'), 200); assert.equal(await webhook('sub1', 'subscription_preapproval'), 200);

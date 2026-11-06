@@ -72,11 +72,15 @@ describe('professional landing and access', () => {
   it.each([['/ingresar', 'login'], ['/registrarse', 'register'], ['/recuperar', 'resetPassword']])('submits %s to the existing auth action', async (path, action) => {
     const { wrapper } = await page(path);
     await wrapper.get('#auth-email').setValue('demo@example.com');
-    if (action !== 'resetPassword') await wrapper.get('#auth-password').setValue('password123');
+    if (action !== 'resetPassword') {
+      const field = wrapper.get('#auth-password');
+      expect(field.attributes('minlength')).toBe(action === 'register' ? '12' : undefined);
+      await field.setValue(action === 'register' ? 'a-long-password' : 'password123');
+    }
     else expect(wrapper.find('input[type="password"]').exists()).toBe(false);
     if (action === 'register') { await wrapper.get('[data-testid="legal-consent"]').setValue(true); await wrapper.get('[data-testid="challenge"]').trigger('click'); }
     await wrapper.get('form').trigger('submit');
-    expect(state.store[action]).toHaveBeenCalledWith(...(action === 'resetPassword' ? ['demo@example.com'] : action === 'register' ? ['demo@example.com', 'password123', 'test-challenge'] : ['demo@example.com', 'password123']));
+    expect(state.store[action]).toHaveBeenCalledWith(...(action === 'resetPassword' ? ['demo@example.com'] : action === 'register' ? ['demo@example.com', 'a-long-password', 'test-challenge'] : ['demo@example.com', 'password123']));
     wrapper.unmount();
   });
   it('prevents duplicate submissions and exposes accessible feedback', async () => {
