@@ -40,6 +40,23 @@ const equipmentId = ref(''), routeId = ref(''), infraTool = ref(''), materialRou
 const selectedPointId=ref('');
 const selectedPoint=computed(()=>sketch.value.rooms.flatMap(r=>r.points).find(p=>p.id===selectedPointId.value));
 function editPointLoad(load){const pointId=selectedPointId.value;change(next=>{const p=next.rooms.flatMap(r=>r.points).find(p=>p.id===pointId);if(p){if(load)p.load=load;else delete p.load;}});}
+const switchLights = computed(() => {
+  const assigned = new Set(sketch.value.rooms.flatMap(r => r.points).filter(p => p.id !== selectedPointId.value).flatMap(p => p.simpleLightIds ?? []));
+  return materialAnchors(sketch.value).filter(a => a.type === 'luminaria').map(a => ({
+    ...a, assigned: assigned.has(a.id), level: sketch.value.levels.find(l => l.id === a.levelId)?.name,
+  }));
+});
+function editSwitchLights(lightIds) {
+  change(next => {
+    const point = next.rooms.flatMap(r => r.points).find(p => p.id === selectedPointId.value && p.type === 'llave');
+    if (lightIds === undefined) delete point.simpleLightIds;
+    else point.simpleLightIds = lightIds;
+  });
+}
+function toggleSwitchLight(id, checked) {
+  const ids = selectedPoint.value.simpleLightIds;
+  editSwitchLights(checked ? [...ids, id] : ids.filter(lightId => lightId !== id));
+}
 const connectionMode = ref(''), connectionStart = ref(''), draftBends = ref([]), materialView = ref('');
 const startAnchor = computed(() => materialAnchors(sketch.value).find(a => a.id === connectionStart.value));
 const draftPoints = computed(() => startAnchor.value ? [startAnchor.value.levelId === levelId.value ? startAnchor.value : draftBends.value.filter(p => p.levelId !== levelId.value).at(-1) ?? startAnchor.value, ...draftBends.value.filter(p => p.levelId === levelId.value)].map(p => `${p.x * 30},${p.y * 30}`).join(' ') : '');
@@ -97,6 +114,9 @@ function change(edit, recordHistory = true) {
   if (props.disabled) return;
   try {
     const next = clone(sketch.value); edit(next); classifyEarthing(next); pruneMaterialNetwork(next);
+    const points = next.rooms.flatMap(r => r.points);
+    const lights = new Set(points.filter(p => p.type === 'luminaria').map(p => p.id));
+    for (const point of points) if (point.simpleLightIds) point.simpleLightIds = point.simpleLightIds.filter(id => lights.has(id));
     const valid = validateSketch(next);
     encodeSketch(valid);
     if (JSON.stringify(valid) === JSON.stringify(sketch.value)) { error.value = ''; return true; }
@@ -264,12 +284,36 @@ function moveRoomKey(event, target) {
           </div>
           <div class="sketch-result-actions"><button type="button" @click="materialView = materialView === 'list' ? '' : 'list'">Ver materiales</button><button type="button" @click="materialView = materialView === 'settings' ? '' : 'settings'">Calcular instalación</button></div>
       <PointLoadEditor v-if="selectedPoint?.type === 'toma'" :point="selectedPoint" :disabled="disabled" @update="editPointLoad" @close="selectedPointId = ''" />
+      <section v-if="selectedPoint?.type === 'llave'" class="catalog-panel switch-editor" aria-label="Configuración de la llave seleccionada">
+        <div class="catalog-actions">
+          <h3>Llave seleccionada</h3>
+          <button type="button" @click="selectedPointId = ''">Cerrar configuración</button>
+        </div>
+        <label>Tipo de llave
+          <select :value="selectedPoint.simpleLightIds === undefined ? 'auto' : 'simple'" :disabled="disabled"
+            @change="editSwitchLights($event.target.value === 'simple' ? [] : undefined)">
+            <option value="auto">Automática</option>
+            <option value="simple">Simple manual</option>
+          </select>
+        </label>
+        <p v-if="selectedPoint.simpleLightIds === undefined">Tipo detectado · {{ switchLabel(selectedPoint.id) }}</p>
+        <fieldset v-else :disabled="disabled">
+          <legend>Luminarias que enciende esta llave</legend>
+          <p>Marcá las luminarias que se encienden juntas con esta tecla. Los recorridos dibujados se conservan.</p>
+          <p v-if="!switchLights.length">Agregá una luminaria al croquis para asignarla.</p>
+          <label v-for="light in switchLights" :key="light.id" class="switch-light">
+            <input type="checkbox" :checked="selectedPoint.simpleLightIds.includes(light.id)" :disabled="light.assigned"
+              @change="toggleSwitchLight(light.id, $event.target.checked)" />
+            {{ light.level }} · {{ light.name }}{{ light.assigned ? ' (asignada a otra llave simple)' : '' }}
+          </label>
+        </fieldset>
+      </section>
       <MaterialControls :entries="entries" :view="materialView" :sketch="sketch" :level-id="levelId" :disabled="disabled" :selected-route-id="materialRouteId" @close="materialView = ''" @edit="change" @select="materialRouteId = $event; infraTool = ''" @trace="materialRouteId = $event; beginInfrastructureTool('material-route')" />
           <p v-if="!rooms.length" class="catalog-notice">Agregá un ambiente.</p>
           <p v-if="overlap" class="catalog-notice">Hay ambientes superpuestos en este nivel. Revisá sus posiciones; la superficie suma cada ambiente.</p>
           <small>Cuadrícula: 1 × 1 m</small>
           <div v-if="room && tool !== 'select'" class="catalog-actions"><button type="button" @click="addPoint()">Agregar al centro de {{ room.name }}</button></div>
-          <div v-if="room?.points.length" class="sketch-point-list"><h3>Puntos de {{ room.name }}</h3><ul><li v-for="(point, index) in room.points" :key="point.id">{{ point.type === 'llave' ? switchLabel(point.id) : POINT_TYPES[point.type] }} {{ index + 1 }}<button v-if="point.type === 'toma'" type="button" :aria-label="`Editar carga de Toma ${index + 1}`" @click="selectedPointId = point.id">Carga / circuito</button><button type="button" :aria-label="`Quitar ${POINT_TYPES[point.type]} ${index + 1}`" @click="change(next => { const target = next.rooms.find(item => item.id === room.id); target.points = target.points.filter(item => item.id !== point.id); })">Quitar</button></li></ul></div>
+          <div v-if="room?.points.length" class="sketch-point-list"><h3>Puntos de {{ room.name }}</h3><ul><li v-for="(point, index) in room.points" :key="point.id">{{ point.type === 'llave' ? switchLabel(point.id) : POINT_TYPES[point.type] }} {{ index + 1 }}<button v-if="point.type === 'toma'" type="button" :aria-label="`Editar carga de Toma ${index + 1}`" @click="selectedPointId = point.id">Carga / circuito</button><button v-if="point.type === 'llave'" type="button" :aria-label="`Configurar llave ${index + 1}`" @click="selectedPointId = point.id">Configurar</button><button type="button" :aria-label="`Quitar ${POINT_TYPES[point.type]} ${index + 1}`" @click="change(next => { const target = next.rooms.find(item => item.id === room.id); target.points = target.points.filter(item => item.id !== point.id); })">Quitar</button></li></ul></div>
         </div>
       </div>
 
@@ -279,6 +323,7 @@ function moveRoomKey(event, target) {
   </section>
 </template>
 <style scoped>
+.switch-editor{margin:12px 0}.switch-editor fieldset{margin-top:12px}.switch-light{display:flex;align-items:center;gap:8px;margin-top:8px}.switch-light input{width:auto}
 .room-drag-surface { touch-action: none; }
 .sketch-touch-hint { display: none; }
 @media (any-pointer: coarse) {

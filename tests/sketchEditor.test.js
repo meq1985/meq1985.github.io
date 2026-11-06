@@ -10,6 +10,25 @@ const input = (w, text) => w.findAll('label').find(l => l.text() === text).get('
 function editor() {
   return mount(defineComponent({ components: { SketchEditor }, setup: () => ({ sketch: ref(null), disabled: ref(false), entries: LABOR_CATALOG }), template: '<SketchEditor v-model="sketch" :disabled="disabled" :entries="entries" />' }));
 }
+it('lets a selected switch take manual control of a light and return to automatic mode', async () => {
+  const w = editor();
+  w.vm.sketch = {
+    schema: 1, levels: [{ id: 'base', name: 'Baja' }],
+    rooms: [{ id: 'room', levelId: 'base', name: 'Sala', x: 0, y: 0, width: 4, depth: 3,
+      points: [{ id: 'switch', type: 'llave', x: 0.2, y: 0.5 }, { id: 'light', type: 'luminaria', x: 0.8, y: 0.5 }] }],
+  };
+  await w.vm.$nextTick();
+  await w.get('[data-anchor="switch"]').trigger('click');
+  const panel = w.get('.switch-editor');
+  await panel.get('select').setValue('simple');
+  await panel.get('input[type="checkbox"]').setValue(true);
+  expect(w.vm.sketch.rooms[0].points[0].simpleLightIds).toEqual(['light']);
+  await w.get('button[aria-label="Quitar Luminaria 2"]').trigger('click');
+  expect(w.vm.sketch.rooms[0].points[0].simpleLightIds).toEqual([]);
+  await panel.get('select').setValue('auto');
+  expect(w.vm.sketch.rooms[0].points[0]).not.toHaveProperty('simpleLightIds');
+  w.unmount();
+});
 it('can erase the default room dimension and type a new one without selecting the old number', async () => {
   const w = editor(); await button(w, '+ Ambiente').trigger('click');
   const width = input(w, 'Ancho (m)'); await width.setValue('');

@@ -56,6 +56,31 @@ it('supports conventional switch-to-switch travellers followed by luminaires', (
   expect(d.assignments.get('ab')[0].wires.find(w=>w.role==='traveller').count).toBe(2);
   expect(d.assignments.get('bl')[0].wires.some(w=>w.role==='return')).toBe(true);
 });
+it('lets two simple switches share a conduit without treating it as combined wiring', () => {
+  const s = fixture();
+  s.equipment[0].x = 1;
+  s.materials.routes = [
+    edge('feed', 'tg', 'a'), edge('first', 'a', 'l0', 'control'),
+    edge('shared', 'l0', 'b', 'control'), edge('second', 'b', 'l1', 'control'),
+  ];
+  expect(switchTopology(s).switches.find(k => k.id === 'b')).toMatchObject({ gangs: 2, combined: 1 });
+  s.rooms[1].points[0].simpleLightIds = ['l1'];
+  const saved = decodeSketch(encodeSketch(s));
+  expect(switchTopology(saved).groups).toEqual([
+    expect.objectContaining({ lightIds: ['l0'], switchIds: ['a'] }),
+    expect.objectContaining({ lightIds: ['l1'], switchIds: ['b'] }),
+  ]);
+  const design = proposeElectrical(saved);
+  expect(design.assignments.get('shared')[0].wires.map(w => w.role).sort()).toEqual(['neutral', 'pe', 'phase']);
+  for (const route of ['first', 'second']) {
+    expect(design.assignments.get(route)[0].wires.find(w => w.role === 'return')?.section).toBe(1.5);
+  }
+  const rows = materialsFromSketch(withAutomaticConductors(saved)).rows;
+  expect(rows.find(r => r.description.startsWith('Llave simple')).quantity).toBe(2);
+  expect(rows.some(r => r.description.includes('Viajero'))).toBe(false);
+  saved.rooms[0].points[0].simpleLightIds = ['l1'];
+  expect(() => encodeSketch(saved)).toThrow();
+});
 it('removes cross-floor routes when their endpoint floor is deleted', () => {
   const s=fixture();s.materials.routes=[edge('up','tg','t')];s.levels.pop();s.rooms=s.rooms.filter(r=>r.levelId==='planta-baja');pruneMaterialNetwork(s);
   expect(s.materials.routes).toHaveLength(0);
