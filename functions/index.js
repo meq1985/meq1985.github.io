@@ -5,7 +5,7 @@ import { paymentPresentation, subscriptionPresentation } from './billingPresenta
 import * as logger from 'firebase-functions/logger';
 import { getAuth } from 'firebase-admin/auth';
 import { registerProtected } from './registration.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
@@ -213,7 +213,8 @@ export async function handleMercadoPagoWebhook(req, res) {
   if (!['test', 'live'].includes(mode.value())) return res.sendStatus(503);
   let id;
   try { id = safeId(req.query['data.id']); } catch { return res.sendStatus(400); }
-  if (!verifySignature({ id, requestId: req.get('x-request-id'), signature: req.get('x-signature'), secret: webhookSecret.value() })) return res.sendStatus(401);
+  const requestId = req.get('x-request-id');
+  if (!verifySignature({ id, requestId, signature: req.get('x-signature'), secret: webhookSecret.value() })) return res.sendStatus(401);
   const topic = req.body?.type;
   if (!['subscription_preapproval', 'subscription_authorized_payment', 'payment'].includes(topic)) return res.sendStatus(200);
   try {
@@ -230,6 +231,11 @@ export async function handleMercadoPagoWebhook(req, res) {
     // Unknown/pre-binding events retry, allowing creation to finish without losing the first payment.
     if (!binding) return res.sendStatus(503);
     await withAccountLock(binding.uid, async () => {
+      const receipts = db.doc(`billingWebhookReceipts/${binding.uid}`);
+      const delivery = createHash('sha256')
+        .update(JSON.stringify([mode.value(), id.toLowerCase(), requestId])).digest('hex');
+      const recent = (await receipts.get()).data()?.recent ?? [];
+      if (recent.includes(delivery)) return;
       const stored = (await checkoutRef(binding.uid).get()).data();
       if (!stored || stored.mode !== mode.value()) throw new Error('mode-mismatch');
       // Refetch inside the account lock so a concurrent older event cannot undo a refund.
@@ -237,6 +243,8 @@ export async function handleMercadoPagoWebhook(req, res) {
       const remote = await api(`/preapproval/${safeId(stored.providerId)}`);
       validateRemote(remote, stored);
       await publishAccess(binding.uid, remote);
+      // Remember only successful deliveries. A failed attempt can be retried.
+      await receipts.set({ recent: [...recent.slice(-31), delivery] });
     });
     return res.sendStatus(200);
   } catch {

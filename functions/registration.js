@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto';
+import { validNewPassword } from './passwordPolicy.js';
 export const REGISTRATION_HOSTS = ['electricistaxpress.com.ar', 'www.electricistaxpress.com.ar'];
 export function validRegistration(data) {
   return data?.consent === true && typeof data.email === 'string' && data.email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email) &&
-    typeof data.password === 'string' && data.password.length >= 6 && data.password.length <= 128 &&
+    validNewPassword(data.password) &&
     typeof data.token === 'string' && data.token.length > 0 && data.token.length <= 2048;
 }
 export async function verifyRegistration(secret, token, fetcher = fetch, action = 'signup') {
