@@ -2,7 +2,7 @@ import { it, expect } from 'vitest';
 import { emptySketch, encodeSketch, decodeSketch } from '../src/services/sketch';
 import { emptyQuoteSettings } from '../src/services/sketchQuoteSettings';
 import { emptyMaterialNetwork, materialsFromSketch } from '../src/services/materialNetwork';
-import { DEFAULT_CALCULATION, calculatedRouteLength, proposeElectrical, selectCable, withAutomaticConductors } from '../src/services/automaticDesign';
+import { DEFAULT_CALCULATION, calculatedRouteLength, canMergeCircuits, proposeElectrical, selectCable, withAutomaticConductors } from '../src/services/automaticDesign';
 const fixture = (count = 1, width = 20) => ({ ...emptySketch(), schema: 2, quote: { ...emptyQuoteSettings(), heights: { toma: 0.3, llave: 1.2, techo: 3 } },
   equipment: [{ id: 'tg', type: 'general', name: 'TG', levelId: 'planta-baja', x: 0, y: 0, itemId: '' }], feeders: [],
   rooms: [{ id: 'room', levelId: 'planta-baja', name: 'Sala', x: 0, y: 0, width, depth: 1, points: Array.from({ length: count }, (_, i) => ({ id: `p${i}`, type: 'toma', x: 1, y: i / count })) }],
@@ -73,6 +73,28 @@ it('splits only the oversized branch at 15 points without mixing the other branc
   expect(new Set(other.pointIds)).toEqual(new Set(['p16', 'p17', 'p18', 'p19']));
   expect(result.assignments.get('r0')).toHaveLength(2); expect(result.assignments.get('r16')).toHaveLength(1);
 });
+it.each(['IUG', 'TUG'])('merges same-board %s branches, retaining geometry and recalculating demand', type => {
+  const s = lightingBranches([4, 11]);
+  if (type === 'TUG') s.rooms[0].points.forEach(p => { p.type = 'toma'; });
+  s.materials.calculation.tugDemandMode = 'per-point-150';
+  const [a, b] = proposeElectrical(s).circuits.filter(c => c.type === type);
+  expect(canMergeCircuits(a, b)).toBe(true);
+  expect(canMergeCircuits(a, { ...b, pointIds: [...b.pointIds, 'extra'] })).toBe(false);
+  expect(canMergeCircuits(a, { ...b, boardId: 'other-board' })).toBe(false);
+  expect(canMergeCircuits(a, { ...b, type: 'otro' })).toBe(false);
+  s.materials.calculation.circuitMerges = [[...a.pointIds, ...b.pointIds]];
+  const restored = decodeSketch(encodeSketch(s));
+  const result = proposeElectrical(restored);
+  const [merged] = result.circuits.filter(c => c.type === type);
+  expect(result.circuits.filter(c => c.type === type)).toHaveLength(1);
+  expect(merged.pointIds).toHaveLength(15);
+  expect(merged.demandVA).toBe(15 * (type === 'IUG' ? 40 : 150));
+  expect(merged.meters).toBeCloseTo(Math.max(a.meters, b.meters));
+  expect(result.assignments.get('r0')[0].circuitId).toBe(merged.id);
+  expect(result.assignments.get('r4')[0].circuitId).toBe(merged.id);
+  restored.materials.calculation.circuitMerges = [];
+  expect(proposeElectrical(restored).circuits.filter(c => c.type === type)).toHaveLength(2);
+});
 it('uses drawn graph routes, applies grouping to common conduits and counts conduit only once', () => {
   const s = fixture(16, 5); s.materials.junctions = [{ id: 'j', levelId: 'planta-baja', name: 'Caja', x: 1, y: 0 }];
   s.materials.routes.forEach(r => { r.fromId = 'j'; });
@@ -112,6 +134,11 @@ it.each([false, true])('supplies lighting through a switch box, including chaine
   expect(result.assignments.get('control')).toHaveLength(1);
   expect(result.assignments.get('control')[0].wires.map(w => w.role).sort()).toEqual(['neutral', 'pe', 'return']);
   expect(result.assignments.get('chain')[0].wires.map(w => w.role).sort()).toEqual(['neutral', 'pe', 'return']);
+  expect(c.section).toBe(2.5);
+  expect(result.assignments.get('supply')[0].wires.every(w => w.section === 2.5)).toBe(true);
+  expect(result.assignments.get('control')[0].wires.find(w => w.role === 'return').section).toBe(1.5);
+  expect(c.drop).toBeCloseTo(2 * c.equivalentMeters / 1000 * c.current * 23.7 / c.section);
+  expect(c.equivalentMeters).toBeGreaterThan(c.meters);
 });
 it('does not route a TUG circuit through a switch', () => {
   const s = fixture(); s.rooms[0].points.push({ id: 'sw', type: 'llave', x: 0.5, y: 0 });

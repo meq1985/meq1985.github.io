@@ -62,15 +62,16 @@ export function electricalReview(sketch, design, anchors = []) {
   const technical = design.settings.technical;
   if (!technical) return null;
   const circuits = [...design.feederCircuits, ...design.circuits].map(c => {
-    const input = circuitReviewInputs(sketch,c), key = reviewKey(c), minimum = minimumEndFault({ voltage: design.settings.voltage, meters: c.meters, section: c.section, ikMinA: input.ikMinA });
+    const input = circuitReviewInputs(sketch,c), key = reviewKey(c), minimum = minimumEndFault({ voltage: design.settings.voltage, meters: c.equivalentMeters ?? c.meters, section: c.section, ikMinA: input.ikMinA });
+    const thermalLimit = c.section ? (115 * (c.smallestSection ?? c.section)) ** 2 : null;
     const selected = c.status === 'proposal';
     return { key, id: c.id, name: c.name, boardId: c.sourceBoardId ?? c.boardId, ...input, minimumFaultA: minimum,
       magneticThreshold: c.breaker ? CIRCUIT_CURVES[input.curve] * c.breaker : null,
       magnetic: !selected || minimum == null ? 'pending' : minimum >= CIRCUIT_CURVES[input.curve] * c.breaker ? 'pass' : 'fail',
       breaking: !selected || !input.ikMaxKA || !input.breakingKA ? 'pending' : input.breakingKA >= input.ikMaxKA ? 'pass' : 'fail',
       requiredBreakingKA: input.ikMaxKA ? [3,4.5,6,10,15,25,36,50,100].find(n => n >= input.ikMaxKA) ?? null : null,
-      thermalLimit: c.section ? (115 * c.section) ** 2 : null,
-      thermal: !selected || !input.letThrough ? 'pending' : input.letThrough <= (115 * c.section) ** 2 ? 'pass' : 'fail',
+      thermalLimit,
+      thermal: !selected || !input.letThrough ? 'pending' : input.letThrough <= thermalLimit ? 'pass' : 'fail',
       reserved: c.status === 'reserved' };
   });
   const conduits = sketch.materials.routes.map(r => {
