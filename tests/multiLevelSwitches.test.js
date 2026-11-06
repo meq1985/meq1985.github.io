@@ -44,8 +44,8 @@ it.each(['luminaire','switch'])('identifies combined switches on different floor
   s.materials.routes=[edge('feed','tg',supply==='luminaire'?'l0':'a'),edge('ca','a','l0','control'),edge('cb','b','l0','control')];
   const t=switchTopology(s);expect(t.switches.filter(k=>k.combined===1)).toHaveLength(2);
   const d=proposeElectrical(s),c=d.circuits.find(c=>c.type==='IUG');expect(c.pointIds).toEqual(['l0']);expect(c.section).toBeDefined();
-  expect(d.assignments.get('cb')[0].wires.find(w=>w.role==='traveller').count).toBe(2);
-  expect(d.assignments.get('cb')[0].wires.some(w=>w.role==='return')).toBe(true);
+  expect(d.assignments.get('cb')[0].wires.find(w=>w.role==='traveller')).toMatchObject({count:2,section:1.5});
+  expect(d.assignments.get('cb')[0].wires.find(w=>w.role==='return')?.section).toBe(1.5);
   expect(d.assignments.get('ca')[0].wires.find(w=>w.role==='traveller').count).toBe(2);
   expect(d.assignments.get('ca')[0].wires.some(w=>w.role==='phase')).toBe(supply==='luminaire');
   const rows=materialsFromSketch(withAutomaticConductors(s)).rows;expect(rows.find(r=>r.description.startsWith('Llave combinada')).quantity).toBe(2);

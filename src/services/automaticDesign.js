@@ -10,6 +10,11 @@ export const CABLES = [[1.5, 15.5], [2.5, 21], [4, 28], [6, 36], [10, 50], [16, 
 export const CABLE_PROFILES = { 'cu-pvc-b1-v1': CABLES, 'cu-pvc-iram-40-v2': [[1.5,15],[2.5,21],[4,28],[6,36],[10,50],[16,66]] };
 export const DEFAULT_CALCULATION = { profile: 'cu-pvc-b1-v1', voltage: 220, limitPercent: 2, totalLimitPercent: 3, feederLimitPercent: 1, upstreamPercent: 0, correctionFactor: 1, boardHeight: 1.5, tugDemandMode: 'per-point-150' };
 const grouping = [1, 0.8, 0.7, 0.65, 0.6, 0.57, 0.54, 0.52, 0.5];
+const CONTROL_SECTION = 1.5;
+const TERMINAL_SECTION = 2.5;
+export const canMergeCircuits = (a, b) => a.id !== b.id && a.boardId === b.boardId &&
+  ['IUG', 'TUG'].includes(a.type) && a.type === b.type && a.pointIds.length > 0 && b.pointIds.length > 0 &&
+  a.pointIds.length + b.pointIds.length <= 15;
 const groupFactor = n => n <= 9 ? grouping[Math.max(0, n - 1)] : n <= 12 ? 0.45 : n <= 16 ? 0.41 : n <= 20 ? 0.38 : 0;
 export function verticalForRoute(sketch, route) {
   const manual = route.feederId ? sketch.feeders.find(f => f.id === route.feederId).verticalMeters : route.verticalMeters;
@@ -41,21 +46,29 @@ export function calculatedRouteLength(sketch, route) {
   const manual = materialRouteVertical(sketch, route);
   return vertical === null ? null : materialRouteLength(sketch, route) + vertical - manual;
 }
-export function selectCable({ current, meters, minimum, breaker, settings, fault = null }) {
+export function selectCable({ current, meters, minimum, breaker, settings, fault = null, lightingLoops = [] }) {
   if (![current, meters, minimum, breaker].every(n => Number.isFinite(n) && n >= 0) || !settings ||
       !Number.isFinite(settings.voltage) || settings.voltage < 200 || settings.voltage > 240 ||
       !Number.isFinite(settings.correctionFactor) || settings.correctionFactor <= 0 || settings.correctionFactor > 1 ||
       !Number.isFinite(settings.limitPercent) || settings.limitPercent <= 0 || !Number.isFinite(settings.upstreamPercent) || settings.upstreamPercent < 0) return null;
-  for (const [section, capacity] of CABLE_PROFILES[settings.profile ?? 'cu-pvc-b1-v1'] ?? []) {
+  const profile = CABLE_PROFILES[settings.profile ?? 'cu-pvc-b1-v1'] ?? [];
+  const hasControlWires = lightingLoops.some(loop => loop.control > 0);
+  if (hasControlWires && (breaker > profile.find(([s]) => s === CONTROL_SECTION)?.[1] * settings.correctionFactor ||
+    fault?.letThrough > (115 * CONTROL_SECTION) ** 2)) return null;
+  for (const [section, capacity] of profile) {
     // 23.7/S is a deliberately conservative resistance model for warm copper;
     // unity power factor gives the largest resistive drop for a fixed apparent current.
-    const drop = 2 * meters / 1000 * current * (23.7 / section);
+    // Scale the fixed-section control legs to the resistance of the candidate supply section.
+    const equivalentMeters = lightingLoops.length ? Math.max(...lightingLoops.map(({ supply, control }) =>
+      (supply + control * section / CONTROL_SECTION) / 2)) : meters;
+    const drop = 2 * equivalentMeters / 1000 * current * (23.7 / section);
     const percent = drop * 100 / settings.voltage + settings.upstreamPercent;
-    const faultA = fault?.ikMinA ? minimumEndFault({voltage:settings.voltage,meters,section,ikMinA:fault.ikMinA}) : null;
+    const faultA = fault?.ikMinA ? minimumEndFault({voltage:settings.voltage,meters:equivalentMeters,section,ikMinA:fault.ikMinA}) : null;
     const magnetic = faultA == null || faultA >= CIRCUIT_CURVES[fault.curve] * breaker;
     const thermal = !fault?.letThrough || fault.letThrough <= (115 * section) ** 2;
     if (magnetic && thermal && section >= minimum && current <= breaker && breaker <= capacity * settings.correctionFactor && percent <= settings.limitPercent)
-      return { section, ampacity: capacity * settings.correctionFactor, drop, percent };
+      return { section, ampacity: capacity * settings.correctionFactor, drop, percent,
+        ...(hasControlWires ? { equivalentMeters, smallestSection: CONTROL_SECTION } : {}) };
   }
   return null;
 }
@@ -66,6 +79,7 @@ export function proposeElectrical(sketch) {
   const topology = switchTopology(sketch);
   const boards = anchors.filter(a => ['general', 'seccional'].includes(a.type));
   const warnings = [], circuits = [], pending = [], assignments = new Map(routes.map(r => [r.id, []]));
+  const loopsByCircuit = new Map(), appliedMerges = new Set();
   const graph = new Map(anchors.map(a => [a.id, []]));
   for (const r of routes) {
     if (r.feederId) continue;
@@ -107,7 +121,16 @@ export function proposeElectrical(sketch) {
   // Owner-supplied planning variants, not a declaration of regulatory compliance.
   const minimum = area <= 60 ? [1, 1] : area <= 130 ? [2, 1] : area <= 200 ? [2, 3] : [2, 4];
   for (const board of boards) for (const [t, type] of ['IUG', 'TUG', 'TUE', 'otro'].entries()) {
-    const points = groups.get(`${board.id}/${type}`) ?? [];
+    let points = groups.get(`${board.id}/${type}`) ?? [];
+    const mergedBuckets = [];
+    // Point IDs survive redraws and renumbering of automatic circuits.
+    if (['IUG', 'TUG'].includes(type)) for (const ids of settings.circuitMerges ?? []) {
+      const selected = points.filter(p => ids.includes(p.anchor.id));
+      if (selected.length !== ids.length) continue;
+      mergedBuckets.push(selected);
+      appliedMerges.add(ids);
+      points = points.filter(p => !ids.includes(p.anchor.id));
+    }
     // Independent departures from a board define independent proposed circuits.
     // A common initial conduit remains one branch even if it forks downstream.
     const branches = new Map();
@@ -117,7 +140,7 @@ export function proposeElectrical(sketch) {
       branches.get(departure).push(point);
     }
     const special = ['TUE','otro'].includes(type);
-    const buckets = special ? points.map(p => [p]) : [];
+    const buckets = special ? points.map(p => [p]) : mergedBuckets;
     for (const [, branch] of (special ? [] : [...branches]).sort(([a], [b]) => a.localeCompare(b))) {
       // Traverse common path prefixes together instead of alternating distant points.
       branch.sort((a, b) => a.routeIds.join('/').localeCompare(b.routeIds.join('/')) || a.anchor.id.localeCompare(b.anchor.id));
@@ -130,7 +153,7 @@ export function proposeElectrical(sketch) {
       const demandVA = special ? Math.max(type === 'TUE' ? 3300 : 0, bucket.reduce((sum,p) => sum + p.anchor.load.powerW / p.anchor.load.powerFactor,0)) : type === 'IUG' ? bucket.length * 60 * 2 / 3 : settings.tugDemandMode === 'per-point-150' ? bucket.length * 150 : 2200;
       const current = demandVA / settings.voltage, breaker = special ? type === 'TUE' && current > 20 ? null : [6,10,16,20,25,32,40,50,63].find(n => n >= current && (type !== 'TUE' || n <= 32)) ?? null : type === 'IUG' ? 10 : 16;
       const controlRoutes = type === 'IUG' ? routes.filter(r => r.kind === 'control' && bucket.some(p => [r.fromId, r.toId].includes(p.anchor.id))) : [];
-      const rolesByRoute = new Map();
+      const rolesByRoute = new Map(), lightingLoops = [];
       let missingWiring = false, length = 0;
       const addPath = (path, role, net = role, count = 1) => {
         if (!path) { missingWiring = true; return; }
@@ -155,19 +178,21 @@ export function proposeElectrical(sketch) {
         addPath(phase, 'phase'); addPath(neutral, 'neutral');
         if (switches.length === 2) addPath(travellers, 'traveller', group.id, 2);
         if (switches.length) addPath(returned, 'return', group.id);
-        if (phase && neutral && (!switches.length || returned) && (switches.length !== 2 || travellers))
-          length = Math.max(length, (phase.distance + neutral.distance + (travellers?.distance ?? 0) + (returned?.distance ?? 0)) / 2);
+        if (phase && neutral && (!switches.length || returned) && (switches.length !== 2 || travellers)) {
+          const supply = phase.distance + neutral.distance, control = (travellers?.distance ?? 0) + (returned?.distance ?? 0);
+          lightingLoops.push({ supply, control });
+          length = Math.max(length, (supply + control) / 2);
+        }
       }
       for (const roles of rolesByRoute.values()) roles.set('pe', new Map([['pe', 1]]));
       const missingControlHeight = missingWiring;
-      const choice = bucket.length && !missingWiring ? selectCable({ current, meters: length, minimum: type === 'IUG' ? 1.5 : 2.5, breaker, settings }) : null;
       const routeIds = [...rolesByRoute.keys()];
-      const circuit = { id, name, type, boardId: board.id, departureRouteId: bucket[0]?.routeIds[0] ?? null, pointIds: bucket.map(p => p.anchor.id), routeIds, controlRouteIds: controlRoutes.map(r => r.id), missingControlHeight, demandVA, current, breaker, meters: length, ...choice,
-        status: !bucket.length ? 'reserved' : choice ? 'proposal' : 'unresolved' };
+      const circuit = { id, name, type, boardId: board.id, departureRouteId: bucket[0]?.routeIds[0] ?? null, pointIds: bucket.map(p => p.anchor.id), routeIds, controlRouteIds: controlRoutes.map(r => r.id), missingControlHeight, demandVA, current, breaker, meters: length,
+        status: bucket.length ? 'unresolved' : 'reserved' };
       if (special) circuit.name = `${type === 'otro' ? 'Dedicado' : type} · ${bucket[0].anchor.load.name}`.slice(0,60);
       circuits.push(circuit);
-      const initialSection = choice?.section ?? (type === 'IUG' ? 1.5 : 2.5);
-      for (const [routeId, roles] of rolesByRoute) assignments.get(routeId).push({ circuitId: id, wires: [...roles].map(([role, nets]) => ({ role, count: [...nets.values()].reduce((sum,n) => sum+n, 0), section: role === 'pe' ? Math.max(2.5, initialSection) : initialSection })) });
+      loopsByCircuit.set(id, lightingLoops);
+      for (const [routeId, roles] of rolesByRoute) assignments.get(routeId).push({ circuitId: id, wires: [...roles].map(([role, nets]) => ({ role, count: [...nets.values()].reduce((sum,n) => sum+n, 0) })) });
     }
   }
   for (const g of topology.groups.filter(g => g.switchIds.length)) {
@@ -200,15 +225,14 @@ export function proposeElectrical(sketch) {
     const feeder = feederCircuits.find(f => f.boardId === c.boardId);
     const ambiguous = routes.filter(r => r.feederId && r.toId === c.boardId).length > 1;
     const upstream = feeder?.percent ?? settings.upstreamPercent;
-    const choice = factor && !c.missingControlHeight && !ambiguous && (!feeder || feeder.section) ? selectCable({ current: c.current, meters: c.meters, minimum: c.type === 'IUG' ? 1.5 : 2.5, breaker: c.breaker, fault:circuitReviewInputs(sketch,c),
+    const choice = factor && !c.missingControlHeight && !ambiguous && (!feeder || feeder.section) ? selectCable({ current: c.current, meters: c.meters, minimum: TERMINAL_SECTION, breaker: c.breaker, fault:circuitReviewInputs(sketch,c), lightingLoops: loopsByCircuit.get(c.id),
       settings: { ...settings, limitPercent: Math.min(settings.totalLimitPercent, upstream + settings.limitPercent), upstreamPercent: upstream, correctionFactor: settings.correctionFactor * factor } }) : null;
     c.groupFactor = factor;
     if (!choice) {
-      delete c.section; delete c.ampacity; delete c.drop; delete c.percent; c.status = 'unresolved';
       for (const [id, a] of assignments) assignments.set(id, a.filter(a => a.circuitId !== c.id));
     } else {
       Object.assign(c, choice, { status: 'proposal' });
-      for (const [, a] of used) for (const entry of a.filter(a => a.circuitId === c.id)) for (const w of entry.wires) w.section = w.role === 'pe' ? Math.max(2.5, choice.section) : choice.section;
+      for (const [, a] of used) for (const entry of a.filter(a => a.circuitId === c.id)) for (const w of entry.wires) w.section = ['return', 'traveller'].includes(w.role) ? CONTROL_SECTION : choice.section;
     }
   }
   const earthingCircuits=[];
@@ -232,6 +256,7 @@ export function proposeElectrical(sketch) {
   const sharedRoutes = [...assignments].filter(([, a]) => a.length > 1).map(([id]) => id);
   if (sharedRoutes.length) warnings.push('Se aplicó reducción por cantidad de circuitos en cañerías compartidas. Confirmar temperatura y condiciones reales de instalación.');
   if (pending.length) warnings.push(`${pending.length} punto(s) sin camino dibujado hasta un tablero general o seccional.`);
+  if (appliedMerges.size < (settings.circuitMerges?.length ?? 0)) warnings.push('Hay uniones sin aplicar porque sus puntos ya no comparten tipo y tablero o quedaron desconectados. Podés restablecer las uniones y volver a elegirlas.');
   if (settings.tugDemandMode === 'per-point-150') warnings.push('Estimación TUG con 150 VA por toma elegida para el proyecto; no equivale al mínimo de 2200 VA por circuito de la tabla AEA.');
   if (routes.some(r => verticalForRoute(sketch, r) === null)) warnings.push('Completá las alturas de techo, tomas, llaves y tableros: hay tramos sin verticales calculables.');
   if (!boards.length) warnings.push('Dibujá un tablero general para alimentar los circuitos.');
