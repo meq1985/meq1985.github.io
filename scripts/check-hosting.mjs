@@ -4,6 +4,14 @@ import { readFile } from 'node:fs/promises';
 // Run with Firebase Hosting emulator, never against an authenticated production app.
 const origin = 'http://127.0.0.1:5000';
 const applicationHtml = await readFile('dist/index.html', 'utf8');
+// The Hosting emulator does not return the configured response headers.
+const { hosting } = JSON.parse(await readFile('firebase.json', 'utf8'));
+const contentPolicy = hosting.headers.find(rule => rule.source === '**')?.headers
+  .find(header => header.key === 'Content-Security-Policy')?.value;
+const directives = contentPolicy?.split(';').map(value => value.trim()) ?? [];
+for (const directive of ["base-uri 'none'", "object-src 'none'", "frame-ancestors 'self'", "script-src-attr 'none'"]) {
+  assert.ok(directives.includes(directive), `Missing CSP directive ${directive}`);
+}
 const accountPaths = new Set(['/dashboard', '/config', '/proyectos', '/proyectos/test-project/editar', '/mispresupuestos', '/ingresar', '/registrarse', '/recuperar', '/planes']);
 const cases = [
   ...['/', '/aviso-legal', '/privacidad', '/condiciones', '/seguridad', '/gestiones',
@@ -42,4 +50,4 @@ const home = manifest['src/views/HomeView.vue'];
 assert.ok(html.includes(`rel="modulepreload" crossorigin href="/${home.file}"`));
 assert.equal((await fetch(origin + '/' + home.file)).status, 200);
 assert.equal(html.match(/<meta name="description" content="([^"]*)"/)[1].length, 155);
-console.log(`Hosting: ${cases.length} routes, real 404 responses and home module preload verified.`);
+console.log(`Hosting: CSP configuration, ${cases.length} routes, real 404 responses and home module preload verified.`);
