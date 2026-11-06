@@ -23,10 +23,20 @@ export function validateSketch(input) {
       x: number(room.x, 0, 100), y: number(room.y, 0, 100), width: number(room.width, 1, 50), depth: number(room.depth, 1, 50),
       points: room.points.map(point => {
         if (!Object.hasOwn(POINT_TYPES, point.type) || ++count > SKETCH_LIMITS.points) fail();
-        return { id: unique(point.id), type: point.type, x: number(point.x, 0, 1), y: number(point.y, 0, 1), ...(point.load === undefined ? {} : {load:validatePointLoad(point.load,point.type)}) };
+        const result = { id: unique(point.id), type: point.type, x: number(point.x, 0, 1), y: number(point.y, 0, 1), ...(point.load === undefined ? {} : {load:validatePointLoad(point.load,point.type)}) };
+        if (point.simpleLightIds !== undefined) {
+          if (point.type !== 'llave' || !Array.isArray(point.simpleLightIds) || point.simpleLightIds.length > SKETCH_LIMITS.points) fail();
+          result.simpleLightIds = point.simpleLightIds.map(id);
+        }
+        return result;
       }) };
     return result;
   });
+  const points = rooms.flatMap(room => room.points);
+  const availableLights = new Set(points.filter(p => p.type === 'luminaria').map(p => p.id));
+  for (const point of points) for (const lightId of point.simpleLightIds ?? []) {
+    if (!availableLights.delete(lightId)) fail();
+  }
   const infrastructure = input.equipment === undefined && input.feeders === undefined ? {} : validateInfrastructure({ equipment: input.equipment ?? [], feeders: input.feeders ?? [] }, levels, unique);
   const result = { schema: input.schema, levels, rooms, ...infrastructure, ...(input.quote === undefined ? {} : { quote: validateQuoteSettings(input.quote) }) };
   if (input.schema === 2) result.materials = validateMaterialNetwork(input.materials, result, unique);

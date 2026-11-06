@@ -77,6 +77,7 @@ export function proposeElectrical(sketch) {
   const settings = { ...DEFAULT_CALCULATION, ...sketch.materials.calculation };
   const anchors = materialAnchors(sketch), routes = sketch.materials.routes;
   const topology = switchTopology(sketch);
+  const controlByLight = new Map(topology.groups.flatMap(group => group.lightIds.map(id => [id, group])));
   const boards = anchors.filter(a => ['general', 'seccional'].includes(a.type));
   const warnings = [], circuits = [], pending = [], assignments = new Map(routes.map(r => [r.id, []]));
   const loopsByCircuit = new Map(), appliedMerges = new Set();
@@ -152,7 +153,10 @@ export function proposeElectrical(sketch) {
       const index = circuits.length, id = `auto-c-${index}`, name = `${type} ${circuits.filter(c => c.type === type).length + 1}`;
       const demandVA = special ? Math.max(type === 'TUE' ? 3300 : 0, bucket.reduce((sum,p) => sum + p.anchor.load.powerW / p.anchor.load.powerFactor,0)) : type === 'IUG' ? bucket.length * 60 * 2 / 3 : settings.tugDemandMode === 'per-point-150' ? bucket.length * 150 : 2200;
       const current = demandVA / settings.voltage, breaker = special ? type === 'TUE' && current > 20 ? null : [6,10,16,20,25,32,40,50,63].find(n => n >= current && (type !== 'TUE' || n <= 32)) ?? null : type === 'IUG' ? 10 : 16;
-      const controlRoutes = type === 'IUG' ? routes.filter(r => r.kind === 'control' && bucket.some(p => [r.fromId, r.toId].includes(p.anchor.id))) : [];
+      const controlRoutes = type === 'IUG' ? routes.filter(r => r.kind === 'control' && bucket.some(p => {
+        const lightId = p.anchor.id, switchId = r.fromId === lightId ? r.toId : r.toId === lightId ? r.fromId : null;
+        return controlByLight.get(lightId)?.switchIds.includes(switchId);
+      })) : [];
       const rolesByRoute = new Map(), lightingLoops = [];
       let missingWiring = false, length = 0;
       const addPath = (path, role, net = role, count = 1) => {
@@ -169,7 +173,7 @@ export function proposeElectrical(sketch) {
         if (type !== 'IUG') {
           addPath(p, 'phase'); addPath(p, 'neutral'); length = Math.max(length, p.distance); continue;
         }
-        const group = topology.groups.find(g => g.lightIds.includes(p.anchor.id));
+        const group = controlByLight.get(p.anchor.id);
         const switches = (group?.switchIds ?? []).slice().sort((a,b) => (pathBetween(board.id,a)?.distance ?? Infinity) - (pathBetween(board.id,b)?.distance ?? Infinity) || a.localeCompare(b));
         if (switches.length > 2) { missingWiring = true; continue; }
         const phase = switches.length ? pathBetween(board.id, switches[0]) : neutral;
@@ -262,6 +266,7 @@ export function proposeElectrical(sketch) {
   if (!boards.length) warnings.push('Dibujá un tablero general para alimentar los circuitos.');
   if (boards.length > 1) warnings.push('Varios tableros: revisar reparto de circuitos mínimos y caída en sus alimentadores.');
   if (topology.groups.some(g => g.switchIds.length > 2)) warnings.push('Hay mandos de más de dos puntos: revisar cruzamientos y conductores antes de completar ese circuito.');
+  if (anchors.some(a => a.type === 'llave' && a.simpleLightIds?.length === 0)) warnings.push('Hay llaves configuradas como simples sin luminarias asignadas.');
   if (circuits.some(c => c.status === 'unresolved')) warnings.push('Hay circuitos sin sección disponible que cumpla las condiciones ingresadas.');
   if (feederCircuits.some(c => c.status === 'unresolved')) warnings.push('Hay alimentadores sin sección calculable: revisar longitud, demanda, alturas y límite de caída.');
   if (!feederCircuits.length) warnings.push('No hay alimentador TP → TG dibujado: la caída previa al tablero debe ingresarse en los datos del cálculo.');
