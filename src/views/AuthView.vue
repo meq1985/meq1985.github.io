@@ -4,7 +4,7 @@ import BrandMark from '../components/BrandMark.vue';
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useUserStore } from '../stores/user';
-import { MIN_NEW_PASSWORD_LENGTH, MAX_NEW_PASSWORD_LENGTH } from '../../functions/passwordPolicy.js';
+import { MIN_NEW_PASSWORD_LENGTH, MAX_NEW_PASSWORD_LENGTH, NEW_PASSWORD_PATTERN } from '../../functions/passwordPolicy.js';
 const route = useRoute();
 const store = useUserStore();
 const email = ref('');
@@ -40,8 +40,8 @@ async function submit() {
           <input id="auth-email" v-model="email" type="email" autocomplete="email" required>
           <template v-if="mode !== 'recovery'">
             <label for="auth-password">Contraseña</label>
-            <input id="auth-password" v-model="password" type="password" :autocomplete="mode === 'register' ? 'new-password' : 'current-password'" :minlength="mode === 'register' ? MIN_NEW_PASSWORD_LENGTH : undefined" :maxlength="mode === 'register' ? MAX_NEW_PASSWORD_LENGTH : undefined" required :aria-describedby="mode === 'register' ? 'password-help' : undefined">
-            <small v-if="mode === 'register'" id="password-help">Mínimo {{ MIN_NEW_PASSWORD_LENGTH }} caracteres.</small>
+            <input id="auth-password" v-model="password" type="password" :autocomplete="mode === 'register' ? 'new-password' : 'current-password'" :minlength="mode === 'register' ? MIN_NEW_PASSWORD_LENGTH : undefined" :maxlength="mode === 'register' ? MAX_NEW_PASSWORD_LENGTH : undefined" :pattern="mode === 'register' ? NEW_PASSWORD_PATTERN : undefined" required :aria-describedby="mode === 'register' ? 'password-help' : undefined">
+            <small v-if="mode === 'register'" id="password-help">Mínimo {{ MIN_NEW_PASSWORD_LENGTH }} caracteres, con al menos una letra y un número.</small>
           </template>
           <label v-if="mode === 'register'" class="terms"><input v-model="acceptedTerms" type="checkbox" required data-testid="legal-consent"><span>Acepto las <RouterLink to="/condiciones">condiciones de uso</RouterLink> y leí la <RouterLink to="/privacidad">política de privacidad</RouterLink>. Prueba de 30 días, sin tarjeta ni cobro automático.</span></label>
           <BotCheck v-if="mode === 'register'" ref="botCheck" @verified="verification = $event" />

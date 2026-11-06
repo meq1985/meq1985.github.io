@@ -36,7 +36,7 @@ export const useUserStore = defineStore('user', {
       } catch (error) {
         this.error = signedIn
           ? 'No se completó el paso de verificación o configuración. Reintentá con el mismo correo y contraseña; tu cuenta se puede recuperar.'
-          : `No se pudo registrar. Revisá el correo y la contraseña (mínimo ${MIN_NEW_PASSWORD_LENGTH} caracteres) o recuperá tu contraseña.`;
+          : `No se pudo registrar. Revisá el correo y la contraseña (mínimo ${MIN_NEW_PASSWORD_LENGTH} caracteres, con una letra y un número) o recuperá tu contraseña.`;
         return false;
       } finally {
         try { if (signedIn && !complete) await signOut(auth); }
